@@ -79,6 +79,21 @@ export default function AboutPage() {
             </p>
           </article>
         </div>
+
+        {/* CTA */}
+        <div style={{ textAlign: "center", marginTop: "3.5rem" }}>
+          <p style={{ color: "var(--muted)", marginBottom: "1.2rem", fontSize: "1.05rem" }}>
+            Ready to streamline your complaint workflow?
+          </p>
+          <div className="hero-buttons">
+            <Link href="/submit" className="btn-primary">
+              Submit a Complaint
+            </Link>
+            <Link href="/" className="btn-outline">
+              Back to Home
+            </Link>
+          </div>
+        </div>
       </section>
     </>
   );
