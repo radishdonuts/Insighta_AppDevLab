@@ -279,6 +279,132 @@
   flex-wrap: wrap;
 }
 
+.inlineForm {
+  display: flex;
+  gap: 0.75rem;
+  align-items: end;
+  flex-wrap: wrap;
+}
+
+.rowActions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.buttonDanger {
+  border-radius: 10px;
+  padding: 0.65rem 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 120ms ease, box-shadow 120ms ease;
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.buttonDanger:hover {
+  transform: translateY(-1px);
+}
+
+.buttonDanger:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+  transform: none;
+}
+
+.tableWrap {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+}
+
+.dataTable {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 760px;
+  background: #fff;
+}
+
+.dataTable th,
+.dataTable td {
+  text-align: left;
+  vertical-align: top;
+  padding: 0.75rem;
+  border-bottom: 1px solid #eef2f7;
+}
+
+.dataTable th {
+  font-size: 0.8rem;
+  color: var(--text-soft);
+  font-weight: 700;
+  background: #f8fafc;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.dataTable tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.tableCellMuted {
+  color: var(--text-soft);
+  font-size: 0.84rem;
+}
+
+.cellStack {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.codeInline {
+  display: inline-block;
+  width: fit-content;
+  max-width: 100%;
+  font-family: "Cascadia Code", "Fira Code", Consolas, monospace;
+  font-size: 0.76rem;
+  color: #334155;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.2rem 0.4rem;
+  overflow-wrap: anywhere;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.76rem;
+  font-weight: 700;
+  border: 1px solid transparent;
+}
+
+.badgeSuccess {
+  color: #166534;
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.badgeMuted {
+  color: #475569;
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+
+.paginationBar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
 .stateText,
 .errorText,
 .successText {
@@ -373,7 +499,8 @@
 
   .buttonPrimary,
   .buttonSecondary,
-  .buttonGhost {
+  .buttonGhost,
+  .buttonDanger {
     width: 100%;
     text-align: center;
   }
@@ -386,5 +513,19 @@
   .navTab {
     flex: 1 1 auto;
     text-align: center;
+  }
+
+  .inlineForm {
+    align-items: stretch;
+  }
+
+  .inlineForm > * {
+    width: 100%;
+  }
+
+  .rowActions {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
   }
 }
