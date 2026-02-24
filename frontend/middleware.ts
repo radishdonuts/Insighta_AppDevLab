@@ -70,7 +70,7 @@ export async function middleware(request: NextRequest) {
     return buildRedirect(request, "/login");
   }
 
-  if (!roleProtectedRoute) {
+  if (!roleProtectedRoute || !user) {
     return response;
   }
 

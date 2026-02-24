@@ -1,4 +1,3 @@
-// TODO(feature/staff-ticket-workspace): Replace with shared ticket enums/types from RBAC/integration branch once available.
 export const TICKET_TYPES = ["Complaint", "Feedback"] as const;
 export type TicketType = (typeof TICKET_TYPES)[number];
 

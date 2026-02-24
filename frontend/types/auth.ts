@@ -1,4 +1,3 @@
-// TODO(feature/staff-ticket-workspace): Replace this temporary copy with shared RBAC types after merging feature/rbac-foundation.
 export const USER_ROLES = ["Customer", "Staff", "Admin"] as const;
 
 export type UserRole = (typeof USER_ROLES)[number];

@@ -1,4 +1,3 @@
-// TODO(feature/staff-ticket-workspace): Replace with shared API types from RBAC/integration branch once available.
 export type PaginationMeta = {
   page: number;
   pageSize: number;
