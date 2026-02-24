@@ -31,13 +31,14 @@
 
 ## Enumerated Types
 
-| Enum Name          | Purpose                                  | Known Values (from defaults / context)                                      |
+| Enum Name          | Purpose                                  | Values (confirmed from Supabase UI)                                         |
 | ------------------ | ---------------------------------------- | --------------------------------------------------------------------------- |
-| `user_role`        | Role assigned to a profile               | `Customer`, and likely `Staff`, `Admin` (or similar)                        |
-| `ticket_type`      | The type/channel of a ticket             | *(application-defined – e.g. complaint, inquiry)*                           |
-| `ticket_status`    | Lifecycle status of a ticket             | `Under Review` (default), and likely `Open`, `In Progress`, `Resolved`, `Closed` |
-| `ticket_priority`  | Urgency level of a ticket               | `Medium` (default), and likely `Low`, `High`, `Urgent`                      |
-| `sentiment_label`  | NLP-detected sentiment of the complaint  | *(application-defined – e.g. positive, negative, neutral)*                  |
+| `user_role`        | Role assigned to a profile               | `Customer`, `Staff`, `Admin`                                                |
+| `ticket_type`      | The type/channel of a ticket             | `Complaint`, `Feedback`                                                     |
+| `ticket_status`    | Lifecycle status of a ticket             | `Under Review`, `In Progress`, `Pending Customer Response`, `Resolved`, `Closed` |
+| `delivery_status`  | Notification delivery state              | `Pending`, `Sent`, `Failed`                                                 |
+| `ticket_priority`  | Urgency level of a ticket                | `Low`, `Medium`, `High`                                                     |
+| `sentiment_label`  | NLP-detected sentiment of the complaint  | `Negative`, `Neutral`, `Positive`                                           |
 
 > All enums are `USER-DEFINED` PostgreSQL types in the `public` schema.
 
