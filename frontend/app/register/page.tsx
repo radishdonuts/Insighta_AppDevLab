@@ -14,13 +14,12 @@ export default function RegisterPage({
 }) {
   const error = readParam(searchParams?.error);
   const next = readParam(searchParams?.next) || "/";
-  const showDevBootstrap = process.env.NODE_ENV !== "production";
 
   return (
     <main style={{ maxWidth: 560, margin: "0 auto", padding: "2.5rem 1rem" }}>
       <h1 style={{ marginBottom: "0.5rem" }}>Register</h1>
       <p style={{ color: "#6b7280", marginBottom: "1rem" }}>
-        Create a Supabase account. For local testing, you can bootstrap the new account as Staff.
+        Create a customer account. Staff accounts are provisioned by Admins from the Admin dashboard.
       </p>
 
       {error ? <p style={{ color: "#b91c1c", marginBottom: "0.75rem" }}>{error}</p> : null}
@@ -84,26 +83,6 @@ export default function RegisterPage({
             style={{ padding: "0.65rem", border: "1px solid #d1d5db", borderRadius: 8 }}
           />
         </label>
-
-        {showDevBootstrap ? (
-          <label
-            style={{
-              display: "flex",
-              gap: "0.55rem",
-              alignItems: "flex-start",
-              border: "1px solid #dbeafe",
-              background: "#eff6ff",
-              padding: "0.75rem",
-              borderRadius: 8,
-            }}
-          >
-            <input name="bootstrapStaff" type="checkbox" defaultChecked />
-            <span style={{ lineHeight: 1.4 }}>
-              <strong>Development only:</strong> bootstrap this new account as <code>Staff</code> so you
-              can open <code>/staff</code> immediately.
-            </span>
-          </label>
-        ) : null}
 
         <button
           type="submit"

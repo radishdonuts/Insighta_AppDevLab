@@ -42,6 +42,10 @@ async function getPostLoginDefaultPath() {
     return "/";
   }
 
+  if (profile?.is_active === true && profile.role === "Admin") {
+    return "/admin";
+  }
+
   if (profile?.is_active === true && STAFF_WORKSPACE_ROLES.includes(profile.role)) {
     return "/staff";
   }
