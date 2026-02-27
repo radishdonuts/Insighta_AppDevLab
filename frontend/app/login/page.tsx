@@ -17,62 +17,205 @@ export default function LoginPage({
   const next = readParam(searchParams?.next) || "/";
 
   return (
-    <main style={{ maxWidth: 520, margin: "0 auto", padding: "2.5rem 1rem" }}>
-      <h1 style={{ marginBottom: "0.5rem" }}>Login</h1>
-      <p style={{ color: "#6b7280", marginBottom: "1rem" }}>
-        Sign in with your Supabase account to access protected pages.
-      </p>
+    <>
+      <style>{`
+        .login-wrapper {
+          min-height: calc(100vh - 65px);
+          background: linear-gradient(180deg, var(--surface) 0%, var(--bg) 100%);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 2rem 1.5rem;
+        }
 
-      {message ? (
-        <p style={{ color: "#166534", marginBottom: "0.75rem" }}>{message}</p>
-      ) : null}
-      {error ? <p style={{ color: "#b91c1c", marginBottom: "0.75rem" }}>{error}</p> : null}
+        .login-card {
+          background: var(--bg);
+          border: 1px solid #e5e7eb;
+          border-radius: 1.25rem;
+          padding: 2.5rem 2.25rem;
+          width: 100%;
+          max-width: 440px;
+          box-shadow: 0 4px 24px rgba(37, 99, 235, 0.06);
+        }
 
-      <form action={loginAction} style={{ display: "grid", gap: "0.85rem" }}>
-        <input type="hidden" name="next" value={next} />
+        .login-header {
+          text-align: center;
+          margin-bottom: 2rem;
+        }
 
-        <label style={{ display: "grid", gap: "0.35rem" }}>
-          <span>Email</span>
-          <input
-            name="email"
-            type="email"
-            required
-            autoComplete="email"
-            style={{ padding: "0.65rem", border: "1px solid #d1d5db", borderRadius: 8 }}
-          />
-        </label>
+        .login-icon {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 52px;
+          height: 52px;
+          background: var(--surface);
+          border-radius: 0.75rem;
+          margin-bottom: 1rem;
+        }
 
-        <label style={{ display: "grid", gap: "0.35rem" }}>
-          <span>Password</span>
-          <input
-            name="password"
-            type="password"
-            required
-            autoComplete="current-password"
-            style={{ padding: "0.65rem", border: "1px solid #d1d5db", borderRadius: 8 }}
-          />
-        </label>
+        .login-header h1 {
+          font-size: 1.75rem;
+          font-weight: 800;
+          margin-bottom: 0.4rem;
+        }
 
-        <button
-          type="submit"
-          style={{
-            padding: "0.75rem",
-            borderRadius: 8,
-            border: "none",
-            background: "#2563eb",
-            color: "#fff",
-            fontWeight: 600,
-            cursor: "pointer",
-          }}
-        >
-          Sign In
-        </button>
-      </form>
+        .login-header p {
+          color: var(--muted);
+          font-size: 0.95rem;
+          line-height: 1.6;
+        }
 
-      <p style={{ marginTop: "1rem", color: "#6b7280" }}>
-        Need an account?{" "}
-        <Link href={`/register?next=${encodeURIComponent(next)}`}>Register here</Link>
-      </p>
-    </main>
+        .login-form {
+          display: grid;
+          gap: 1.1rem;
+        }
+
+        .form-label {
+          display: flex;
+          flex-direction: column;
+          gap: 0.4rem;
+          font-size: 0.9rem;
+          font-weight: 600;
+          color: var(--text);
+        }
+
+        .form-input {
+          padding: 0.65rem 0.9rem;
+          border: 1.5px solid #d1d5db;
+          border-radius: 0.55rem;
+          font-size: 0.95rem;
+          font-family: inherit;
+          color: var(--text);
+          background: var(--bg);
+          transition: border-color 0.15s, box-shadow 0.15s;
+          outline: none;
+          width: 100%;
+        }
+
+        .form-input:focus {
+          border-color: var(--accent);
+          box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        .form-input::placeholder {
+          color: #9ca3af;
+        }
+
+        .login-submit {
+          margin-top: 0.5rem;
+          width: 100%;
+          padding: 0.8rem;
+          font-size: 1rem;
+          font-weight: 600;
+          font-family: inherit;
+          background: var(--accent);
+          color: #fff;
+          border: none;
+          border-radius: 0.55rem;
+          cursor: pointer;
+          transition: background 0.15s;
+        }
+
+        .login-submit:hover {
+          background: var(--accent-hover);
+        }
+
+        .login-feedback {
+          margin: 0 0 0.25rem;
+          font-size: 0.875rem;
+          font-weight: 500;
+        }
+
+        .login-feedback-success {
+          color: #166534;
+        }
+
+        .login-feedback-error {
+          color: #b91c1c;
+        }
+
+        .login-footer {
+          text-align: center;
+          margin-top: 1.5rem;
+          font-size: 0.9rem;
+          color: var(--muted);
+        }
+
+        .login-footer a {
+          color: var(--accent);
+          font-weight: 600;
+          text-decoration: none;
+        }
+
+        .login-footer a:hover {
+          text-decoration: underline;
+        }
+      `}</style>
+
+      <main className="login-wrapper">
+        <section className="login-card">
+          <div className="login-header">
+            <div className="login-icon">
+              <svg
+                width="26"
+                height="26"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="#2563eb"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
+              >
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+              </svg>
+            </div>
+            <h1>Welcome back</h1>
+            <p>Sign in to your Insighta account</p>
+          </div>
+
+          {message ? <p className="login-feedback login-feedback-success">{message}</p> : null}
+          {error ? <p className="login-feedback login-feedback-error">{error}</p> : null}
+
+          <form action={loginAction} className="login-form">
+            <input type="hidden" name="next" value={next} />
+
+            <label className="form-label">
+              Email
+              <input
+                name="email"
+                type="email"
+                className="form-input"
+                placeholder="you@example.com"
+                required
+                autoComplete="email"
+              />
+            </label>
+
+            <label className="form-label">
+              Password
+              <input
+                name="password"
+                type="password"
+                className="form-input"
+                placeholder="********"
+                required
+                autoComplete="current-password"
+              />
+            </label>
+
+            <button type="submit" className="login-submit">
+              Sign in
+            </button>
+          </form>
+
+          <div className="login-footer">
+            Don&apos;t have an account?{" "}
+            <Link href={`/register?next=${encodeURIComponent(next)}`}>Register</Link>
+          </div>
+        </section>
+      </main>
+    </>
   );
 }
