@@ -29,6 +29,18 @@ export default function AdminNav() {
       >
         Statistics
       </Link>
+      <Link
+        href={`/admin/categories${suffix}`}
+        className={`${styles.navTab} ${isActive(pathname, "/admin/categories") ? styles.navTabActive : ""}`}
+      >
+        Categories
+      </Link>
+      <Link
+        href={`/admin/activity${suffix}`}
+        className={`${styles.navTab} ${isActive(pathname, "/admin/activity") ? styles.navTabActive : ""}`}
+      >
+        Activity
+      </Link>
     </nav>
   );
 }
