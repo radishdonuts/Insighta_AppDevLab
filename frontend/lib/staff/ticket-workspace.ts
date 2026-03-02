@@ -38,6 +38,10 @@ type RawCategory = {
   category_name?: unknown;
 };
 
+type RawTicketAccessToken = {
+  token_hash?: unknown;
+};
+
 type MutationNotFound = { ok: false; reason: "not_found" };
 type MutationConflict = { ok: false; reason: "conflict"; message: string };
 type MutationSuccess<T> = { ok: true; data: T };
@@ -51,6 +55,8 @@ const STAFF_ASSIGNMENT_FILTER_SET = new Set<string>(STAFF_ASSIGNMENT_FILTERS);
 const DEFAULT_PAGE = 1;
 const DEFAULT_PAGE_SIZE = 10;
 const MAX_PAGE_SIZE = 50;
+const STAFF_ATTACHMENT_SIGNED_URL_TTL_SECONDS = 60 * 60;
+const STORAGE_BUCKET = process.env.SUPABASE_STORAGE_BUCKET || "attachments";
 
 export async function requireStaffApiAuth() {
   return requireAnyRole(STAFF_WORKSPACE_ROLES);
@@ -144,15 +150,32 @@ function inferSubmitterType(customerId: unknown, guestId: unknown): "Customer" |
   return "Unknown";
 }
 
+function readTrackingCode(value: unknown): string | null {
+  if (Array.isArray(value)) {
+    const preferred = value
+      .map((item) => readTrackingCode(item))
+      .find((code) => typeof code === "string" && code.startsWith("TRK-"));
+    if (preferred) return preferred;
+    return null;
+  }
+
+  if (!value || typeof value !== "object") return null;
+  const token = asNullableTrimmedString((value as RawTicketAccessToken).token_hash);
+  return token && token.startsWith("TRK-") ? token : null;
+}
+
 function sanitizeSearchTerm(raw: string): string {
   return raw.replace(/[(),]/g, " ").replace(/\s+/g, " ").trim();
 }
 
 function mapQueueItem(row: any): StaffTicketQueueItem {
+  const trackingCode = readTrackingCode(row?.ticket_access_tokens);
+
   return {
     id: asString(row?.id) ?? "",
-    ticketNumber: asString(row?.ticket_number) ?? "",
+    ticketNumber: trackingCode ?? asString(row?.ticket_number) ?? "",
     ticketType: asString(row?.ticket_type) ?? "",
+    title: asNullableTrimmedString(row?.title),
     status: asString(row?.status) ?? "",
     priority: asString(row?.priority) ?? "",
     description: asString(row?.description) ?? "",
@@ -194,6 +217,25 @@ function mapFeedback(row: any): StaffTicketFeedback | null {
     submittedBy: submitterProfile,
     guestEmail,
   };
+}
+
+async function createAttachmentSignedUrl(
+  supabase: SupabaseServerClient,
+  filePath: string
+): Promise<string | null> {
+  const trimmedPath = filePath.trim();
+  if (!trimmedPath) return null;
+
+  const { data, error } = await supabase.storage
+    .from(STORAGE_BUCKET)
+    .createSignedUrl(trimmedPath, STAFF_ATTACHMENT_SIGNED_URL_TTL_SECONDS);
+
+  if (error || !data?.signedUrl) {
+    console.warn("Failed to create attachment signed URL:", error?.message ?? "missing signed URL");
+    return null;
+  }
+
+  return data.signedUrl;
 }
 
 export function parseStaffQueueFilters(searchParams: URLSearchParams): StaffQueueFilters {
@@ -285,6 +327,7 @@ export async function listStaffTickets(
         id,
         ticket_number,
         ticket_type,
+        title,
         status,
         priority,
         description,
@@ -294,11 +337,13 @@ export async function listStaffTickets(
         customer_id,
         guest_id,
         assigned_staff_id,
+        ticket_access_tokens!ticket_access_tokens_ticket_id_fkey (token_hash, created_at),
         category:complaint_categories!tickets_category_id_fkey (id, category_name),
         assigned_staff:profiles!tickets_assigned_staff_id_fkey (id, email, first_name, last_name)
       `,
       { count: "exact" }
     )
+    .order("created_at", { foreignTable: "ticket_access_tokens", ascending: false })
     .order("last_updated_at", { ascending: false })
     .order("submitted_at", { ascending: false })
     .range(from, to);
@@ -344,6 +389,7 @@ export async function getStaffTicketDetail(
         id,
         ticket_number,
         ticket_type,
+        title,
         status,
         priority,
         description,
@@ -351,10 +397,14 @@ export async function getStaffTicketDetail(
         last_updated_at,
         sentiment,
         detected_intent,
+        detected_intent_id,
         issue_type,
+        issue_type_id,
+        category_id,
         customer_id,
         guest_id,
         assigned_staff_id,
+        ticket_access_tokens!ticket_access_tokens_ticket_id_fkey (token_hash, created_at),
         category:complaint_categories!tickets_category_id_fkey (id, category_name),
         submitter_profile:profiles!tickets_customer_id_fkey (id, email, first_name, last_name),
         assigned_staff:profiles!tickets_assigned_staff_id_fkey (id, email, first_name, last_name),
@@ -362,6 +412,7 @@ export async function getStaffTicketDetail(
       `
     )
     .eq("id", ticketId)
+    .order("created_at", { foreignTable: "ticket_access_tokens", ascending: false })
     .limit(1)
     .maybeSingle();
 
@@ -422,13 +473,30 @@ export async function getStaffTicketDetail(
     throw new Error(`Failed to load feedback: ${feedbackResult.error.message}`);
   }
 
+  const attachmentRows = Array.isArray(attachmentsResult.data) ? attachmentsResult.data : [];
+  const attachments = await Promise.all(
+    attachmentRows.map(async (row: any) => {
+      const filePath = asString(row?.file_path) ?? "";
+      return {
+        id: asString(row?.id) ?? "",
+        fileName: asString(row?.file_name) ?? "",
+        fileType: asNullableTrimmedString(row?.file_type),
+        filePath,
+        signedUrl: filePath ? await createAttachmentSignedUrl(supabase, filePath) : null,
+        uploadedAt: safeIso(row?.uploaded_at),
+      };
+    })
+  );
+
   const submitterProfile = mapPerson(firstRow(ticket.submitter_profile));
   const guestContact = firstRow<{ email?: unknown }>(ticket.guest_contact);
   const guestEmail = asNullableTrimmedString(guestContact?.email);
+  const trackingCode = readTrackingCode(ticket.ticket_access_tokens);
   const detail: StaffTicketDetail = {
     id: asString(ticket.id) ?? "",
-    ticketNumber: asString(ticket.ticket_number) ?? "",
+    ticketNumber: trackingCode ?? asString(ticket.ticket_number) ?? "",
     ticketType: asString(ticket.ticket_type) ?? "",
+    title: asNullableTrimmedString(ticket.title),
     status: asString(ticket.status) ?? "",
     priority: asString(ticket.priority) ?? "",
     description: asString(ticket.description) ?? "",
@@ -436,19 +504,16 @@ export async function getStaffTicketDetail(
     lastUpdatedAt: safeIso(ticket.last_updated_at),
     sentiment: asNullableTrimmedString(ticket.sentiment),
     detectedIntent: asNullableTrimmedString(ticket.detected_intent),
+    detectedIntentId: asNullableTrimmedString(ticket.detected_intent_id),
     issueType: asNullableTrimmedString(ticket.issue_type),
+    issueTypeId: asNullableTrimmedString(ticket.issue_type_id),
     category: mapCategory(firstRow(ticket.category)),
+    categoryId: asNullableTrimmedString(ticket.category_id),
     submitterType: submitterProfile ? "Customer" : guestEmail ? "Guest" : "Unknown",
     submitter: submitterProfile,
     guestEmail,
     assignedStaff: mapPerson(firstRow(ticket.assigned_staff)),
-    attachments: (Array.isArray(attachmentsResult.data) ? attachmentsResult.data : []).map((row: any) => ({
-      id: asString(row?.id) ?? "",
-      fileName: asString(row?.file_name) ?? "",
-      fileType: asNullableTrimmedString(row?.file_type),
-      filePath: asString(row?.file_path) ?? "",
-      uploadedAt: safeIso(row?.uploaded_at),
-    })),
+    attachments,
     statusHistory: (Array.isArray(historyResult.data) ? historyResult.data : []).map(mapStatusHistoryItem),
     feedback: mapFeedback(feedbackResult.data),
   };

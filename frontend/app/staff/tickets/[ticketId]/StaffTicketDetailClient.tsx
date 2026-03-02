@@ -3,7 +3,11 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import type { StaffTicketDetailResponse } from "@/types/staff-tickets";
+import type {
+  StaffNlpReviewOptionsResponse,
+  StaffNlpReviewResponse,
+  StaffTicketDetailResponse,
+} from "@/types/staff-tickets";
 import { TICKET_STATUSES } from "@/types/tickets";
 
 import styles from "../../staff-workspace.module.css";
@@ -43,6 +47,9 @@ async function readApiError(response: Response) {
 }
 
 export default function StaffTicketDetailClient({ ticketId }: { ticketId: string }) {
+  const [nlpOptions, setNlpOptions] = useState<StaffNlpReviewOptionsResponse["options"] | null>(null);
+  const [nlpOptionsLoading, setNlpOptionsLoading] = useState(false);
+  const [reviewSaving, setReviewSaving] = useState(false);
   const [data, setData] = useState<StaffTicketDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -52,6 +59,15 @@ export default function StaffTicketDetailClient({ ticketId }: { ticketId: string
   const [saving, setSaving] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [reviewMessage, setReviewMessage] = useState<string | null>(null);
+  const [reviewError, setReviewError] = useState<string | null>(null);
+
+  const [reviewSentiment, setReviewSentiment] = useState("");
+  const [reviewIntentId, setReviewIntentId] = useState("");
+  const [reviewIssueTypeId, setReviewIssueTypeId] = useState("");
+  const [reviewPriority, setReviewPriority] = useState("");
+  const [reviewCategoryId, setReviewCategoryId] = useState("");
+  const [reviewNotes, setReviewNotes] = useState("");
 
   async function loadDetail() {
     setLoading(true);
@@ -77,9 +93,73 @@ export default function StaffTicketDetailClient({ ticketId }: { ticketId: string
     }
   }
 
+  async function loadNlpReviewOptions() {
+    setNlpOptionsLoading(true);
+    try {
+      const response = await fetch(`/api/staff/tickets/${ticketId}/nlp-review`, {
+        method: "GET",
+        cache: "no-store",
+      });
+
+      if (!response.ok) {
+        throw new Error(await readApiError(response));
+      }
+
+      const payload = (await response.json()) as StaffNlpReviewOptionsResponse;
+      setNlpOptions(payload.options);
+      setReviewSentiment(payload.ticket.sentiment ?? "");
+      setReviewIntentId(payload.ticket.detectedIntentId ?? "");
+      setReviewIssueTypeId(payload.ticket.issueTypeId ?? "");
+      setReviewPriority(payload.ticket.priority ?? "");
+      setReviewCategoryId(payload.ticket.categoryId ?? "");
+      setReviewNotes("");
+    } catch (err) {
+      setReviewError(err instanceof Error ? err.message : "Failed to load NLP review options.");
+    } finally {
+      setNlpOptionsLoading(false);
+    }
+  }
+
   useEffect(() => {
     void loadDetail();
+    void loadNlpReviewOptions();
   }, [ticketId]);
+
+  async function handleNlpReviewSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setReviewSaving(true);
+    setReviewMessage(null);
+    setReviewError(null);
+
+    try {
+      const payload: Record<string, string> = {};
+      if (reviewSentiment) payload.correctedSentiment = reviewSentiment;
+      if (reviewIntentId) payload.correctedIntentId = reviewIntentId;
+      if (reviewIssueTypeId) payload.correctedIssueTypeId = reviewIssueTypeId;
+      if (reviewPriority) payload.correctedPriority = reviewPriority;
+      if (reviewCategoryId) payload.correctedCategoryId = reviewCategoryId;
+      if (reviewNotes.trim()) payload.notes = reviewNotes.trim();
+
+      const response = await fetch(`/api/staff/tickets/${ticketId}/nlp-review`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        throw new Error(await readApiError(response));
+      }
+
+      const result = (await response.json()) as StaffNlpReviewResponse;
+      setReviewMessage(result.message ?? "NLP review saved.");
+      await loadDetail();
+      await loadNlpReviewOptions();
+    } catch (err) {
+      setReviewError(err instanceof Error ? err.message : "Failed to save NLP review.");
+    } finally {
+      setReviewSaving(false);
+    }
+  }
 
   async function handleSelfAssign() {
     setAssigning(true);
@@ -151,6 +231,7 @@ export default function StaffTicketDetailClient({ ticketId }: { ticketId: string
             <div className={styles.sectionHeader}>
               <div>
                 <h2 className={styles.sectionTitle}>{ticket.ticketNumber}</h2>
+                {ticket.title ? <p className={styles.metaText} style={{ marginTop: 6 }}>{ticket.title}</p> : null}
                 <p className={styles.metaText}>Submitted {formatDateTime(ticket.submittedAt)}</p>
               </div>
               <div className={styles.badgeRow}>
@@ -179,6 +260,108 @@ export default function StaffTicketDetailClient({ ticketId }: { ticketId: string
                   <div><dt>Detected Intent</dt><dd>{ticket.detectedIntent ?? "-"}</dd></div>
                   <div><dt>Issue Type</dt><dd>{ticket.issueType ?? "-"}</dd></div>
                 </dl>
+
+                <form className={styles.infoPanel} onSubmit={handleNlpReviewSubmit}>
+                  <h3 className={styles.panelTitle}>NLP Correction</h3>
+                  {reviewMessage ? <p className={styles.successText}>{reviewMessage}</p> : null}
+                  {reviewError ? <p className={styles.errorText}>{reviewError}</p> : null}
+                  {nlpOptionsLoading ? <p className={styles.stateText}>Loading taxonomy options...</p> : null}
+
+                  <label className={styles.field}>
+                    <span>Sentiment</span>
+                    <select
+                      className={styles.select}
+                      value={reviewSentiment}
+                      onChange={(e) => setReviewSentiment(e.target.value)}
+                      disabled={nlpOptionsLoading || reviewSaving}
+                    >
+                      <option value="">Unspecified</option>
+                      {(nlpOptions?.sentiments ?? []).map((item) => (
+                        <option key={item} value={item}>{item}</option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className={styles.field}>
+                    <span>Detected Intent</span>
+                    <select
+                      className={styles.select}
+                      value={reviewIntentId}
+                      onChange={(e) => setReviewIntentId(e.target.value)}
+                      disabled={nlpOptionsLoading || reviewSaving}
+                    >
+                      <option value="">Unspecified</option>
+                      {(nlpOptions?.intents ?? []).map((item) => (
+                        <option key={item.id} value={item.id}>{item.displayName}</option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className={styles.field}>
+                    <span>Issue Type</span>
+                    <select
+                      className={styles.select}
+                      value={reviewIssueTypeId}
+                      onChange={(e) => setReviewIssueTypeId(e.target.value)}
+                      disabled={nlpOptionsLoading || reviewSaving}
+                    >
+                      <option value="">Unspecified</option>
+                      {(nlpOptions?.issueTypes ?? []).map((item) => (
+                        <option key={item.id} value={item.id}>{item.displayName}</option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className={styles.field}>
+                    <span>Priority</span>
+                    <select
+                      className={styles.select}
+                      value={reviewPriority}
+                      onChange={(e) => setReviewPriority(e.target.value)}
+                      disabled={nlpOptionsLoading || reviewSaving}
+                    >
+                      <option value="">Unspecified</option>
+                      {(nlpOptions?.priorities ?? []).map((item) => (
+                        <option key={item} value={item}>{item}</option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className={styles.field}>
+                    <span>Category</span>
+                    <select
+                      className={styles.select}
+                      value={reviewCategoryId}
+                      onChange={(e) => setReviewCategoryId(e.target.value)}
+                      disabled={nlpOptionsLoading || reviewSaving}
+                    >
+                      <option value="">Unspecified</option>
+                      {(nlpOptions?.categories ?? []).map((item) => (
+                        <option key={item.id} value={item.id}>{item.name}</option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className={styles.field}>
+                    <span>Notes</span>
+                    <textarea
+                      className={styles.textarea}
+                      rows={3}
+                      value={reviewNotes}
+                      onChange={(e) => setReviewNotes(e.target.value)}
+                      placeholder="Optional reviewer notes"
+                      disabled={reviewSaving}
+                    />
+                  </label>
+
+                  <button
+                    type="submit"
+                    className={styles.buttonPrimary}
+                    disabled={nlpOptionsLoading || reviewSaving}
+                  >
+                    {reviewSaving ? "Saving..." : "Save NLP Review"}
+                  </button>
+                </form>
               </div>
             </div>
 
@@ -242,6 +425,24 @@ export default function StaffTicketDetailClient({ ticketId }: { ticketId: string
                       <strong>{item.fileName}</strong>
                       <span className={styles.mutedText}>{item.fileType ?? "Unknown type"}</span>
                       <span className={styles.bodyText}>{item.filePath}</span>
+                      {item.signedUrl ? (
+                        <a href={item.signedUrl} target="_blank" rel="noreferrer" className={styles.textLink}>
+                          Open attachment
+                        </a>
+                      ) : null}
+                      {item.signedUrl && (item.fileType ?? "").startsWith("image/") ? (
+                        <img
+                          src={item.signedUrl}
+                          alt={item.fileName}
+                          style={{
+                            marginTop: 8,
+                            maxWidth: 320,
+                            width: "100%",
+                            borderRadius: 10,
+                            border: "1px solid rgba(148, 163, 184, 0.35)",
+                          }}
+                        />
+                      ) : null}
                     </div>
                     <span className={styles.metaText}>{formatDateTime(item.uploadedAt)}</span>
                   </li>
@@ -274,7 +475,7 @@ export default function StaffTicketDetailClient({ ticketId }: { ticketId: string
           </section>
 
           <section className={styles.card}>
-            <div className={styles.sectionHeader}><h2 className={styles.sectionTitle}>Feedback (Read-only)</h2></div>
+            <div className={styles.sectionHeader}><h2 className={styles.sectionTitle}>Feedback</h2></div>
             {!ticket.feedback ? (
               <p className={styles.stateText}>No feedback submitted for this ticket.</p>
             ) : (

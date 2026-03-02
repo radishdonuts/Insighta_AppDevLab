@@ -12,6 +12,7 @@ type TicketRow = {
   id?: unknown;
   ticket_number?: unknown;
   ticket_type?: unknown;
+  title?: unknown;
   status?: unknown;
   priority?: unknown;
   description?: unknown;
@@ -19,6 +20,7 @@ type TicketRow = {
   last_updated_at?: unknown;
   customer_id?: unknown;
   category?: unknown;
+  ticket_access_tokens?: unknown;
 };
 
 function asString(value: unknown): string | null {
@@ -41,6 +43,20 @@ function readCategoryName(value: unknown): string | null {
   }
 
   return asString((value as { category_name?: unknown }).category_name);
+}
+
+function readTrackingCode(value: unknown): string | null {
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const code = readTrackingCode(item);
+      if (code) return code;
+    }
+    return null;
+  }
+
+  if (!value || typeof value !== "object") return null;
+  const token = asString((value as { token_hash?: unknown }).token_hash);
+  return token && token.startsWith("TRK-") ? token : null;
 }
 
 export async function GET(
@@ -76,16 +92,19 @@ export async function GET(
         id,
         ticket_number,
         ticket_type,
+        title,
         status,
         priority,
         description,
         submitted_at,
         last_updated_at,
         customer_id,
-        category:complaint_categories!tickets_category_id_fkey (category_name)
+        category:complaint_categories!tickets_category_id_fkey (category_name),
+        ticket_access_tokens!ticket_access_tokens_ticket_id_fkey (token_hash, created_at)
       `
     )
     .eq("id", ticketId)
+    .order("created_at", { foreignTable: "ticket_access_tokens", ascending: false })
     .limit(1)
     .maybeSingle();
 
@@ -105,8 +124,10 @@ export async function GET(
 
   const ticket = row as TicketRow;
   const customerId = asString(ticket.customer_id);
+  const trackingNumber = readTrackingCode(ticket.ticket_access_tokens);
 
   let canAccess = customerId === user.id;
+  let isStaffViewer = false;
 
   if (!canAccess) {
     const { data: profile, error: profileError } = await supabase
@@ -124,7 +145,8 @@ export async function GET(
     }
 
     const role = asString(profile?.role);
-    canAccess = profile?.is_active === true && !!role && STAFF_ROLE_SET.has(role);
+    isStaffViewer = profile?.is_active === true && !!role && STAFF_ROLE_SET.has(role);
+    canAccess = isStaffViewer;
   }
 
   if (!canAccess) {
@@ -138,14 +160,18 @@ export async function GET(
     ok: true,
     ticket: {
       id: asString(ticket.id),
-      reference: asString(ticket.ticket_number),
+      reference: isStaffViewer
+        ? asString(ticket.ticket_number)
+        : trackingNumber ?? asString(ticket.ticket_number) ?? "Tracking unavailable",
       ticketType: asString(ticket.ticket_type),
+      title: asString(ticket.title),
       status: asString(ticket.status),
       priority: asString(ticket.priority),
       description: asString(ticket.description),
       submittedAt: asString(ticket.submitted_at),
       lastUpdatedAt: asString(ticket.last_updated_at),
       categoryName: readCategoryName(ticket.category),
+      guest_tracking_number: trackingNumber,
     },
   });
 }
