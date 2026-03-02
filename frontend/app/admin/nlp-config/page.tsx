@@ -74,7 +74,7 @@ export default function NLPConfigPage() {
         setTestResult(null);
 
         try {
-            const res = await fetch("/api/nlp/generate", {
+            const res = await fetch("/api/nlp", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ text: testText, ticketId: "test-eval-123" })

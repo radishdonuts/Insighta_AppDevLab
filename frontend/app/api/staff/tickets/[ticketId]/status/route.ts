@@ -1,3 +1,5 @@
+import { createHash, randomBytes } from "node:crypto";
+
 import { NextResponse } from "next/server";
 
 import { jsonError, jsonServerError, parseJsonRequestBody } from "@/app/api/staff/_utils";
@@ -14,10 +16,15 @@ import {
 export const runtime = "nodejs";
 
 type TicketNotifyRow = {
+  ticket_number?: unknown;
   customer?: { email?: unknown } | Array<{ email?: unknown }> | null;
   guest?: { email?: unknown } | Array<{ email?: unknown }> | null;
   ticket_access_tokens?: Array<{ token_hash?: unknown }> | null;
 };
+
+const GUEST_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const MAX_GUEST_TRACKING_RETRIES = 4;
+const TRACKING_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
 function asTrimmedString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -38,9 +45,56 @@ function pickTrackingNumber(tokens: unknown): string | null {
 
   const list = tokens
     .map((item) => asTrimmedString((item as { token_hash?: unknown })?.token_hash))
-    .filter(Boolean);
+    .filter((value) => value.startsWith("TRK-"));
 
-  return list.find((value) => value.startsWith("TRK-")) || list[0] || null;
+  return list[0] || null;
+}
+
+function buildGuestTrackingCode(): string {
+  const bytes = randomBytes(12);
+  let value = "";
+
+  for (let index = 0; index < bytes.length; index += 1) {
+    value += TRACKING_CODE_ALPHABET[bytes[index] % TRACKING_CODE_ALPHABET.length];
+  }
+
+  return `TRK-${value.slice(0, 4)}-${value.slice(4, 8)}-${value.slice(8, 12)}`;
+}
+
+function sha256Hex(input: string): string {
+  return createHash("sha256").update(input, "utf8").digest("hex");
+}
+
+function getErrorCode(error: unknown): string | undefined {
+  if (!error || typeof error !== "object") return undefined;
+  const maybeCode = (error as { code?: unknown }).code;
+  return typeof maybeCode === "string" ? maybeCode : undefined;
+}
+
+async function createGuestStatusToken(supabase: ReturnType<typeof getStaffSupabase>, ticketId: string) {
+  for (let attempt = 1; attempt <= MAX_GUEST_TRACKING_RETRIES; attempt += 1) {
+    const rawToken = buildGuestTrackingCode();
+
+    const { error } = await supabase.from("ticket_access_tokens").insert({
+      ticket_id: ticketId,
+      token_hash: sha256Hex(rawToken),
+      expires_at: new Date(Date.now() + GUEST_TOKEN_TTL_MS).toISOString(),
+    });
+
+    if (!error) {
+      return rawToken;
+    }
+
+    if (getErrorCode(error) !== "23505") {
+      console.error("[staff/status] Failed to create guest tracking token", {
+        ticketId,
+        error: error.message,
+      });
+      return null;
+    }
+  }
+
+  return null;
 }
 
 async function sendStatusUpdatedEmailSafe(input: {
@@ -57,6 +111,7 @@ async function sendStatusUpdatedEmailSafe(input: {
     .from("tickets")
     .select(
       `
+        ticket_number,
         customer:profiles!tickets_customer_id_fkey (email),
         guest:guest_contacts!tickets_guest_id_fkey (email),
         ticket_access_tokens!ticket_access_tokens_ticket_id_fkey (token_hash, created_at)
@@ -79,11 +134,19 @@ async function sendStatusUpdatedEmailSafe(input: {
   const customer = firstRow(row?.customer);
   const guest = firstRow(row?.guest);
   const recipientEmail = asTrimmedString(customer?.email) || asTrimmedString(guest?.email);
-  const trackingNumber = pickTrackingNumber(row?.ticket_access_tokens);
+  const ticketNumber = asTrimmedString(row?.ticket_number);
+  const existingTrackingNumber = pickTrackingNumber(row?.ticket_access_tokens);
 
-  if (!recipientEmail || !trackingNumber) {
+  if (!recipientEmail) {
     return;
   }
+
+  const isGuestRecipient = !asTrimmedString(customer?.email) && !!asTrimmedString(guest?.email);
+  const trackingNumber = isGuestRecipient
+    ? (await createGuestStatusToken(supabase, input.ticketId)) || existingTrackingNumber
+    : existingTrackingNumber || ticketNumber;
+
+  if (!trackingNumber) return;
 
   try {
     await sendTicketStatusUpdatedEmail({

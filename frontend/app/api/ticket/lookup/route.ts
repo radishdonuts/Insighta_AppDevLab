@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 
 import { NextResponse } from "next/server";
+import { getSupabaseServerClient } from "@/lib/supabase";
 import { createClient } from "@/utils/supabase/server";
 
 function sha256Hex(input: string): string {
@@ -46,6 +47,7 @@ export async function GET(req: Request) {
   }
 
   let row = plainRow;
+  let matchedTokenHash = row?.ticket_id ? token : "";
 
   if (!row?.ticket_id) {
     const { data: hashedRow, error } = await supabase
@@ -61,6 +63,7 @@ export async function GET(req: Request) {
     }
 
     row = hashedRow;
+    matchedTokenHash = row?.ticket_id ? tokenHash : "";
   }
 
   if (!row?.ticket_id) {
@@ -72,10 +75,12 @@ export async function GET(req: Request) {
 
   void (async () => {
     try {
-      await supabase
+      const writer = getSupabaseServerClient();
+      const targetHash = matchedTokenHash || tokenHash;
+      await writer
         .from("ticket_access_tokens")
         .update({ used_at: nowIso })
-        .eq("token_hash", tokenHash);
+        .eq("token_hash", targetHash);
     } catch {}
   })();
 

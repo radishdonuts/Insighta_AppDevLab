@@ -3,13 +3,17 @@ import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 
 import { requireAdminApiAuth } from "@/lib/admin/common";
-import { resolveUncategorizedCategoryId, runTicketNlpEnrichment } from "@/lib/nlp/ticket-enrichment";
+import {
+  buildNlpInputText,
+  resolveUncategorizedCategoryId,
+  runTicketNlpEnrichment,
+} from "@/lib/nlp/ticket-enrichment";
 import { getSupabaseServerClient } from "@/lib/supabase";
 
 export const runtime = "nodejs";
 
 type JsonObject = Record<string, unknown>;
-type TicketRow = { id?: unknown; description?: unknown };
+type TicketRow = { id?: unknown; title?: unknown; description?: unknown; nlp_input_text?: unknown };
 
 const DEFAULT_LIMIT = 25;
 const MAX_LIMIT = 100;
@@ -133,7 +137,7 @@ async function loadPendingTickets(input: {
 
   let query = supabase
     .from("tickets")
-    .select("id, description")
+    .select("id, title, description, nlp_input_text")
     .or("sentiment.is.null,detected_intent.is.null,issue_type.is.null")
     .order("submitted_at", { ascending: false })
     .limit(input.limit);
@@ -151,6 +155,19 @@ async function loadPendingTickets(input: {
     supabase,
     rows: (Array.isArray(data) ? data : []) as TicketRow[],
   };
+}
+
+function resolveReprocessText(row: TicketRow): string {
+  const storedInput = asTrimmedString(row.nlp_input_text);
+  if (storedInput) return storedInput;
+
+  const title = asTrimmedString(row.title);
+  const description = asTrimmedString(row.description);
+  if (title || description) {
+    return buildNlpInputText(title, description);
+  }
+
+  return "";
 }
 
 export async function POST(request: Request) {
@@ -172,23 +189,26 @@ export async function POST(request: Request) {
 
     let succeeded = 0;
     let failed = 0;
+    let skippedLowConfidence = 0;
+    let skippedMissingTaxonomy = 0;
+    let applied = 0;
     const errors: Array<{ ticketId: string; error: string }> = [];
 
     for (const row of rows) {
       const ticketId = asTrimmedString(row.id);
-      const text = asTrimmedString(row.description);
+      const text = resolveReprocessText(row);
 
       if (!ticketId || !text) {
         failed += 1;
         errors.push({
           ticketId: ticketId || "unknown",
-          error: "Ticket ID or description is missing.",
+          error: "Ticket ID or NLP input text is missing.",
         });
         continue;
       }
 
       try {
-        await runTicketNlpEnrichment({
+        const result = await runTicketNlpEnrichment({
           supabase,
           ticketId,
           text,
@@ -196,6 +216,9 @@ export async function POST(request: Request) {
           uncategorizedCategoryId,
         });
         succeeded += 1;
+        if (result.skippedLowConfidence) skippedLowConfidence += 1;
+        if (result.skippedMissingTaxonomy) skippedMissingTaxonomy += 1;
+        if (result.applied) applied += 1;
       } catch (error) {
         failed += 1;
         errors.push({
@@ -211,12 +234,18 @@ export async function POST(request: Request) {
       attempted: rows.length,
       succeeded,
       failed,
+      skippedLowConfidence,
+      skippedMissingTaxonomy,
+      applied,
     });
 
     return NextResponse.json({
       processed: rows.length,
       succeeded,
       failed,
+      skippedLowConfidence,
+      skippedMissingTaxonomy,
+      applied,
       errors,
     });
   } catch (error) {

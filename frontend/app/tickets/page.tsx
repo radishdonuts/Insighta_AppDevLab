@@ -63,6 +63,12 @@ function getPriorityClass(priority: string) {
     }
 }
 
+function toTrackToken(value: string | null): string | null {
+    if (typeof value !== "string") return null;
+    const trimmed = value.trim();
+    return trimmed.startsWith("TRK-") ? trimmed : null;
+}
+
 async function fetchMyTickets(search: string, status: string, priority: string, page: number): Promise<{ tickets: UserTicket[], total: number }> {
     const params = new URLSearchParams();
     if (search) params.set("q", search);
@@ -224,7 +230,10 @@ export default function MyTicketsPage() {
                                         <tr
                                             key={ticket.id}
                                             className={styles.tableRow}
-                                            onClick={() => router.push(`/ticket/${ticket.id}${ticket.tracking_number ? `?token=${encodeURIComponent(ticket.tracking_number)}` : ""}`)}
+                                            onClick={() => {
+                                                const token = toTrackToken(ticket.tracking_number);
+                                                router.push(`/ticket/${ticket.id}${token ? `?token=${encodeURIComponent(token)}` : ""}`);
+                                            }}
                                         >
                                             <td className={styles.ticketNumber}>{ticket.tracking_number ?? "Pending"}</td>
                                             <td>{ticket.category_name}</td>
@@ -252,7 +261,10 @@ export default function MyTicketsPage() {
                                 <div
                                     key={ticket.id}
                                     className={styles.mobileCard}
-                                    onClick={() => router.push(`/ticket/${ticket.id}${ticket.tracking_number ? `?token=${encodeURIComponent(ticket.tracking_number)}` : ""}`)}
+                                    onClick={() => {
+                                        const token = toTrackToken(ticket.tracking_number);
+                                        router.push(`/ticket/${ticket.id}${token ? `?token=${encodeURIComponent(token)}` : ""}`);
+                                    }}
                                 >
                                     <div className={styles.mobileHeader}>
                                         <span className={styles.ticketNumber}>{ticket.tracking_number ?? "Pending"}</span>

@@ -32,9 +32,12 @@ Response shape:
 {
   "sentiment": "Negative | Neutral | Positive | null",
   "detectedIntent": "string | null",
+  "detectedIntentId": "uuid | null",
   "issueType": "string | null",
+  "issueTypeId": "uuid | null",
   "priority": "Low | Medium | High | null",
   "categoryName": "string | null",
+  "categoryId": "uuid | null",
   "confidence": "number | null",
   "rawOutput": "string | null"
 }

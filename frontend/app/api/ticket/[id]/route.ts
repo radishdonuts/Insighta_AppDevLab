@@ -12,6 +12,7 @@ type TicketRow = {
   id?: unknown;
   ticket_number?: unknown;
   ticket_type?: unknown;
+  title?: unknown;
   status?: unknown;
   priority?: unknown;
   description?: unknown;
@@ -54,7 +55,8 @@ function readTrackingCode(value: unknown): string | null {
   }
 
   if (!value || typeof value !== "object") return null;
-  return asString((value as { token_hash?: unknown }).token_hash);
+  const token = asString((value as { token_hash?: unknown }).token_hash);
+  return token && token.startsWith("TRK-") ? token : null;
 }
 
 export async function GET(
@@ -90,6 +92,7 @@ export async function GET(
         id,
         ticket_number,
         ticket_type,
+        title,
         status,
         priority,
         description,
@@ -159,8 +162,9 @@ export async function GET(
       id: asString(ticket.id),
       reference: isStaffViewer
         ? asString(ticket.ticket_number)
-        : trackingNumber ?? "Tracking unavailable",
+        : trackingNumber ?? asString(ticket.ticket_number) ?? "Tracking unavailable",
       ticketType: asString(ticket.ticket_type),
+      title: asString(ticket.title),
       status: asString(ticket.status),
       priority: asString(ticket.priority),
       description: asString(ticket.description),

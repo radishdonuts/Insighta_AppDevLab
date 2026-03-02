@@ -13,6 +13,7 @@ type ApiTicket = {
   ticket_number?: unknown;
   ticketType?: unknown;
   ticket_type?: unknown;
+  title?: unknown;
   status?: unknown;
   priority?: unknown;
   categoryName?: unknown;
@@ -35,6 +36,7 @@ type TicketDetail = {
   id: string;
   reference: string;
   ticketType: string;
+  title: string;
   status: string;
   priority: string;
   category: string;
@@ -65,6 +67,7 @@ function toTicketDetail(input: ApiTicket, fallbackId: string): TicketDetail {
     id: asString(input.id) || asString(input.ticket_id) || fallbackId,
     reference: asString(input.reference) || asString(input.ticket_number),
     ticketType: asString(input.ticketType) || asString(input.ticket_type),
+    title: asString(input.title),
     status: asString(input.status),
     priority: asString(input.priority),
     category: asString(input.categoryName) || asString(input.category_name),
@@ -285,6 +288,11 @@ function TicketDetailPageContent({ params }: { params: { id: string } }) {
                 >
                   {`${ticket.ticketType || "Ticket"} details`}
                 </h3>
+                {ticket.title ? (
+                  <p style={{ color: "var(--text)", fontSize: "0.95rem", fontWeight: 600, margin: "0 0 0.75rem" }}>
+                    {ticket.title}
+                  </p>
+                ) : null}
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   <span
                     style={{

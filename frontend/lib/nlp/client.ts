@@ -9,9 +9,12 @@ export type NlpAnalysisRequest = {
 export type NlpAnalysisResponse = {
   sentiment: NlpSentiment | null;
   detectedIntent: string | null;
+  detectedIntentId: string | null;
   issueType: string | null;
+  issueTypeId: string | null;
   priority: NlpPriority | null;
   categoryName: string | null;
+  categoryId: string | null;
   confidence: number | null;
   rawOutput: string | null;
 };
@@ -73,6 +76,15 @@ function normalizeConfidence(value: unknown): number | null {
   return null;
 }
 
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+function normalizeUuid(value: unknown): string | null {
+  const raw = asTrimmedString(value);
+  return raw && isUuid(raw) ? raw : null;
+}
+
 function normalizeNlpPayload(payload: unknown): NlpAnalysisResponse {
   const record =
     payload && typeof payload === "object" && !Array.isArray(payload)
@@ -80,8 +92,12 @@ function normalizeNlpPayload(payload: unknown): NlpAnalysisResponse {
       : {};
 
   const detectedIntent = asTrimmedString(record.detectedIntent) || asTrimmedString(record.detected_intent) || null;
+  const detectedIntentId =
+    normalizeUuid(record.detectedIntentId) || normalizeUuid(record.detected_intent_id) || null;
   const issueType = asTrimmedString(record.issueType) || asTrimmedString(record.issue_type) || null;
+  const issueTypeId = normalizeUuid(record.issueTypeId) || normalizeUuid(record.issue_type_id) || null;
   const categoryName = asTrimmedString(record.categoryName) || asTrimmedString(record.category_name) || null;
+  const categoryId = normalizeUuid(record.categoryId) || normalizeUuid(record.category_id) || null;
   const rawOutput =
     asTrimmedString(record.rawOutput) ||
     asTrimmedString(record.raw_output) ||
@@ -92,9 +108,12 @@ function normalizeNlpPayload(payload: unknown): NlpAnalysisResponse {
   return {
     sentiment: normalizeSentiment(record.sentiment),
     detectedIntent,
+    detectedIntentId,
     issueType,
+    issueTypeId,
     priority: normalizePriority(record.priority),
     categoryName,
+    categoryId,
     confidence: normalizeConfidence(record.confidence),
     rawOutput,
   };
