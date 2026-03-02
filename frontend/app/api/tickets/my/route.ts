@@ -25,16 +25,14 @@ function readTrackingCode(value: unknown): string | null {
             .map((item) => readTrackingCode(item))
             .find((code) => typeof code === "string" && code.startsWith("TRK-"));
         if (preferred) return preferred;
-
-        const fallback = value
-            .map((item) => readTrackingCode(item))
-            .find((code) => typeof code === "string");
-        return fallback ?? null;
+        return null;
     }
 
     if (!value || typeof value !== "object") return null;
     const raw = (value as { token_hash?: unknown }).token_hash;
-    return typeof raw === "string" && raw.trim() ? raw.trim() : null;
+    if (typeof raw !== "string" || !raw.trim()) return null;
+    const token = raw.trim();
+    return token.startsWith("TRK-") ? token : null;
 }
 
 export async function GET(request: Request) {
@@ -62,7 +60,7 @@ export async function GET(request: Request) {
         let query = supabase
             .from("tickets")
             .select(
-                `id, status, priority, description, submitted_at,
+                `id, ticket_number, status, priority, description, submitted_at,
          complaint_categories ( category_name ),
          ticket_access_tokens!ticket_access_tokens_ticket_id_fkey ( token_hash, created_at )`,
                 { count: "exact" }
@@ -106,7 +104,7 @@ export async function GET(request: Request) {
             const trackingNumber = readTrackingCode(row.ticket_access_tokens);
             return {
                 id: row.id,
-                tracking_number: trackingNumber,
+                tracking_number: trackingNumber ?? (typeof row.ticket_number === "string" ? row.ticket_number : null),
                 status: row.status,
                 priority: row.priority,
                 description: row.description,

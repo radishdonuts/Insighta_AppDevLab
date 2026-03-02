@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 
 import { NextResponse } from "next/server";
 
@@ -104,6 +104,10 @@ function isTicketNumberConflict(error: unknown): boolean {
   const code = getErrorCode(error);
   const message = getErrorMessage(error).toLowerCase();
   return (code === "23505" || message.includes("duplicate")) && message.includes("ticket_number");
+}
+
+function sha256Hex(input: string): string {
+  return createHash("sha256").update(input, "utf8").digest("hex");
 }
 
 function isPayloadConstraintError(error: unknown): boolean {
@@ -386,10 +390,11 @@ async function createGuestAccessToken(
 ): Promise<string | null> {
   for (let attempt = 1; attempt <= MAX_GUEST_TRACKING_RETRIES; attempt += 1) {
     const rawToken = buildGuestTrackingCode();
+    const tokenHash = sha256Hex(rawToken);
 
     const { error: insertError } = await supabase.from("ticket_access_tokens").insert({
       ticket_id: ticketId,
-      token_hash: rawToken,
+      token_hash: tokenHash,
       expires_at: new Date(Date.now() + GUEST_TOKEN_TTL_MS).toISOString(),
     });
 
@@ -484,6 +489,9 @@ async function runAsyncNlpEnrichment(input: {
       ticketId: input.ticketId,
       nlpFieldsUpdated: result.nlpFieldsUpdated,
       categoryUpdated: result.categoryUpdated,
+      skippedLowConfidence: result.skippedLowConfidence,
+      skippedMissingTaxonomy: result.skippedMissingTaxonomy,
+      applied: result.applied,
     });
   } catch (error) {
     console.error("[tickets] NLP enrichment failed", {
@@ -542,7 +550,9 @@ export async function POST(request: Request) {
 
     const insertPayload = compactObject({
       ticket_type: input.ticketType,
+      title: input.title || undefined,
       description: input.description,
+      nlp_input_text: input.nlpText,
       category_id: category.categoryId,
       customer_id: input.customerId,
       guest_id: guestId ?? undefined,
@@ -551,7 +561,7 @@ export async function POST(request: Request) {
     const ticket = await insertTicketWithRetry(supabase, insertPayload);
     const ticketId = asTrimmedString(ticket.id);
 
-    const guestAccessToken = ticketId
+    const guestAccessToken = ticketId && guestId
       ? await createGuestAccessToken(supabase, ticketId)
       : null;
 
@@ -562,7 +572,7 @@ export async function POST(request: Request) {
     const recipientEmail = input.guestEmail ?? asTrimmedString(user?.email);
     await sendTicketCreatedEmailSafe({
       recipientEmail,
-      trackingNumber: guestAccessToken,
+      trackingNumber: guestAccessToken ?? asTrimmedString(ticket.ticket_number),
       ticketType: input.ticketType,
       ticketId: ticketId || null,
     });

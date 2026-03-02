@@ -22,9 +22,12 @@ class NLPRequest(BaseModel):
 class NLPResponse(BaseModel):
     sentiment: Optional[str] = None
     detectedIntent: Optional[str] = None
+    detectedIntentId: Optional[str] = None
     issueType: Optional[str] = None
+    issueTypeId: Optional[str] = None
     priority: Optional[str] = None
     categoryName: Optional[str] = None
+    categoryId: Optional[str] = None
     confidence: Optional[float] = None
     rawOutput: Optional[str] = None
 
@@ -88,9 +91,12 @@ async def nlp_generate(req: NLPRequest):
     return NLPResponse(
         sentiment=infer_sentiment(text),
         detectedIntent=infer_detected_intent(text),
+        detectedIntentId=None,
         issueType=issue_type,
+        issueTypeId=None,
         priority=infer_priority(text),
         categoryName=infer_category_name(issue_type),
+        categoryId=None,
         confidence=0.5,
         rawOutput=f"scaffold-analysis ticketId={req.ticketId or 'n/a'}",
     )

@@ -156,15 +156,12 @@ function readTrackingCode(value: unknown): string | null {
       .map((item) => readTrackingCode(item))
       .find((code) => typeof code === "string" && code.startsWith("TRK-"));
     if (preferred) return preferred;
-
-    const fallback = value
-      .map((item) => readTrackingCode(item))
-      .find((code) => typeof code === "string");
-    return fallback ?? null;
+    return null;
   }
 
   if (!value || typeof value !== "object") return null;
-  return asNullableTrimmedString((value as RawTicketAccessToken).token_hash);
+  const token = asNullableTrimmedString((value as RawTicketAccessToken).token_hash);
+  return token && token.startsWith("TRK-") ? token : null;
 }
 
 function sanitizeSearchTerm(raw: string): string {
@@ -178,6 +175,7 @@ function mapQueueItem(row: any): StaffTicketQueueItem {
     id: asString(row?.id) ?? "",
     ticketNumber: trackingCode ?? asString(row?.ticket_number) ?? "",
     ticketType: asString(row?.ticket_type) ?? "",
+    title: asNullableTrimmedString(row?.title),
     status: asString(row?.status) ?? "",
     priority: asString(row?.priority) ?? "",
     description: asString(row?.description) ?? "",
@@ -329,6 +327,7 @@ export async function listStaffTickets(
         id,
         ticket_number,
         ticket_type,
+        title,
         status,
         priority,
         description,
@@ -390,6 +389,7 @@ export async function getStaffTicketDetail(
         id,
         ticket_number,
         ticket_type,
+        title,
         status,
         priority,
         description,
@@ -397,7 +397,10 @@ export async function getStaffTicketDetail(
         last_updated_at,
         sentiment,
         detected_intent,
+        detected_intent_id,
         issue_type,
+        issue_type_id,
+        category_id,
         customer_id,
         guest_id,
         assigned_staff_id,
@@ -493,6 +496,7 @@ export async function getStaffTicketDetail(
     id: asString(ticket.id) ?? "",
     ticketNumber: trackingCode ?? asString(ticket.ticket_number) ?? "",
     ticketType: asString(ticket.ticket_type) ?? "",
+    title: asNullableTrimmedString(ticket.title),
     status: asString(ticket.status) ?? "",
     priority: asString(ticket.priority) ?? "",
     description: asString(ticket.description) ?? "",
@@ -500,8 +504,11 @@ export async function getStaffTicketDetail(
     lastUpdatedAt: safeIso(ticket.last_updated_at),
     sentiment: asNullableTrimmedString(ticket.sentiment),
     detectedIntent: asNullableTrimmedString(ticket.detected_intent),
+    detectedIntentId: asNullableTrimmedString(ticket.detected_intent_id),
     issueType: asNullableTrimmedString(ticket.issue_type),
+    issueTypeId: asNullableTrimmedString(ticket.issue_type_id),
     category: mapCategory(firstRow(ticket.category)),
+    categoryId: asNullableTrimmedString(ticket.category_id),
     submitterType: submitterProfile ? "Customer" : guestEmail ? "Guest" : "Unknown",
     submitter: submitterProfile,
     guestEmail,

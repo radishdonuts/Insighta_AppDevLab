@@ -35,6 +35,7 @@ export type StaffTicketQueueItem = {
   id: string;
   ticketNumber: string;
   ticketType: TicketType | string;
+  title: string | null;
   status: TicketStatus | string;
   priority: TicketPriority | string;
   description: string;
@@ -82,6 +83,7 @@ export type StaffTicketDetail = {
   id: string;
   ticketNumber: string;
   ticketType: TicketType | string;
+  title: string | null;
   status: TicketStatus | string;
   priority: TicketPriority | string;
   description: string;
@@ -89,8 +91,11 @@ export type StaffTicketDetail = {
   lastUpdatedAt: string;
   sentiment: string | null;
   detectedIntent: string | null;
+  detectedIntentId: string | null;
   issueType: string | null;
+  issueTypeId: string | null;
   category: StaffCategorySummary | null;
+  categoryId: string | null;
   submitterType: "Customer" | "Guest" | "Unknown";
   submitter: StaffPersonSummary | null;
   guestEmail: string | null;
@@ -102,6 +107,39 @@ export type StaffTicketDetail = {
 
 export type StaffTicketDetailResponse = {
   ticket: StaffTicketDetail;
+};
+
+export type StaffNlpLabelOption = {
+  id: string;
+  displayName: string;
+};
+
+export type StaffNlpReviewOptionsResponse = {
+  ticket: Pick<
+    StaffTicketDetail,
+    "id" | "sentiment" | "detectedIntent" | "detectedIntentId" | "issueType" | "issueTypeId" | "priority" | "categoryId"
+  >;
+  options: {
+    sentiments: string[];
+    priorities: string[];
+    intents: StaffNlpLabelOption[];
+    issueTypes: StaffNlpLabelOption[];
+    categories: StaffCategorySummary[];
+  };
+};
+
+export type StaffNlpReviewRequest = {
+  analysisId?: string;
+  correctedSentiment?: string | null;
+  correctedIntentId?: string | null;
+  correctedIssueTypeId?: string | null;
+  correctedPriority?: string | null;
+  correctedCategoryId?: string | null;
+  notes?: string;
+};
+
+export type StaffNlpReviewResponse = {
+  message: string;
 };
 
 export type StaffStatusUpdateRequest = {

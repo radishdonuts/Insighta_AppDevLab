@@ -11,7 +11,12 @@
    - [profiles](#profiles)
    - [guest_contacts](#guest_contacts)
    - [complaint_categories](#complaint_categories)
+   - [nlp_intent_labels](#nlp_intent_labels)
+   - [nlp_issue_type_labels](#nlp_issue_type_labels)
+   - [nlp_issue_category_map](#nlp_issue_category_map)
    - [tickets](#tickets)
+   - [ticket_nlp_analyses](#ticket_nlp_analyses)
+   - [ticket_nlp_reviews](#ticket_nlp_reviews)
    - [attachments](#attachments)
    - [ticket_status_history](#ticket_status_history)
    - [ticket_access_tokens](#ticket_access_tokens)
@@ -28,6 +33,50 @@
 5. [Relationships (ER Summary)](#relationships-er-summary)
 
 ---
+
+## Schema Updates (2026-03-02)
+
+The following schema changes were applied through repo migrations:
+
+- `202603020001_001_nlp_input_foundation.sql`
+- `202603020002_002_nlp_taxonomy.sql`
+- `202603020003_003_nlp_history_and_review.sql`
+- `202603020004_004_token_hash_normalization.sql`
+
+### Tickets Table Additions
+
+The `tickets` table now includes:
+
+- `title text` (optional; max 120 chars via `tickets_title_len_chk`)
+- `nlp_input_text text` (stored NLP input snapshot)
+- `detected_intent_id uuid` FK → `nlp_intent_labels(id)`
+- `issue_type_id uuid` FK → `nlp_issue_type_labels(id)`
+- `nlp_confidence numeric(5,4)` (`tickets_nlp_confidence_chk`, range 0..1)
+- `nlp_model_version text`
+- `nlp_updated_at timestamptz`
+
+Additional index:
+
+- `tickets_nlp_pending_idx` partial index on `submitted_at desc`, for rows with missing NLP fields.
+
+### New NLP Taxonomy Tables
+
+- `nlp_intent_labels`
+- `nlp_issue_type_labels`
+- `nlp_issue_category_map`
+
+These tables enforce closed-label NLP taxonomy and map issue types to complaint categories/default priority.
+
+### New NLP Lifecycle Tables
+
+- `ticket_nlp_analyses`
+- `ticket_nlp_reviews`
+
+These tables store model-run history (success/failure/skip, model metadata, raw output, applied state) and human correction feedback for retraining.
+
+### Token Storage Hardening
+
+`ticket_access_tokens.token_hash` was normalized to SHA-256 hashes for legacy rows where values were still raw `TRK-*` tokens.
 
 ## Enumerated Types
 
@@ -122,40 +171,188 @@ Lookup table for complaint/ticket categories (e.g. "Claim Denial", "Billing", "P
 
 ---
 
-### tickets
+### nlp_intent_labels
 
-Central table – every complaint or inquiry is stored here.
+Closed taxonomy for normalized NLP intent labels.
 
-| Column              | Type              | Nullable | Default                             | Notes                                                    |
-| ------------------- | ----------------- | -------- | ----------------------------------- | -------------------------------------------------------- |
-| `id`                | `uuid`            | **NO**   | `gen_random_uuid()`                 | PK                                                       |
-| `ticket_number`     | `text`            | **NO**   | —                                   | Unique human-readable reference (e.g. `TKT-00012`)       |
-| `ticket_type`       | `ticket_type`     | **NO**   | —                                   | Enum – complaint, inquiry, etc.                          |
-| `submitted_at`      | `timestamptz`     | **NO**   | `now()`                             |                                                          |
-| `status`            | `ticket_status`   | **NO**   | `'Under Review'::ticket_status`     |                                                          |
-| `priority`          | `ticket_priority` | **NO**   | `'Medium'::ticket_priority`         |                                                          |
-| `description`       | `text`            | **NO**   | —                                   | Free-text complaint body                                 |
-| `sentiment`         | `sentiment_label` | YES      | —                                   | Populated by the NLP pipeline                            |
-| `detected_intent`   | `text`            | YES      | —                                   | NLP-detected intent                                      |
-| `issue_type`        | `text`            | YES      | —                                   | NLP-detected issue type                                  |
-| `category_id`       | `uuid`            | **NO**   | —                                   | FK → `complaint_categories(id)`                          |
-| `customer_id`       | `uuid`            | YES      | —                                   | FK → `profiles(id)` – set when submitter is logged in    |
-| `guest_id`          | `uuid`            | YES      | —                                   | FK → `guest_contacts(id)` – set when submitter is guest  |
-| `assigned_staff_id` | `uuid`            | YES      | —                                   | FK → `profiles(id)` – the agent/staff assigned           |
-| `last_updated_at`   | `timestamptz`     | **NO**   | `now()`                             | Auto-updated via trigger                                 |
+| Column         | Type          | Nullable | Default             | Notes |
+| -------------- | ------------- | -------- | ------------------- | ----- |
+| `id`           | `uuid`        | **NO**   | `gen_random_uuid()` | PK |
+| `code`         | `text`        | **NO**   | —                   | Unique stable key (snake_case) |
+| `display_name` | `text`        | **NO**   | —                   | Canonical human-readable label |
+| `is_active`    | `boolean`     | **NO**   | `true`              | Active labels are available for NLP mapping/review |
+| `created_at`   | `timestamptz` | **NO**   | `now()`             | |
+| `updated_at`   | `timestamptz` | **NO**   | `now()`             | |
 
 **Constraints**
 
-- `tickets_pkey` – PRIMARY KEY (`id`)
+- `nlp_intent_labels_pkey` – PRIMARY KEY (`id`)
+- Unique on `code`
+
+---
+
+### nlp_issue_type_labels
+
+Closed taxonomy for normalized NLP issue-type labels.
+
+| Column         | Type          | Nullable | Default             | Notes |
+| -------------- | ------------- | -------- | ------------------- | ----- |
+| `id`           | `uuid`        | **NO**   | `gen_random_uuid()` | PK |
+| `code`         | `text`        | **NO**   | —                   | Unique stable key (snake_case) |
+| `display_name` | `text`        | **NO**   | —                   | Canonical human-readable label |
+| `is_active`    | `boolean`     | **NO**   | `true`              | Active labels are available for NLP mapping/review |
+| `created_at`   | `timestamptz` | **NO**   | `now()`             | |
+| `updated_at`   | `timestamptz` | **NO**   | `now()`             | |
+
+**Constraints**
+
+- `nlp_issue_type_labels_pkey` – PRIMARY KEY (`id`)
+- Unique on `code`
+
+---
+
+### nlp_issue_category_map
+
+Maps each normalized NLP issue type to a default complaint category and optional default priority.
+
+| Column             | Type              | Nullable | Default | Notes |
+| ------------------ | ----------------- | -------- | ------- | ----- |
+| `issue_type_id`    | `uuid`            | **NO**   | —       | PK, FK → `nlp_issue_type_labels(id)` |
+| `category_id`      | `uuid`            | **NO**   | —       | FK → `complaint_categories(id)` |
+| `default_priority` | `ticket_priority` | YES      | —       | Optional default priority for mapped issue type |
+| `created_at`       | `timestamptz`     | **NO**   | `now()` | |
+
+**Constraints**
+
+- `nlp_issue_category_map_pkey` – PRIMARY KEY (`issue_type_id`)
+- `nlp_issue_category_map_issue_type_id_fkey` → `nlp_issue_type_labels(id)`
+- `nlp_issue_category_map_category_id_fkey` → `complaint_categories(id)`
+
+---
+
+### tickets
+
+Central table storing every complaint or inquiry.
+
+| Column               | Type              | Nullable | Default                         | Notes |
+| -------------------- | ----------------- | -------- | ------------------------------- | ----- |
+| `id`                 | `uuid`            | **NO**   | `gen_random_uuid()`             | PK |
+| `ticket_number`      | `text`            | **NO**   | -                               | Unique human-readable reference (e.g. `TKT-00012`) |
+| `ticket_type`        | `ticket_type`     | **NO**   | -                               | Enum (complaint, inquiry, etc.) |
+| `title`              | `text`            | YES      | -                               | Optional short summary (`char_length <= 120`) |
+| `description`        | `text`            | **NO**   | -                               | Free-text complaint body |
+| `nlp_input_text`     | `text`            | YES      | -                               | Stable input snapshot used for NLP |
+| `submitted_at`       | `timestamptz`     | **NO**   | `now()`                         | |
+| `status`             | `ticket_status`   | **NO**   | `'Under Review'::ticket_status` | |
+| `priority`           | `ticket_priority` | **NO**   | `'Medium'::ticket_priority`     | |
+| `sentiment`          | `sentiment_label` | YES      | -                               | Current NLP sentiment applied to ticket |
+| `detected_intent`    | `text`            | YES      | -                               | Compatibility text label for intent |
+| `detected_intent_id` | `uuid`            | YES      | -                               | FK -> `nlp_intent_labels(id)` |
+| `issue_type`         | `text`            | YES      | -                               | Compatibility text label for issue type |
+| `issue_type_id`      | `uuid`            | YES      | -                               | FK -> `nlp_issue_type_labels(id)` |
+| `nlp_confidence`     | `numeric(5,4)`    | YES      | -                               | Latest NLP confidence in range 0..1 |
+| `nlp_model_version`  | `text`            | YES      | -                               | Model version used for latest applied analysis |
+| `nlp_updated_at`     | `timestamptz`     | YES      | -                               | Timestamp of latest NLP update |
+| `category_id`        | `uuid`            | **NO**   | -                               | FK -> `complaint_categories(id)` |
+| `customer_id`        | `uuid`            | YES      | -                               | FK -> `profiles(id)` (logged-in submitter) |
+| `guest_id`           | `uuid`            | YES      | -                               | FK -> `guest_contacts(id)` (guest submitter) |
+| `assigned_staff_id`  | `uuid`            | YES      | -                               | FK -> `profiles(id)` (assigned staff) |
+| `last_updated_at`    | `timestamptz`     | **NO**   | `now()`                         | Auto-updated via trigger |
+
+**Constraints**
+
+- `tickets_pkey` - PRIMARY KEY (`id`)
 - Unique on `ticket_number`
-- `tickets_category_id_fkey` → `complaint_categories(id)`
-- `tickets_customer_id_fkey` → `profiles(id)`
-- `tickets_guest_id_fkey` → `guest_contacts(id)`
-- `tickets_assigned_staff_id_fkey` → `profiles(id)`
+- `tickets_category_id_fkey` -> `complaint_categories(id)`
+- `tickets_customer_id_fkey` -> `profiles(id)`
+- `tickets_guest_id_fkey` -> `guest_contacts(id)`
+- `tickets_assigned_staff_id_fkey` -> `profiles(id)`
+- `tickets_detected_intent_id_fkey` -> `nlp_intent_labels(id)`
+- `tickets_issue_type_id_fkey` -> `nlp_issue_type_labels(id)`
+- `tickets_title_len_chk` enforces `char_length(title) <= 120` when title is present
+- `tickets_nlp_confidence_chk` enforces `0 <= nlp_confidence <= 1` when confidence is present
+
+**Indexes**
+
+- `tickets_nlp_pending_idx` on (`submitted_at desc`) where any NLP outputs are missing
 
 **Triggers**
 
-- `trg_tickets_last_updated_at` → calls `set_last_updated_at()` BEFORE UPDATE to auto-set `last_updated_at`.
+- `trg_tickets_last_updated_at` -> calls `set_last_updated_at()` BEFORE UPDATE to auto-set `last_updated_at`.
+
+---
+### ticket_nlp_analyses
+
+Versioned NLP run log for each ticket enrichment attempt.
+
+| Column               | Type            | Nullable | Default             | Notes |
+| -------------------- | --------------- | -------- | ------------------- | ----- |
+| `id`                 | `uuid`          | **NO**   | `gen_random_uuid()` | PK |
+| `ticket_id`          | `uuid`          | **NO**   | —                   | FK → `tickets(id)` |
+| `input_text`         | `text`          | **NO**   | —                   | NLP input snapshot for this run |
+| `model_provider`     | `text`          | **NO**   | —                   | Provider used for inference |
+| `model_name`         | `text`          | **NO**   | —                   | Model name |
+| `model_version`      | `text`          | **NO**   | —                   | Model version |
+| `prompt_version`     | `text`          | YES      | —                   | Prompt/template version |
+| `sentiment`          | `sentiment_label` | YES    | —                   | Predicted sentiment |
+| `detected_intent_id` | `uuid`          | YES      | —                   | FK → `nlp_intent_labels(id)` |
+| `detected_intent_raw`| `text`          | YES      | —                   | Raw intent text returned by model |
+| `issue_type_id`      | `uuid`          | YES      | —                   | FK → `nlp_issue_type_labels(id)` |
+| `issue_type_raw`     | `text`          | YES      | —                   | Raw issue-type text returned by model |
+| `priority`           | `ticket_priority` | YES    | —                   | Predicted/derived priority |
+| `category_id`        | `uuid`          | YES      | —                   | FK → `complaint_categories(id)` |
+| `category_name_raw`  | `text`          | YES      | —                   | Raw category text returned by model |
+| `confidence`         | `numeric(5,4)`  | YES      | —                   | Confidence in range 0..1 |
+| `raw_output`         | `jsonb`         | YES      | —                   | Stored model payload |
+| `status`             | `text`          | **NO**   | —                   | `succeeded`, `failed`, or `skipped` |
+| `error_message`      | `text`          | YES      | —                   | Error reason when failed/skipped |
+| `is_applied`         | `boolean`       | **NO**   | `false`             | Whether output was applied to `tickets` |
+| `created_at`         | `timestamptz`   | **NO**   | `now()`             | |
+| `applied_at`         | `timestamptz`   | YES      | —                   | Applied timestamp |
+
+**Constraints**
+
+- `ticket_nlp_analyses_pkey` – PRIMARY KEY (`id`)
+- `ticket_nlp_analyses_ticket_id_fkey` → `tickets(id)`
+- `ticket_nlp_analyses_detected_intent_id_fkey` → `nlp_intent_labels(id)`
+- `ticket_nlp_analyses_issue_type_id_fkey` → `nlp_issue_type_labels(id)`
+- `ticket_nlp_analyses_category_id_fkey` → `complaint_categories(id)`
+- `status` check: value is one of `succeeded`, `failed`, `skipped`
+- `confidence` check: null or `0 <= confidence <= 1`
+
+**Indexes**
+
+- `ticket_nlp_analyses_ticket_idx` on (`ticket_id`, `created_at desc`)
+
+---
+
+### ticket_nlp_reviews
+
+Human review/correction log for NLP outputs; supports future model retraining datasets.
+
+| Column                    | Type              | Nullable | Default             | Notes |
+| ------------------------- | ----------------- | -------- | ------------------- | ----- |
+| `id`                      | `uuid`            | **NO**   | `gen_random_uuid()` | PK |
+| `ticket_id`               | `uuid`            | **NO**   | —                   | FK → `tickets(id)` |
+| `analysis_id`             | `uuid`            | YES      | —                   | FK → `ticket_nlp_analyses(id)` |
+| `reviewer_id`             | `uuid`            | **NO**   | —                   | FK → `profiles(id)` |
+| `corrected_sentiment`     | `sentiment_label` | YES      | —                   | Reviewer-corrected sentiment |
+| `corrected_intent_id`     | `uuid`            | YES      | —                   | FK → `nlp_intent_labels(id)` |
+| `corrected_issue_type_id` | `uuid`            | YES      | —                   | FK → `nlp_issue_type_labels(id)` |
+| `corrected_priority`      | `ticket_priority` | YES      | —                   | Reviewer-corrected priority |
+| `corrected_category_id`   | `uuid`            | YES      | —                   | FK → `complaint_categories(id)` |
+| `notes`                   | `text`            | YES      | —                   | Optional reviewer notes |
+| `created_at`              | `timestamptz`     | **NO**   | `now()`             | |
+
+**Constraints**
+
+- `ticket_nlp_reviews_pkey` – PRIMARY KEY (`id`)
+- `ticket_nlp_reviews_ticket_id_fkey` → `tickets(id)`
+- `ticket_nlp_reviews_analysis_id_fkey` → `ticket_nlp_analyses(id)` (`ON DELETE SET NULL`)
+- `ticket_nlp_reviews_reviewer_id_fkey` → `profiles(id)`
+- `ticket_nlp_reviews_corrected_intent_id_fkey` → `nlp_intent_labels(id)`
+- `ticket_nlp_reviews_corrected_issue_type_id_fkey` → `nlp_issue_type_labels(id)`
+- `ticket_nlp_reviews_corrected_category_id_fkey` → `complaint_categories(id)`
 
 ---
 
@@ -507,3 +704,6 @@ tickets
 - **NLP enrichment**: The `sentiment`, `detected_intent`, and `issue_type` columns on `tickets` are populated asynchronously by the FastAPI NLP backend after submission.
 - **One feedback per ticket**: Enforced by the unique constraint on `feedback.ticket_id`.
 - **Auto-timestamps**: `updated_at` and `last_updated_at` are managed by BEFORE UPDATE triggers, so application code does not need to set them manually.
+
+- **Closed NLP taxonomy**: Canonical intent and issue-type labels are maintained in `nlp_intent_labels` and `nlp_issue_type_labels`, with category routing in `nlp_issue_category_map`.
+- **NLP run traceability**: Every NLP attempt is stored in `ticket_nlp_analyses` with model metadata and status, while reviewer overrides are captured in `ticket_nlp_reviews`.
