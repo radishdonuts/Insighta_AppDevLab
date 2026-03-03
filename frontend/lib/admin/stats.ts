@@ -353,7 +353,6 @@ export async function getAdminTicketBreakdowns(
         `
           status,
           priority,
-          sentiment,
           category:complaint_categories!tickets_category_id_fkey (id, category_name)
         `
       ),
