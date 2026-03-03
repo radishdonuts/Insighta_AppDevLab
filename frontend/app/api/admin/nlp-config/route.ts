@@ -6,6 +6,38 @@ import { getSupabaseServerClient } from "@/lib/supabase";
 export const runtime = "nodejs";
 
 const CONFIG_KEYS = ["nlp_provider", "nlp_api_key", "nlp_threshold", "nlp_auto_route"] as const;
+const DEFAULT_PROVIDER = (process.env.NLP_MODEL_PROVIDER ?? "fastapi").trim() || "fastapi";
+const DEFAULT_THRESHOLD = 0.85;
+const DEFAULT_AUTO_ROUTE = true;
+
+function asTrimmedString(value: unknown): string {
+    return typeof value === "string" ? value.trim() : "";
+}
+
+function parseThreshold(value: unknown): number {
+    if (typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 1) {
+        return value;
+    }
+
+    if (typeof value === "string") {
+        const parsed = Number.parseFloat(value);
+        if (Number.isFinite(parsed) && parsed >= 0 && parsed <= 1) {
+            return parsed;
+        }
+    }
+
+    return DEFAULT_THRESHOLD;
+}
+
+function parseBoolean(value: unknown): boolean {
+    if (typeof value === "boolean") return value;
+    if (typeof value === "string") {
+        const normalized = value.trim().toLowerCase();
+        if (["true", "1", "yes", "on"].includes(normalized)) return true;
+        if (["false", "0", "no", "off"].includes(normalized)) return false;
+    }
+    return DEFAULT_AUTO_ROUTE;
+}
 
 /**
  * GET /api/admin/nlp-config — fetch NLP configuration settings.
@@ -27,10 +59,10 @@ export async function GET() {
             console.warn("[nlp-config] Fetch failed (table may not exist):", error.message);
             return NextResponse.json({
                 config: {
-                    provider: "gemini",
+                    provider: DEFAULT_PROVIDER,
                     apiKey: "",
-                    threshold: 0.85,
-                    autoRoute: true,
+                    threshold: DEFAULT_THRESHOLD,
+                    autoRoute: DEFAULT_AUTO_ROUTE,
                 },
             });
         }
@@ -42,10 +74,10 @@ export async function GET() {
 
         return NextResponse.json({
             config: {
-                provider: configMap.nlp_provider ?? "gemini",
-                apiKey: configMap.nlp_api_key ?? "",
-                threshold: configMap.nlp_threshold ?? 0.85,
-                autoRoute: configMap.nlp_auto_route ?? true,
+                provider: asTrimmedString(configMap.nlp_provider) || DEFAULT_PROVIDER,
+                apiKey: asTrimmedString(configMap.nlp_api_key),
+                threshold: parseThreshold(configMap.nlp_threshold),
+                autoRoute: parseBoolean(configMap.nlp_auto_route),
             },
         });
     } catch (err) {

@@ -21,6 +21,7 @@ type CategoryMappingRow = {
 };
 
 type AppSettingRow = {
+  key?: unknown;
   value?: unknown;
 };
 
@@ -37,6 +38,8 @@ type ResolvedCategory = {
 
 export const UNCATEGORIZED_CATEGORY_NAME = "Uncategorized";
 const DEFAULT_NLP_THRESHOLD = 0.85;
+const DEFAULT_NLP_AUTO_ROUTE = true;
+const RUNTIME_SETTING_KEYS = ["nlp_threshold", "nlp_provider", "nlp_api_key", "nlp_auto_route"] as const;
 const ALLOWED_PRIORITIES = new Set<TicketPriority>(["Low", "Medium", "High"]);
 const ALLOWED_SENTIMENTS = new Set<TicketSentiment>(["Negative", "Neutral", "Positive"]);
 
@@ -71,6 +74,16 @@ function parseThreshold(value: unknown): number {
   }
 
   return DEFAULT_NLP_THRESHOLD;
+}
+
+function parseBoolean(value: unknown, fallback: boolean): boolean {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (["true", "1", "yes", "on"].includes(normalized)) return true;
+    if (["false", "0", "no", "off"].includes(normalized)) return false;
+  }
+  return fallback;
 }
 
 function normalizePriority(value: unknown): TicketPriority | null {
@@ -118,9 +131,12 @@ function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Unexpected error.";
 }
 
-function getModelMetadata() {
+function getModelMetadata(providerOverride?: string | null) {
   return {
-    provider: asTrimmedString(process.env.NLP_MODEL_PROVIDER) || "fastapi",
+    provider:
+      asTrimmedString(providerOverride) ||
+      asTrimmedString(process.env.NLP_MODEL_PROVIDER) ||
+      "fastapi",
     name: asTrimmedString(process.env.NLP_MODEL_NAME) || "unspecified",
     version: asTrimmedString(process.env.NLP_MODEL_VERSION) || "unspecified",
     promptVersion: asNullableTrimmedString(process.env.NLP_PROMPT_VERSION),
@@ -131,23 +147,52 @@ function buildRawOutputPayload(analysis: NlpAnalysisResponse) {
   return analysis.rawOutput ? { rawOutput: analysis.rawOutput } : null;
 }
 
-async function getConfiguredThreshold(supabase: SupabaseServerClient): Promise<number> {
+type NlpRuntimeSettings = {
+  threshold: number;
+  provider: string;
+  apiKey: string | null;
+  autoRoute: boolean;
+};
+
+export async function getConfiguredNlpRuntimeSettings(
+  supabase: SupabaseServerClient
+): Promise<NlpRuntimeSettings> {
+  const defaultProvider = asTrimmedString(process.env.NLP_MODEL_PROVIDER) || "fastapi";
+  const defaultApiKey = asNullableTrimmedString(process.env.NLP_MODEL_API_KEY);
+
+  const defaults: NlpRuntimeSettings = {
+    threshold: DEFAULT_NLP_THRESHOLD,
+    provider: defaultProvider,
+    apiKey: defaultApiKey,
+    autoRoute: DEFAULT_NLP_AUTO_ROUTE,
+  };
+
   const { data, error } = await supabase
     .from("app_settings")
-    .select("value")
-    .eq("key", "nlp_threshold")
-    .limit(1)
-    .maybeSingle();
+    .select("key, value")
+    .in("key", RUNTIME_SETTING_KEYS as unknown as string[]);
 
   if (error) {
-    console.warn("[nlp.enrichment] Failed to read nlp_threshold; using default", {
+    console.warn("[nlp.enrichment] Failed to read app_settings; using defaults", {
       error: error.message,
-      defaultThreshold: DEFAULT_NLP_THRESHOLD,
+      defaults,
     });
-    return DEFAULT_NLP_THRESHOLD;
+    return defaults;
   }
 
-  return parseThreshold((data as AppSettingRow | null)?.value);
+  const map = new Map<string, unknown>();
+  for (const row of Array.isArray(data) ? data : []) {
+    const key = asTrimmedString((row as { key?: unknown }).key);
+    if (!key) continue;
+    map.set(key, (row as AppSettingRow).value);
+  }
+
+  return {
+    threshold: parseThreshold(map.get("nlp_threshold")),
+    provider: asTrimmedString(map.get("nlp_provider")) || defaults.provider,
+    apiKey: asNullableTrimmedString(map.get("nlp_api_key")) ?? defaults.apiKey,
+    autoRoute: parseBoolean(map.get("nlp_auto_route"), defaults.autoRoute),
+  };
 }
 
 async function resolveIntentLabel(
@@ -489,14 +534,20 @@ export async function runTicketNlpEnrichment(
   }
 
   const nowIso = new Date().toISOString();
-  const threshold = await getConfiguredThreshold(input.supabase);
-  const metadata = getModelMetadata();
+  const runtimeSettings = await getConfiguredNlpRuntimeSettings(input.supabase);
+  const threshold = runtimeSettings.threshold;
+  const metadata = getModelMetadata(runtimeSettings.provider);
 
   let analysisRowWritten = false;
   let analysis: NlpAnalysisResponse | null = null;
 
   try {
-    analysis = await requestNlpAnalysis({ text, ticketId });
+    analysis = await requestNlpAnalysis({
+      text,
+      ticketId,
+      provider: runtimeSettings.provider,
+      apiKey: runtimeSettings.apiKey,
+    });
 
     const confidence = normalizeConfidence01(analysis.confidence);
     const sentiment = normalizeSentiment(analysis.sentiment);
@@ -516,7 +567,7 @@ export async function runTicketNlpEnrichment(
       !suggestedCategory;
     const skippedMissingTaxonomy =
       missingIntentTaxonomy || missingIssueTaxonomy || missingCategoryTaxonomy;
-    const skippedLowConfidence = confidence !== null && confidence < threshold;
+    const skippedLowConfidence = confidence === null || confidence < threshold;
 
     if (skippedLowConfidence || skippedMissingTaxonomy) {
       await insertTicketNlpAnalysis(input.supabase, {
@@ -538,7 +589,9 @@ export async function runTicketNlpEnrichment(
         raw_output: buildRawOutputPayload(analysis),
         status: "skipped",
         error_message: skippedLowConfidence
-          ? `Confidence ${confidence ?? "n/a"} below threshold ${threshold}.`
+          ? confidence === null
+            ? "Missing confidence from NLP response."
+            : `Confidence ${confidence} below threshold ${threshold}.`
           : "Missing taxonomy mapping for NLP labels.",
         is_applied: false,
       });
@@ -591,7 +644,12 @@ export async function runTicketNlpEnrichment(
 
     let categoryUpdated = false;
 
-    if (input.allowCategoryOverride !== false && input.uncategorizedCategoryId && suggestedCategory?.id) {
+    if (
+      runtimeSettings.autoRoute &&
+      input.allowCategoryOverride !== false &&
+      input.uncategorizedCategoryId &&
+      suggestedCategory?.id
+    ) {
       const suggestedCategoryId = suggestedCategory.id;
 
       if (suggestedCategoryId !== input.uncategorizedCategoryId) {

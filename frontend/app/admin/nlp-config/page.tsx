@@ -24,7 +24,7 @@ const PlayIcon = () => (
 );
 
 export default function NLPConfigPage() {
-    const [provider, setProvider] = useState("gemini");
+    const [provider, setProvider] = useState("fastapi");
     const [apiKey, setApiKey] = useState("");
     const [showKey, setShowKey] = useState(false);
     const [threshold, setThreshold] = useState(0.85);
@@ -42,7 +42,7 @@ export default function NLPConfigPage() {
             .then(res => res.json())
             .then(data => {
                 if (data.config) {
-                    setProvider(data.config.provider ?? "gemini");
+                    setProvider(data.config.provider ?? "fastapi");
                     setApiKey(data.config.apiKey ?? "");
                     setThreshold(data.config.threshold ?? 0.85);
                     setAutoRoute(data.config.autoRoute ?? true);
@@ -77,7 +77,7 @@ export default function NLPConfigPage() {
             const res = await fetch("/api/nlp", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ text: testText, ticketId: "test-eval-123" })
+                body: JSON.stringify({ text: testText })
             });
 
             const payload = await res.json();
@@ -109,6 +109,7 @@ export default function NLPConfigPage() {
                             onChange={e => setProvider(e.target.value)}
                             style={{ paddingRight: '2rem', appearance: 'none' }} // simple simple custom select
                         >
+                            <option value="fastapi">FastAPI Default</option>
                             <option value="gemini">Google Gemini Pro</option>
                             <option value="openai">OpenAI GPT-4o</option>
                             <option value="claude">Anthropic Claude 3.5 Sonnet</option>

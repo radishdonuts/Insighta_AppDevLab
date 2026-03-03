@@ -20,6 +20,10 @@ SUPABASE_URL=...
 SUPABASE_SERVICE_ROLE_KEY=...
 SUPABASE_STORAGE_BUCKET=attachments
 FASTAPI_URL=http://127.0.0.1:8000
+FASTAPI_URL_OPENAI=
+FASTAPI_URL_GEMINI=
+FASTAPI_URL_CLAUDE=
+FASTAPI_URL_LOCAL=
 NLP_REPROCESS_SECRET=change-me
 ```
 
@@ -50,6 +54,10 @@ It forwards to `$FASTAPI_URL/nlp/generate` and returns:
   "rawOutput": "string | null"
 }
 ```
+
+Runtime note:
+
+- Provider routing reads `app_settings.nlp_provider` and can optionally route to provider-specific base URLs via `FASTAPI_URL_OPENAI`, `FASTAPI_URL_GEMINI`, `FASTAPI_URL_CLAUDE`, or `FASTAPI_URL_LOCAL`.
 
 `POST /api/nlp/reprocess` retries NLP enrichment for tickets with missing NLP fields. Auth is either:
 

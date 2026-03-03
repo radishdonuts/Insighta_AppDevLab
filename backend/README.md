@@ -23,7 +23,7 @@ The server will start at `http://127.0.0.1:8000`.
 ```bash
 curl -X POST http://127.0.0.1:8000/nlp/generate \
   -H "Content-Type: application/json" \
-  -d '{"text": "My claim was denied unfairly", "ticketId": "optional-uuid"}'
+  -d '{"text": "My claim was denied unfairly", "ticketId": "optional-uuid", "provider": "fastapi"}'
 ```
 
 Response shape:
