@@ -4,6 +4,8 @@ export type NlpPriority = "Low" | "Medium" | "High";
 export type NlpAnalysisRequest = {
   text: string;
   ticketId?: string | null;
+  provider?: string | null;
+  apiKey?: string | null;
 };
 
 export type NlpAnalysisResponse = {
@@ -119,14 +121,31 @@ function normalizeNlpPayload(payload: unknown): NlpAnalysisResponse {
   };
 }
 
-export function getNlpEndpoint() {
-  const fastApiBase = process.env.FASTAPI_URL ?? "http://127.0.0.1:8000";
+function resolveProviderBaseUrl(provider: string): string | undefined {
+  const key = provider.toLowerCase();
+
+  if (key === "openai") return asTrimmedString(process.env.FASTAPI_URL_OPENAI) || undefined;
+  if (key === "gemini") return asTrimmedString(process.env.FASTAPI_URL_GEMINI) || undefined;
+  if (key === "claude") return asTrimmedString(process.env.FASTAPI_URL_CLAUDE) || undefined;
+  if (key === "local") return asTrimmedString(process.env.FASTAPI_URL_LOCAL) || undefined;
+
+  return undefined;
+}
+
+export function getNlpEndpoint(provider?: string | null) {
+  const providerKey = asTrimmedString(provider).toLowerCase();
+  const providerBase = providerKey ? resolveProviderBaseUrl(providerKey) : undefined;
+  const defaultBase = asTrimmedString(process.env.FASTAPI_URL) || "http://127.0.0.1:8000";
+  const fastApiBase = providerBase || defaultBase;
+
   return `${fastApiBase.replace(/\/$/, "")}/nlp/generate`;
 }
 
 export async function requestNlpAnalysis(input: NlpAnalysisRequest): Promise<NlpAnalysisResponse> {
   const text = asTrimmedString(input.text);
-  const endpoint = getNlpEndpoint();
+  const provider = asTrimmedString(input.provider) || null;
+  const apiKey = asTrimmedString(input.apiKey) || null;
+  const endpoint = getNlpEndpoint(provider);
 
   if (!text) {
     throw new NlpClientError("Text is required.", 400, endpoint);
@@ -141,6 +160,8 @@ export async function requestNlpAnalysis(input: NlpAnalysisRequest): Promise<Nlp
       body: JSON.stringify({
         text,
         ...(asTrimmedString(input.ticketId) ? { ticketId: asTrimmedString(input.ticketId) } : {}),
+        ...(provider ? { provider } : {}),
+        ...(apiKey ? { apiKey } : {}),
       }),
     });
   } catch (error) {

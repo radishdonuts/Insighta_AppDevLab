@@ -138,7 +138,15 @@ async function loadPendingTickets(input: {
   let query = supabase
     .from("tickets")
     .select("id, title, description, nlp_input_text")
-    .or("sentiment.is.null,detected_intent.is.null,issue_type.is.null")
+    .or(
+      [
+        "sentiment.is.null",
+        "detected_intent.is.null",
+        "issue_type.is.null",
+        "detected_intent_id.is.null",
+        "issue_type_id.is.null",
+      ].join(",")
+    )
     .order("submitted_at", { ascending: false })
     .limit(input.limit);
 

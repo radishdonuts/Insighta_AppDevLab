@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 
 import { NlpClientError, requestNlpAnalysis } from "@/lib/nlp/client";
+import { getConfiguredNlpRuntimeSettings } from "@/lib/nlp/ticket-enrichment";
+import { getSupabaseServerClient } from "@/lib/supabase";
 
 export const runtime = "nodejs";
 
@@ -50,7 +52,12 @@ async function parseRequestBody(request: Request): Promise<{ text: string; ticke
 export async function POST(request: Request) {
   try {
     const input = await parseRequestBody(request);
-    const analysis = await requestNlpAnalysis(input);
+    const runtimeConfig = await getConfiguredNlpRuntimeSettings(getSupabaseServerClient());
+    const analysis = await requestNlpAnalysis({
+      ...input,
+      provider: runtimeConfig.provider,
+      apiKey: runtimeConfig.apiKey,
+    });
 
     return NextResponse.json(analysis);
   } catch (error) {

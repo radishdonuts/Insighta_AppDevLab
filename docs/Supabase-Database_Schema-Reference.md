@@ -175,6 +175,8 @@ Lookup table for complaint/ticket categories (e.g. "Claim Denial", "Billing", "P
 
 Closed taxonomy for normalized NLP intent labels.
 
+Seeded labels include `Share Positive Feedback` (code: `share_positive_feedback`) for positive submissions.
+
 | Column         | Type          | Nullable | Default             | Notes |
 | -------------- | ------------- | -------- | ------------------- | ----- |
 | `id`           | `uuid`        | **NO**   | `gen_random_uuid()` | PK |
@@ -195,6 +197,8 @@ Closed taxonomy for normalized NLP intent labels.
 
 Closed taxonomy for normalized NLP issue-type labels.
 
+Seeded labels include `Positive Feedback` (code: `positive_feedback`).
+
 | Column         | Type          | Nullable | Default             | Notes |
 | -------------- | ------------- | -------- | ------------------- | ----- |
 | `id`           | `uuid`        | **NO**   | `gen_random_uuid()` | PK |
@@ -214,6 +218,8 @@ Closed taxonomy for normalized NLP issue-type labels.
 ### nlp_issue_category_map
 
 Maps each normalized NLP issue type to a default complaint category and optional default priority.
+
+`positive_feedback` is mapped to complaint category `Positive Feedback` with default priority `Low`.
 
 | Column             | Type              | Nullable | Default | Notes |
 | ------------------ | ----------------- | -------- | ------- | ----- |
