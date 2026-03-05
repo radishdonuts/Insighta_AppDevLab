@@ -2,8 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-
-import AdminNav from "../AdminNav";
 import type { AdminActivityLogItem, AdminActivityLogsResponse } from "@/types/admin-ops";
 
 import styles from "../admin.module.css";
@@ -177,8 +175,6 @@ export default function AdminActivityClient() {
               </p>
             ) : null}
           </div>
-
-          <AdminNav />
         </div>
       </section>
 

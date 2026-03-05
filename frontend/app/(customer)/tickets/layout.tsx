@@ -1,7 +1,17 @@
-// app/(customer)/layout.tsx
+// app/(customer)/tickets/layout.tsx
 import { requireAnyPageRole } from "@/lib/auth/page-guards";
+import { getNavbarSessionState } from "@/lib/auth/navbar-session";
+import WebsiteNavbar from "@/components/WebsiteNavbar";
 
 export default async function CustomerGroupLayout({ children }: { children: React.ReactNode }) {
   await requireAnyPageRole(["Customer"], "/login");
-  return <>{children}</>;
+  await blockPageRole(["Admin", "Staff"]);
+  const session = await getNavbarSessionState();
+
+  return (
+    <>
+      <WebsiteNavbar session={session} />
+      {children}
+    </>
+  );
 }

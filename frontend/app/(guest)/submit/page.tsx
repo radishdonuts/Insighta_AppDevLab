@@ -211,17 +211,29 @@ export default function SubmitPage() {
 
   if (loadingInitial) {
     return (
-      <div className={styles.container}>
-        <div className={styles.card} style={{ textAlign: "center" }}>
-          <div className={styles.spinner} style={{ borderColor: "var(--accent)", borderTopColor: "transparent", margin: "0 auto 1rem" }} />
-          <p>Loading...</p>
+      <main className="glass-shell">
+        <div className="glass-shell-word" aria-hidden="true">
+          INSIGHTA
         </div>
-      </div>
+        <section className="glass-shell-panel glass-shell-panel--wide">
+          <div className={styles.container}>
+            <div className={styles.card} style={{ textAlign: "center" }}>
+              <div className={styles.spinner} style={{ borderColor: "var(--accent)", borderTopColor: "transparent", margin: "0 auto 1rem" }} />
+              <p>Loading...</p>
+            </div>
+          </div>
+        </section>
+      </main>
     );
   }
 
   return (
-    <main className={styles.container}>
+    <main className="glass-shell">
+      <div className="glass-shell-word" aria-hidden="true">
+        INSIGHTA
+      </div>
+      <section className="glass-shell-panel glass-shell-panel--wide">
+        <div className={styles.container}>
       <div className={styles.card}>
 
         {step < 5 && (
@@ -422,6 +434,8 @@ export default function SubmitPage() {
         )}
 
       </div>
+        </div>
+      </section>
     </main>
   );
 }

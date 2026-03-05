@@ -1,7 +1,7 @@
-// app/(admin)/layout.tsx
-// app/(admin)/layout.tsx
+// app/(admin)/admin/layout.tsx
 import { requireAnyPageRole } from "@/lib/auth/page-guards";
-import AdminNav from "./AdminNav"; // adjust if your nav is elsewhere
+import { getNavbarSessionState } from "@/lib/auth/navbar-session";
+import AdminNavbar from "@/components/AdminNavbar";
 
 export default async function AdminGroupLayout({
   children,
@@ -9,11 +9,12 @@ export default async function AdminGroupLayout({
   children: React.ReactNode;
 }) {
   await requireAnyPageRole(["Admin"], "/unauthorized");
+  const session = await getNavbarSessionState();
 
   return (
-      <>
-      <AdminNav />
-      <>{children}</>
-      </>
+    <>
+      <AdminNavbar session={session} />
+      {children}
+    </>
   );
 }

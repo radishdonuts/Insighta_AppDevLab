@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 
-import AdminNav from "../AdminNav";
 import type {
   AdminCategoriesResponse,
   AdminComplaintCategory,
@@ -214,8 +213,6 @@ export default function AdminCategoriesClient() {
               {categories.length} total categories, {activeCount} active
             </p>
           </div>
-
-          <AdminNav />
         </div>
       </section>
 

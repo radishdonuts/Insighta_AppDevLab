@@ -28,6 +28,10 @@ export async function registerAction(formData: FormData) {
   const confirmPassword = readString(formData, "confirmPassword");
   const next = safeNextPath(readString(formData, "next"));
 
+  if (!firstName || !lastName) {
+    registerRedirect("/register", { error: "First name and last name are required.", next });
+  }
+
   if (!email || !password) {
     registerRedirect("/register", { error: "Email and password are required.", next });
   }

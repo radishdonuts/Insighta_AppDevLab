@@ -150,8 +150,12 @@ function TrackPageShell({
   statusResult?: { trackingNumber: string; status: string } | null;
 }) {
   return (
-    <main style={{ background: "var(--surface)", minHeight: "100vh", padding: "48px 1rem" }}>
-      <div style={{ maxWidth: 600, margin: "0 auto" }}>
+    <main className="glass-shell">
+      <div className="glass-shell-word" aria-hidden="true">
+        INSIGHTA
+      </div>
+      <section className="glass-shell-panel glass-shell-panel--narrow">
+        <div style={{ maxWidth: 600, margin: "0 auto" }}>
         <h1
           style={{
             fontSize: "1.8rem",
@@ -166,7 +170,7 @@ function TrackPageShell({
         <section
           className="card"
           style={{
-            background: "var(--bg)",
+            background: "rgba(255, 255, 255, 0.84)",
             border: "1px solid #e5e7eb",
             borderRadius: "1rem",
             padding: "2rem",
@@ -279,7 +283,8 @@ function TrackPageShell({
             </button>
           </form>
         </section>
-      </div>
+        </div>
+      </section>
     </main>
   );
 }

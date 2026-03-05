@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
-import AdminNav from "./AdminNav";
 import { AdminChartCard } from "@/components/admin/AdminCharts";
 import type {
   AdminCreateStaffAccountResponse,
@@ -175,8 +174,6 @@ export default function AdminDashboardClient() {
               </p>
             ) : null}
           </div>
-
-          <AdminNav />
         </div>
 
         <div className={styles.toolbar}>

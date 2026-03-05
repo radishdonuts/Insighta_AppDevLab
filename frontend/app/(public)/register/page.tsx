@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { registerAction } from "@/app/(public)/register/action";
+import { GlassPageShell } from "@/components/GlassPageShell";
 
 function readParam(value: string | string[] | undefined) {
   if (Array.isArray(value)) return value[0] ?? "";
@@ -19,22 +20,13 @@ export default function RegisterPage({
   return (
     <>
       <style>{`
-        .register-wrapper {
-          min-height: calc(100vh - 65px);
-          background: linear-gradient(180deg, var(--surface) 0%, var(--bg) 100%);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 2rem 1.5rem;
-        }
-
         .register-card {
-          background: var(--bg);
+          background: rgba(255, 255, 255, 0.82);
           border: 1px solid #e5e7eb;
           border-radius: 1.25rem;
-          padding: 2.5rem 2.25rem;
+          padding: 2rem 1.85rem;
           width: 100%;
-          max-width: 440px;
+          max-width: 420px;
           box-shadow: 0 4px 24px rgba(37, 99, 235, 0.06);
         }
 
@@ -153,7 +145,7 @@ export default function RegisterPage({
         }
       `}</style>
 
-      <main className="register-wrapper">
+      <GlassPageShell panelClassName="glass-shell-panel--compact">
         <section className="register-card">
           <div className="register-header">
             <div className="register-icon">
@@ -180,6 +172,30 @@ export default function RegisterPage({
 
           <form action={registerAction} className="register-form">
             <input type="hidden" name="next" value={next} />
+
+            <label className="form-label">
+              First Name
+              <input
+                name="firstName"
+                type="text"
+                className="form-input"
+                placeholder="Juan"
+                required
+                autoComplete="given-name"
+              />
+            </label>
+
+            <label className="form-label">
+              Last Name
+              <input
+                name="lastName"
+                type="text"
+                className="form-input"
+                placeholder="Dela Cruz"
+                required
+                autoComplete="family-name"
+              />
+            </label>
 
             <label className="form-label">
               Email
@@ -229,7 +245,7 @@ export default function RegisterPage({
             <Link href={`/login?next=${encodeURIComponent(next)}`}>Sign in</Link>
           </div>
         </section>
-      </main>
+      </GlassPageShell>
     </>
   );
 }

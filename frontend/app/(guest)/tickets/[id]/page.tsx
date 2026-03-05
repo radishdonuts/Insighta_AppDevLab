@@ -239,7 +239,11 @@ function TicketDetailPageContent({ params }: { params: { id: string } }) {
   const priorityStyle = priorityColors[ticket?.priority ?? ""] ?? priorityColors.Low;
 
   return (
-    <main style={{ background: "var(--surface)", minHeight: "100vh", padding: "48px 1rem" }}>
+    <main className="glass-shell">
+      <div className="glass-shell-word" aria-hidden="true">
+        INSIGHTA
+      </div>
+      <section className="glass-shell-panel glass-shell-panel--narrow">
       <div style={{ maxWidth: 600, margin: "0 auto" }}>
         <h1
           style={{
@@ -254,7 +258,7 @@ function TicketDetailPageContent({ params }: { params: { id: string } }) {
 
         <section
           style={{
-            background: "var(--bg)",
+            background: "rgba(255, 255, 255, 0.84)",
             border: "1px solid #e5e7eb",
             borderRadius: "1rem",
             padding: "2rem",
@@ -498,13 +502,18 @@ function TicketDetailPageContent({ params }: { params: { id: string } }) {
           ) : null}
         </section>
       </div>
+      </section>
     </main>
   );
 }
 
 function TicketDetailFallback({ id }: { id: string }) {
   return (
-    <main style={{ background: "var(--surface)", minHeight: "100vh", padding: "48px 1rem" }}>
+    <main className="glass-shell">
+      <div className="glass-shell-word" aria-hidden="true">
+        INSIGHTA
+      </div>
+      <section className="glass-shell-panel glass-shell-panel--narrow">
       <div style={{ maxWidth: 600, margin: "0 auto" }}>
         <h1
           style={{
@@ -518,7 +527,7 @@ function TicketDetailFallback({ id }: { id: string }) {
         </h1>
         <section
           style={{
-            background: "var(--bg)",
+            background: "rgba(255, 255, 255, 0.84)",
             border: "1px solid #e5e7eb",
             borderRadius: "1rem",
             padding: "2rem",
@@ -527,6 +536,7 @@ function TicketDetailFallback({ id }: { id: string }) {
           <p style={{ margin: 0, color: "var(--muted)" }}>Loading ticket details...</p>
         </section>
       </div>
+      </section>
     </main>
   );
 }

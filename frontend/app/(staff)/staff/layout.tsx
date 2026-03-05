@@ -1,7 +1,16 @@
-// app/(staff)/layout.tsx
+// app/(staff)/staff/layout.tsx
 import { requireAnyPageRole } from "@/lib/auth/page-guards";
+import { getNavbarSessionState } from "@/lib/auth/navbar-session";
+import StaffNavbar from "@/components/StaffNavbar";
 
 export default async function StaffGroupLayout({ children }: { children: React.ReactNode }) {
   await requireAnyPageRole(["Staff", "Admin"], "/unauthorized");
-  return <>{children}</>;
+  const session = await getNavbarSessionState();
+
+  return (
+    <>
+      <StaffNavbar session={session} />
+      {children}
+    </>
+  );
 }
