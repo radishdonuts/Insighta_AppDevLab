@@ -31,6 +31,8 @@ export type StaffCategorySummary = {
   name: string;
 };
 
+export type TicketFieldSource = "user" | "nlp" | "human_intervention" | "default" | null;
+
 export type StaffTicketQueueItem = {
   id: string;
   ticketNumber: string;
@@ -42,6 +44,8 @@ export type StaffTicketQueueItem = {
   submittedAt: string;
   lastUpdatedAt: string;
   category: StaffCategorySummary | null;
+  categorySource: TicketFieldSource;
+  prioritySource: TicketFieldSource;
   assignedStaff: StaffPersonSummary | null;
   submitterType: "Customer" | "Guest" | "Unknown";
 };
@@ -82,6 +86,8 @@ export type StaffTicketDetail = {
   categoryName: string | null;
   category: StaffCategorySummary | null;
   categoryId: string | null;
+  categorySource: TicketFieldSource;
+  prioritySource: TicketFieldSource;
   submitterType: "Customer" | "Guest" | "Unknown";
   submitter: StaffPersonSummary | null;
   guestEmail: string | null;

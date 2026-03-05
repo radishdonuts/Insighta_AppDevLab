@@ -15,6 +15,7 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 type CategoryOption = { id: string; name: string };
 type CategoriesResponse = { ok?: boolean; categories?: Array<{ id?: unknown; name?: unknown }> };
 type TicketCreateResponse = { error?: string; details?: string; accessToken?: string; ticket?: { id?: string; reference?: string } };
+const NOT_SURE_CATEGORY = "__NOT_SURE__";
 
 export default function SubmitPage() {
   const router = useRouter();
@@ -24,7 +25,7 @@ export default function SubmitPage() {
   const [step, setStep] = useState(1);
   const [guestEmail, setGuestEmail] = useState("");
   const [title, setTitle] = useState("");
-  const [categoryId, setCategoryId] = useState("");
+  const [categoryId, setCategoryId] = useState(NOT_SURE_CATEGORY);
   const [description, setDescription] = useState("");
   const [files, setFiles] = useState<File[]>([]);
 
@@ -95,10 +96,6 @@ export default function SubmitPage() {
       else if (description.trim().length > DESCRIPTION_MAX_LENGTH) e.description = `Max ${DESCRIPTION_MAX_LENGTH} characters.`;
     }
 
-    if (touched.category && !categoryId) {
-      e.category = "Please select a category.";
-    }
-
     return e;
   }, [guestEmail, title, description, categoryId, touched, authUserId]);
 
@@ -111,7 +108,7 @@ export default function SubmitPage() {
     }
     if (step === 2) {
       setTouched((t) => ({ ...t, title: true, description: true, category: true }));
-      if (!title || !description || !categoryId || errors.title || errors.description || errors.category) return;
+      if (!title || !description || errors.title || errors.description || errors.category) return;
     }
     setStep(s => s + 1);
   };
@@ -131,7 +128,9 @@ export default function SubmitPage() {
     payload.set("title", title.trim());
     payload.set("description", description.trim());
     payload.set("ticketType", "Complaint");
-    payload.set("categoryId", categoryId);
+    if (categoryId && categoryId !== NOT_SURE_CATEGORY) {
+      payload.set("categoryId", categoryId);
+    }
 
     if (!authUserId) {
       payload.set("guestEmail", guestEmail.trim().toLowerCase());
@@ -285,7 +284,7 @@ export default function SubmitPage() {
         {step === 2 && (
           <div className="step-content">
             <div className={styles.formGroup}>
-              <label htmlFor="categoryId" className={styles.label}>Category</label>
+              <label htmlFor="categoryId" className={styles.label}>Category (optional)</label>
               <select
                 id="categoryId"
                 value={categoryId}
@@ -293,7 +292,7 @@ export default function SubmitPage() {
                 onBlur={() => handleBlur("category")}
                 className={`${styles.input} ${touched.category ? (errors.category ? styles.inputError : styles.inputValid) : ''}`}
               >
-                <option value="">Select a category...</option>
+                <option value={NOT_SURE_CATEGORY}>Not sure (let AI classify)</option>
                 {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
               {touched.category && errors.category && <span className={styles.errorMessage}>{errors.category}</span>}
@@ -373,7 +372,11 @@ export default function SubmitPage() {
               )}
               <div className={styles.summaryItem}>
                 <div className={styles.summaryLabel}>Category</div>
-                <div className={styles.summaryValue}>{categories.find(c => c.id === categoryId)?.name}</div>
+                <div className={styles.summaryValue}>
+                  {categoryId === NOT_SURE_CATEGORY
+                    ? "Not sure (let AI classify)"
+                    : (categories.find(c => c.id === categoryId)?.name ?? "Not sure (let AI classify)")}
+                </div>
               </div>
               <div className={styles.summaryItem}>
                 <div className={styles.summaryLabel}>Title</div>
@@ -423,7 +426,7 @@ export default function SubmitPage() {
             </p>
 
             <div className={styles.buttonGroup}>
-              <button onClick={() => { setStep(authUserId ? 2 : 1); setTitle(""); setDescription(""); setFiles([]); setGuestEmail(""); setSuccessData(null); }} className={styles.btnSecondary}>
+              <button onClick={() => { setStep(authUserId ? 2 : 1); setTitle(""); setDescription(""); setFiles([]); setGuestEmail(""); setCategoryId(NOT_SURE_CATEGORY); setSuccessData(null); }} className={styles.btnSecondary}>
                 Submit Another
               </button>
               <Link href={`/track?token=${successData.trackingNumber}`} className={styles.btnPrimary} style={{ textDecoration: 'none' }}>

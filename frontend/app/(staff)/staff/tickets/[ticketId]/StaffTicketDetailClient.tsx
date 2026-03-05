@@ -7,6 +7,7 @@ import type {
   StaffNlpReviewOptionsResponse,
   StaffNlpReviewResponse,
   StaffTicketDetailResponse,
+  TicketFieldSource,
 } from "@/types/staff-tickets";
 import { TICKET_STATUSES } from "@/types/tickets";
 
@@ -62,6 +63,13 @@ function confidenceGradientStyle(value: number | null) {
     color: `hsl(${hue} 72% 28%)`,
     border: `1px solid hsl(${hue} 70% 78%)`,
   };
+}
+
+function fieldSourceLabel(source: TicketFieldSource) {
+  if (source === "nlp") return "Overridden by NLP";
+  if (source === "human_intervention") return "Overridden by human intervention";
+  if (source === "user") return "Selected by user";
+  return "Set by default flow";
 }
 
 async function readApiError(response: Response) {
@@ -276,6 +284,8 @@ export default function StaffTicketDetailClient({ ticketId }: { ticketId: string
                 <dl className={styles.keyValueList}>
                   <div><dt>Detected Category</dt><dd>{ticket.categoryName ?? "-"}</dd></div>
                   <div><dt>Detected Priority</dt><dd>{ticket.priority ?? "-"}</dd></div>
+                  <div><dt>Category Source</dt><dd>{fieldSourceLabel(ticket.categorySource)}</dd></div>
+                  <div><dt>Priority Source</dt><dd>{fieldSourceLabel(ticket.prioritySource)}</dd></div>
                 </dl>
 
                 {ticket.nlpSuggestion ? (

@@ -1,22 +1,14 @@
-﻿import { requestNlpAnalysis, type NlpAnalysisResponse } from "@/lib/nlp/client";
+import { requestNlpAnalysis, type NlpAnalysisResponse } from "@/lib/nlp/client";
+import {
+  type CanonicalComplaintCategory,
+  normalizeCanonicalComplaintCategory,
+} from "@/lib/nlp/taxonomy";
 import { getSupabaseServerClient } from "@/lib/supabase";
 
 type SupabaseServerClient = ReturnType<typeof getSupabaseServerClient>;
 type TicketPriority = "Low" | "Medium" | "High";
 
-const FIXED_CATEGORIES = [
-  "Policy & Account Servicing",
-  "Claims Experience",
-  "Payments, Billing & Refunds",
-  "Documents & Requirements",
-  "Customer Support & Service Quality",
-  "Digital Access & Technical Issues",
-  "Fraud, Security & Privacy",
-  "Product/Partner Service Delivery",
-  "Other / Uncategorized",
-] as const;
-
-type TicketCategoryName = (typeof FIXED_CATEGORIES)[number];
+type TicketCategoryName = CanonicalComplaintCategory;
 
 type AppSettingRow = {
   key?: unknown;
@@ -119,23 +111,7 @@ function getErrorMessage(error: unknown): string {
 }
 
 function normalizeCategoryName(value: unknown): TicketCategoryName | null {
-  const raw = asTrimmedString(value);
-  if (!raw) return null;
-
-  const normalized = raw.toLowerCase();
-  if (["policy & account servicing", "policy cancellation", "policy update"].includes(normalized)) return "Policy & Account Servicing";
-  if (["claims experience", "claim denial"].includes(normalized)) return "Claims Experience";
-  if (["payments, billing & refunds", "billing issues", "billing", "billing dispute", "payment issue"].includes(normalized)) {
-    return "Payments, Billing & Refunds";
-  }
-  if (["documents & requirements", "document processing"].includes(normalized)) return "Documents & Requirements";
-  if (["customer support & service quality"].includes(normalized)) return "Customer Support & Service Quality";
-  if (["digital access & technical issues", "technical support"].includes(normalized)) return "Digital Access & Technical Issues";
-  if (["fraud, security & privacy", "fraud"].includes(normalized)) return "Fraud, Security & Privacy";
-  if (["product/partner service delivery", "delivery issues"].includes(normalized)) return "Product/Partner Service Delivery";
-  if (["other / uncategorized", "uncategorized"].includes(normalized)) return "Other / Uncategorized";
-
-  return null;
+  return normalizeCanonicalComplaintCategory(value);
 }
 
 type NlpRuntimeSettings = {
@@ -342,8 +318,8 @@ export async function runTicketNlpEnrichment(
           : confidence !== null
             ? { nlp_confidence: confidence }
             : {}),
-        ...(priorityPasses && resolvedPriority ? { priority: resolvedPriority } : {}),
-        ...(categoryPasses && resolvedCategoryName ? { category_name: resolvedCategoryName } : {}),
+        ...(priorityPasses && resolvedPriority ? { priority: resolvedPriority, priority_source: "nlp" } : {}),
+        ...(categoryPasses && resolvedCategoryName ? { category_name: resolvedCategoryName, category_source: "nlp" } : {}),
       };
 
       const { error: updateError } = await input.supabase
@@ -427,3 +403,6 @@ export async function runTicketNlpEnrichment(
     throw error;
   }
 }
+
+
+
