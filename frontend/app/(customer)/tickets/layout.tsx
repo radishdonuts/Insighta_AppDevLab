@@ -5,7 +5,6 @@ import WebsiteNavbar from "@/components/WebsiteNavbar";
 
 export default async function CustomerGroupLayout({ children }: { children: React.ReactNode }) {
   await requireAnyPageRole(["Customer"], "/login");
-  await blockPageRole(["Admin", "Staff"]);
   const session = await getNavbarSessionState();
 
   return (
