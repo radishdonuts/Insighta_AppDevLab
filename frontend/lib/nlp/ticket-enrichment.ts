@@ -1,47 +1,42 @@
-import { requestNlpAnalysis, type NlpAnalysisResponse } from "@/lib/nlp/client";
+﻿import { requestNlpAnalysis, type NlpAnalysisResponse } from "@/lib/nlp/client";
 import { getSupabaseServerClient } from "@/lib/supabase";
 
 type SupabaseServerClient = ReturnType<typeof getSupabaseServerClient>;
 type TicketPriority = "Low" | "Medium" | "High";
-type TicketSentiment = "Negative" | "Neutral" | "Positive";
 
-type ActiveLabelRow = {
-  id?: unknown;
-  display_name?: unknown;
-};
+const FIXED_CATEGORIES = [
+  "Policy & Account Servicing",
+  "Claims Experience",
+  "Payments, Billing & Refunds",
+  "Documents & Requirements",
+  "Customer Support & Service Quality",
+  "Digital Access & Technical Issues",
+  "Fraud, Security & Privacy",
+  "Product/Partner Service Delivery",
+  "Other / Uncategorized",
+] as const;
 
-type CategoryRow = {
-  id?: unknown;
-  category_name?: unknown;
-};
-
-type CategoryMappingRow = {
-  default_priority?: unknown;
-  category?: CategoryRow | CategoryRow[] | null;
-};
+type TicketCategoryName = (typeof FIXED_CATEGORIES)[number];
 
 type AppSettingRow = {
   key?: unknown;
   value?: unknown;
 };
 
-type ResolvedLabel = {
-  id: string;
-  displayName: string;
-};
-
-type ResolvedCategory = {
-  id: string;
-  name: string;
-  defaultPriority: TicketPriority | null;
-};
-
-export const UNCATEGORIZED_CATEGORY_NAME = "Uncategorized";
+const UNCATEGORIZED_CATEGORY_NAME: TicketCategoryName = "Other / Uncategorized";
 const DEFAULT_NLP_THRESHOLD = 0.85;
+const DEFAULT_NLP_THRESHOLD_CATEGORY = 0.75;
+const DEFAULT_NLP_THRESHOLD_PRIORITY = 0.75;
 const DEFAULT_NLP_AUTO_ROUTE = true;
-const RUNTIME_SETTING_KEYS = ["nlp_threshold", "nlp_provider", "nlp_api_key", "nlp_auto_route"] as const;
+const RUNTIME_SETTING_KEYS = [
+  "nlp_threshold",
+  "nlp_threshold_category",
+  "nlp_threshold_priority",
+  "nlp_provider",
+  "nlp_api_key",
+  "nlp_auto_route",
+] as const;
 const ALLOWED_PRIORITIES = new Set<TicketPriority>(["Low", "Medium", "High"]);
-const ALLOWED_SENTIMENTS = new Set<TicketSentiment>(["Negative", "Neutral", "Positive"]);
 
 function asTrimmedString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -52,18 +47,9 @@ function asNullableTrimmedString(value: unknown): string | null {
   return trimmed || null;
 }
 
-function isUuid(value: string): boolean {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
-}
-
-function asUuidOrNull(value: unknown): string | null {
-  const candidate = asTrimmedString(value);
-  return candidate && isUuid(candidate) ? candidate : null;
-}
-
-function parseThreshold(value: unknown): number {
+function parseThreshold(value: unknown, fallback = DEFAULT_NLP_THRESHOLD): number {
   if (typeof value === "number" && Number.isFinite(value)) {
-    return value >= 0 && value <= 1 ? value : DEFAULT_NLP_THRESHOLD;
+    return value >= 0 && value <= 1 ? value : fallback;
   }
 
   if (typeof value === "string") {
@@ -73,7 +59,7 @@ function parseThreshold(value: unknown): number {
     }
   }
 
-  return DEFAULT_NLP_THRESHOLD;
+  return fallback;
 }
 
 function parseBoolean(value: unknown, fallback: boolean): boolean {
@@ -91,21 +77,9 @@ function normalizePriority(value: unknown): TicketPriority | null {
   if (!raw) return null;
 
   const key = raw.toLowerCase();
-  const normalized =
-    key === "low" ? "Low" : key === "medium" ? "Medium" : key === "high" ? "High" : raw;
+  const normalized = key === "low" ? "Low" : key === "high" ? "High" : key === "med" || key === "medium" ? "Medium" : raw;
 
   return ALLOWED_PRIORITIES.has(normalized as TicketPriority) ? (normalized as TicketPriority) : null;
-}
-
-function normalizeSentiment(value: unknown): TicketSentiment | null {
-  const raw = asTrimmedString(value);
-  if (!raw) return null;
-
-  const key = raw.toLowerCase();
-  const normalized =
-    key === "negative" ? "Negative" : key === "neutral" ? "Neutral" : key === "positive" ? "Positive" : raw;
-
-  return ALLOWED_SENTIMENTS.has(normalized as TicketSentiment) ? (normalized as TicketSentiment) : null;
 }
 
 function normalizeConfidence01(value: number | null): number | null {
@@ -113,22 +87,6 @@ function normalizeConfidence01(value: number | null): number | null {
   if (value >= 0 && value <= 1) return value;
   if (value > 1 && value <= 100) return Number((value / 100).toFixed(4));
   return null;
-}
-
-function sanitizeCode(value: string): string {
-  return value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "");
-}
-
-function firstRow<T>(value: T | T[] | null | undefined): T | null {
-  if (Array.isArray(value)) return value[0] ?? null;
-  return value ?? null;
-}
-
-function getErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "Unexpected error.";
 }
 
 function getModelMetadata(providerOverride?: string | null) {
@@ -144,11 +102,46 @@ function getModelMetadata(providerOverride?: string | null) {
 }
 
 function buildRawOutputPayload(analysis: NlpAnalysisResponse) {
-  return analysis.rawOutput ? { rawOutput: analysis.rawOutput } : null;
+  const payload: Record<string, unknown> = {
+    ...(analysis.rawOutput ? { rawOutput: analysis.rawOutput } : {}),
+    ...(analysis.prioritySource ? { prioritySource: analysis.prioritySource } : {}),
+    ...(analysis.confidenceCategory !== null ? { confidenceCategory: analysis.confidenceCategory } : {}),
+    ...(analysis.confidencePriority !== null ? { confidencePriority: analysis.confidencePriority } : {}),
+    ...(analysis.suggestedCategoryName ? { suggestedCategoryName: analysis.suggestedCategoryName } : {}),
+    ...(analysis.suggestedPriority ? { suggestedPriority: analysis.suggestedPriority } : {}),
+    ...(analysis.priorityRuleDebug ? { priorityRuleDebug: analysis.priorityRuleDebug } : {}),
+  };
+  return Object.keys(payload).length > 0 ? payload : null;
+}
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "Unexpected error.";
+}
+
+function normalizeCategoryName(value: unknown): TicketCategoryName | null {
+  const raw = asTrimmedString(value);
+  if (!raw) return null;
+
+  const normalized = raw.toLowerCase();
+  if (["policy & account servicing", "policy cancellation", "policy update"].includes(normalized)) return "Policy & Account Servicing";
+  if (["claims experience", "claim denial"].includes(normalized)) return "Claims Experience";
+  if (["payments, billing & refunds", "billing issues", "billing", "billing dispute", "payment issue"].includes(normalized)) {
+    return "Payments, Billing & Refunds";
+  }
+  if (["documents & requirements", "document processing"].includes(normalized)) return "Documents & Requirements";
+  if (["customer support & service quality"].includes(normalized)) return "Customer Support & Service Quality";
+  if (["digital access & technical issues", "technical support"].includes(normalized)) return "Digital Access & Technical Issues";
+  if (["fraud, security & privacy", "fraud"].includes(normalized)) return "Fraud, Security & Privacy";
+  if (["product/partner service delivery", "delivery issues"].includes(normalized)) return "Product/Partner Service Delivery";
+  if (["other / uncategorized", "uncategorized"].includes(normalized)) return "Other / Uncategorized";
+
+  return null;
 }
 
 type NlpRuntimeSettings = {
   threshold: number;
+  thresholdCategory: number;
+  thresholdPriority: number;
   provider: string;
   apiKey: string | null;
   autoRoute: boolean;
@@ -162,6 +155,8 @@ export async function getConfiguredNlpRuntimeSettings(
 
   const defaults: NlpRuntimeSettings = {
     threshold: DEFAULT_NLP_THRESHOLD,
+    thresholdCategory: DEFAULT_NLP_THRESHOLD_CATEGORY,
+    thresholdPriority: DEFAULT_NLP_THRESHOLD_PRIORITY,
     provider: defaultProvider,
     apiKey: defaultApiKey,
     autoRoute: DEFAULT_NLP_AUTO_ROUTE,
@@ -188,252 +183,19 @@ export async function getConfiguredNlpRuntimeSettings(
   }
 
   return {
-    threshold: parseThreshold(map.get("nlp_threshold")),
+    threshold: parseThreshold(map.get("nlp_threshold"), DEFAULT_NLP_THRESHOLD),
+    thresholdCategory: parseThreshold(
+      map.get("nlp_threshold_category") ?? map.get("nlp_threshold"),
+      DEFAULT_NLP_THRESHOLD_CATEGORY
+    ),
+    thresholdPriority: parseThreshold(
+      map.get("nlp_threshold_priority") ?? map.get("nlp_threshold"),
+      DEFAULT_NLP_THRESHOLD_PRIORITY
+    ),
     provider: asTrimmedString(map.get("nlp_provider")) || defaults.provider,
     apiKey: asNullableTrimmedString(map.get("nlp_api_key")) ?? defaults.apiKey,
     autoRoute: parseBoolean(map.get("nlp_auto_route"), defaults.autoRoute),
   };
-}
-
-async function resolveIntentLabel(
-  supabase: SupabaseServerClient,
-  analysis: NlpAnalysisResponse
-): Promise<ResolvedLabel | null> {
-  const intentId = asUuidOrNull(analysis.detectedIntentId);
-
-  if (intentId) {
-    const byId = await supabase
-      .from("nlp_intent_labels")
-      .select("id, display_name")
-      .eq("id", intentId)
-      .eq("is_active", true)
-      .limit(1)
-      .maybeSingle();
-
-    if (byId.error) {
-      throw new Error(`Failed to resolve intent by ID: ${byId.error.message}`);
-    }
-
-    if (byId.data?.id && byId.data?.display_name) {
-      return {
-        id: asTrimmedString(byId.data.id),
-        displayName: asTrimmedString(byId.data.display_name),
-      };
-    }
-  }
-
-  const detectedIntent = asTrimmedString(analysis.detectedIntent);
-  if (!detectedIntent) return null;
-
-  const byName = await supabase
-    .from("nlp_intent_labels")
-    .select("id, display_name")
-    .ilike("display_name", detectedIntent)
-    .eq("is_active", true)
-    .limit(1)
-    .maybeSingle();
-
-  if (byName.error) {
-    throw new Error(`Failed to resolve intent by display name: ${byName.error.message}`);
-  }
-
-  if (byName.data?.id && byName.data?.display_name) {
-    return {
-      id: asTrimmedString(byName.data.id),
-      displayName: asTrimmedString(byName.data.display_name),
-    };
-  }
-
-  const code = sanitizeCode(detectedIntent);
-  if (!code) return null;
-
-  const byCode = await supabase
-    .from("nlp_intent_labels")
-    .select("id, display_name")
-    .eq("code", code)
-    .eq("is_active", true)
-    .limit(1)
-    .maybeSingle();
-
-  if (byCode.error) {
-    throw new Error(`Failed to resolve intent by code: ${byCode.error.message}`);
-  }
-
-  if (byCode.data?.id && byCode.data?.display_name) {
-    return {
-      id: asTrimmedString(byCode.data.id),
-      displayName: asTrimmedString(byCode.data.display_name),
-    };
-  }
-
-  return null;
-}
-
-async function resolveIssueTypeLabel(
-  supabase: SupabaseServerClient,
-  analysis: NlpAnalysisResponse
-): Promise<ResolvedLabel | null> {
-  const issueTypeId = asUuidOrNull(analysis.issueTypeId);
-
-  if (issueTypeId) {
-    const byId = await supabase
-      .from("nlp_issue_type_labels")
-      .select("id, display_name")
-      .eq("id", issueTypeId)
-      .eq("is_active", true)
-      .limit(1)
-      .maybeSingle();
-
-    if (byId.error) {
-      throw new Error(`Failed to resolve issue type by ID: ${byId.error.message}`);
-    }
-
-    if (byId.data?.id && byId.data?.display_name) {
-      return {
-        id: asTrimmedString(byId.data.id),
-        displayName: asTrimmedString(byId.data.display_name),
-      };
-    }
-  }
-
-  const issueType = asTrimmedString(analysis.issueType);
-  if (!issueType) return null;
-
-  const byName = await supabase
-    .from("nlp_issue_type_labels")
-    .select("id, display_name")
-    .ilike("display_name", issueType)
-    .eq("is_active", true)
-    .limit(1)
-    .maybeSingle();
-
-  if (byName.error) {
-    throw new Error(`Failed to resolve issue type by display name: ${byName.error.message}`);
-  }
-
-  if (byName.data?.id && byName.data?.display_name) {
-    return {
-      id: asTrimmedString(byName.data.id),
-      displayName: asTrimmedString(byName.data.display_name),
-    };
-  }
-
-  const code = sanitizeCode(issueType);
-  if (!code) return null;
-
-  const byCode = await supabase
-    .from("nlp_issue_type_labels")
-    .select("id, display_name")
-    .eq("code", code)
-    .eq("is_active", true)
-    .limit(1)
-    .maybeSingle();
-
-  if (byCode.error) {
-    throw new Error(`Failed to resolve issue type by code: ${byCode.error.message}`);
-  }
-
-  if (byCode.data?.id && byCode.data?.display_name) {
-    return {
-      id: asTrimmedString(byCode.data.id),
-      displayName: asTrimmedString(byCode.data.display_name),
-    };
-  }
-
-  return null;
-}
-
-async function resolveCategoryFromIssueType(
-  supabase: SupabaseServerClient,
-  issueTypeId: string
-): Promise<ResolvedCategory | null> {
-  const { data, error } = await supabase
-    .from("nlp_issue_category_map")
-    .select(
-      `
-        default_priority,
-        category:complaint_categories!nlp_issue_category_map_category_id_fkey (id, category_name)
-      `
-    )
-    .eq("issue_type_id", issueTypeId)
-    .limit(1)
-    .maybeSingle();
-
-  if (error) {
-    throw new Error(`Failed to resolve category from issue type mapping: ${error.message}`);
-  }
-
-  const mapping = (data ?? null) as CategoryMappingRow | null;
-  const category = firstRow(mapping?.category);
-  const categoryId = asTrimmedString(category?.id);
-  const categoryName = asTrimmedString(category?.category_name);
-
-  if (!categoryId || !categoryName) {
-    return null;
-  }
-
-  return {
-    id: categoryId,
-    name: categoryName,
-    defaultPriority: normalizePriority(mapping?.default_priority),
-  };
-}
-
-async function resolveCategoryFromAnalysis(
-  supabase: SupabaseServerClient,
-  analysis: NlpAnalysisResponse
-): Promise<ResolvedCategory | null> {
-  const categoryId = asUuidOrNull(analysis.categoryId);
-
-  if (categoryId) {
-    const byId = await supabase
-      .from("complaint_categories")
-      .select("id, category_name")
-      .eq("id", categoryId)
-      .eq("is_active", true)
-      .limit(1)
-      .maybeSingle();
-
-    if (byId.error) {
-      throw new Error(`Failed to resolve category by ID: ${byId.error.message}`);
-    }
-
-    if (byId.data?.id && byId.data?.category_name) {
-      return {
-        id: asTrimmedString(byId.data.id),
-        name: asTrimmedString(byId.data.category_name),
-        defaultPriority: null,
-      };
-    }
-  }
-
-  const categoryName = asTrimmedString(analysis.categoryName);
-  if (!categoryName) return null;
-
-  const resolvedCategoryId = await resolveActiveCategoryIdByName(supabase, categoryName);
-  if (!resolvedCategoryId) return null;
-
-  const byName = await supabase
-    .from("complaint_categories")
-    .select("id, category_name")
-    .eq("id", resolvedCategoryId)
-    .eq("is_active", true)
-    .limit(1)
-    .maybeSingle();
-
-  if (byName.error) {
-    throw new Error(`Failed to resolve category metadata: ${byName.error.message}`);
-  }
-
-  if (byName.data?.id && byName.data?.category_name) {
-    return {
-      id: asTrimmedString(byName.data.id),
-      name: asTrimmedString(byName.data.category_name),
-      defaultPriority: null,
-    };
-  }
-
-  return null;
 }
 
 async function insertTicketNlpAnalysis(
@@ -441,7 +203,6 @@ async function insertTicketNlpAnalysis(
   row: Record<string, unknown>
 ): Promise<void> {
   const { error } = await supabase.from("ticket_nlp_analyses").insert(row);
-
   if (error) {
     throw new Error(`Failed to write ticket NLP analysis log: ${error.message}`);
   }
@@ -472,9 +233,7 @@ export async function resolveActiveCategoryIdByName(
     throw new Error(`Failed to resolve category: ${exact.error.message}`);
   }
 
-  if (exact.data?.id) {
-    return asTrimmedString(exact.data.id) || null;
-  }
+  if (exact.data?.id) return asTrimmedString(exact.data.id) || null;
 
   const fallback = await supabase
     .from("complaint_categories")
@@ -494,12 +253,13 @@ export async function resolveActiveCategoryIdByName(
 export async function resolveUncategorizedCategoryId(
   supabase: SupabaseServerClient
 ): Promise<string> {
-  const categoryId = await resolveActiveCategoryIdByName(supabase, UNCATEGORIZED_CATEGORY_NAME);
-  if (!categoryId) {
-    throw new Error(`Active "${UNCATEGORIZED_CATEGORY_NAME}" category is required.`);
-  }
+  const strict = await resolveActiveCategoryIdByName(supabase, UNCATEGORIZED_CATEGORY_NAME);
+  if (strict) return strict;
 
-  return categoryId;
+  const legacy = await resolveActiveCategoryIdByName(supabase, "Uncategorized");
+  if (legacy) return legacy;
+
+  throw new Error(`Active "${UNCATEGORIZED_CATEGORY_NAME}" category is required.`);
 }
 
 type RunTicketNlpEnrichmentInput = {
@@ -525,17 +285,13 @@ export async function runTicketNlpEnrichment(
   const ticketId = asTrimmedString(input.ticketId);
   const text = asTrimmedString(input.text);
 
-  if (!ticketId) {
-    throw new Error("Ticket ID is required for NLP enrichment.");
-  }
-
-  if (!text) {
-    throw new Error("NLP enrichment text is required.");
-  }
+  if (!ticketId) throw new Error("Ticket ID is required for NLP enrichment.");
+  if (!text) throw new Error("NLP enrichment text is required.");
 
   const nowIso = new Date().toISOString();
   const runtimeSettings = await getConfiguredNlpRuntimeSettings(input.supabase);
-  const threshold = runtimeSettings.threshold;
+  const thresholdCategory = runtimeSettings.thresholdCategory;
+  const thresholdPriority = runtimeSettings.thresholdPriority;
   const metadata = getModelMetadata(runtimeSettings.provider);
 
   let analysisRowWritten = false;
@@ -550,126 +306,69 @@ export async function runTicketNlpEnrichment(
     });
 
     const confidence = normalizeConfidence01(analysis.confidence);
-    const sentiment = normalizeSentiment(analysis.sentiment);
-    const resolvedIntent = await resolveIntentLabel(input.supabase, analysis);
-    const resolvedIssueType = await resolveIssueTypeLabel(input.supabase, analysis);
-    const mappedCategory = resolvedIssueType
-      ? await resolveCategoryFromIssueType(input.supabase, resolvedIssueType.id)
-      : null;
-    const suggestedCategory = mappedCategory ?? (await resolveCategoryFromAnalysis(input.supabase, analysis));
-    const resolvedPriority =
-      normalizePriority(analysis.priority) ?? mappedCategory?.defaultPriority ?? null;
+    const confidenceCategory = normalizeConfidence01(analysis.confidenceCategory);
+    const confidencePriority = normalizeConfidence01(analysis.confidencePriority);
+    const resolvedPriority = normalizePriority(analysis.priority);
+    const resolvedCategoryName = normalizeCategoryName(analysis.categoryName ?? analysis.suggestedCategoryName);
 
-    const missingIntentTaxonomy = !!asTrimmedString(analysis.detectedIntent) && !resolvedIntent;
-    const missingIssueTaxonomy = !!asTrimmedString(analysis.issueType) && !resolvedIssueType;
-    const missingCategoryTaxonomy =
-      (!!asTrimmedString(analysis.categoryName) || !!asTrimmedString(analysis.categoryId)) &&
-      !suggestedCategory;
-    const skippedMissingTaxonomy =
-      missingIntentTaxonomy || missingIssueTaxonomy || missingCategoryTaxonomy;
-    const skippedLowConfidence = confidence === null || confidence < threshold;
+    const categoryPasses =
+      !!resolvedCategoryName &&
+      confidenceCategory !== null &&
+      confidenceCategory >= thresholdCategory;
+    const priorityPasses =
+      !!resolvedPriority &&
+      confidencePriority !== null &&
+      confidencePriority >= thresholdPriority;
+    const skippedMissingTaxonomy = !!analysis.categoryName && !resolvedCategoryName;
+    const skippedLowConfidence =
+      (!!resolvedCategoryName && !categoryPasses) || (!!resolvedPriority && !priorityPasses);
+    const appliedAny = categoryPasses || priorityPasses;
 
-    if (skippedLowConfidence || skippedMissingTaxonomy) {
-      await insertTicketNlpAnalysis(input.supabase, {
-        ticket_id: ticketId,
-        input_text: text,
-        model_provider: metadata.provider,
-        model_name: metadata.name,
-        model_version: metadata.version,
-        prompt_version: metadata.promptVersion,
-        sentiment,
-        detected_intent_id: resolvedIntent?.id ?? null,
-        detected_intent_raw: asNullableTrimmedString(analysis.detectedIntent),
-        issue_type_id: resolvedIssueType?.id ?? null,
-        issue_type_raw: asNullableTrimmedString(analysis.issueType),
-        priority: resolvedPriority,
-        category_id: suggestedCategory?.id ?? null,
-        category_name_raw: asNullableTrimmedString(analysis.categoryName),
-        confidence,
-        raw_output: buildRawOutputPayload(analysis),
-        status: "skipped",
-        error_message: skippedLowConfidence
-          ? confidence === null
-            ? "Missing confidence from NLP response."
-            : `Confidence ${confidence} below threshold ${threshold}.`
-          : "Missing taxonomy mapping for NLP labels.",
-        is_applied: false,
-      });
-      analysisRowWritten = true;
-
-      return {
-        analysis,
-        nlpFieldsUpdated: false,
-        categoryUpdated: false,
-        skippedLowConfidence,
-        skippedMissingTaxonomy,
-        applied: false,
-      };
-    }
-
-    const updates: Record<string, unknown> = {
-      nlp_model_version: metadata.version,
-      nlp_updated_at: nowIso,
-      ...(confidence !== null ? { nlp_confidence: confidence } : {}),
-      ...(sentiment ? { sentiment } : {}),
-      ...(resolvedIntent
-        ? {
-            detected_intent_id: resolvedIntent.id,
-            detected_intent: resolvedIntent.displayName,
-          }
-        : {}),
-      ...(resolvedIssueType
-        ? {
-            issue_type_id: resolvedIssueType.id,
-            issue_type: resolvedIssueType.displayName,
-          }
-        : {}),
-      ...(resolvedPriority ? { priority: resolvedPriority } : {}),
-    };
-
-    let nlpFieldsUpdated = false;
-
-    if (Object.keys(updates).length > 0) {
-      const { error } = await input.supabase
-        .from("tickets")
-        .update(updates)
-        .eq("id", ticketId);
-
-      if (error) {
-        throw new Error(`Failed to update NLP fields: ${error.message}`);
-      }
-
-      nlpFieldsUpdated = true;
-    }
+    const analysisStatus = appliedAny ? "succeeded" : "skipped";
+    const analysisError = skippedMissingTaxonomy
+      ? "Missing taxonomy mapping for categoryName."
+      : skippedLowConfidence
+        ? `Prediction below threshold (category >= ${thresholdCategory}, priority >= ${thresholdPriority}).`
+        : null;
 
     let categoryUpdated = false;
+    let nlpFieldsUpdated = false;
+    if (appliedAny) {
+      const ticketUpdates: Record<string, unknown> = {
+        nlp_model_version: metadata.version,
+        nlp_updated_at: nowIso,
+        ...(confidenceCategory !== null
+          ? { nlp_confidence: confidenceCategory }
+          : confidence !== null
+            ? { nlp_confidence: confidence }
+            : {}),
+        ...(priorityPasses && resolvedPriority ? { priority: resolvedPriority } : {}),
+        ...(categoryPasses && resolvedCategoryName ? { category_name: resolvedCategoryName } : {}),
+      };
 
-    if (
-      runtimeSettings.autoRoute &&
-      input.allowCategoryOverride !== false &&
-      input.uncategorizedCategoryId &&
-      suggestedCategory?.id
-    ) {
-      const suggestedCategoryId = suggestedCategory.id;
+      const { error: updateError } = await input.supabase
+        .from("tickets")
+        .update(ticketUpdates)
+        .eq("id", ticketId);
 
-      if (suggestedCategoryId !== input.uncategorizedCategoryId) {
-        const { data, error } = await input.supabase
-          .from("tickets")
-          .update({ category_id: suggestedCategoryId })
-          .eq("id", ticketId)
-          .eq("category_id", input.uncategorizedCategoryId)
-          .select("id")
-          .maybeSingle();
+      if (updateError) {
+        throw new Error(`Failed to update NLP fields: ${updateError.message}`);
+      }
+      nlpFieldsUpdated = true;
 
-        if (error) {
-          throw new Error(`Failed to update ticket category: ${error.message}`);
+      if (categoryPasses && resolvedCategoryName) {
+        const resolvedCategoryId = await resolveActiveCategoryIdByName(input.supabase, resolvedCategoryName);
+        if (resolvedCategoryId && input.allowCategoryOverride !== false) {
+          const { error: categoryError } = await input.supabase
+            .from("tickets")
+            .update({ category_id: resolvedCategoryId })
+            .eq("id", ticketId);
+          if (!categoryError) {
+            categoryUpdated = true;
+          }
         }
-
-        categoryUpdated = !!asTrimmedString(data?.id);
       }
     }
-
-    const applied = nlpFieldsUpdated || categoryUpdated;
 
     await insertTicketNlpAnalysis(input.supabase, {
       ticket_id: ticketId,
@@ -678,20 +377,14 @@ export async function runTicketNlpEnrichment(
       model_name: metadata.name,
       model_version: metadata.version,
       prompt_version: metadata.promptVersion,
-      sentiment,
-      detected_intent_id: resolvedIntent?.id ?? null,
-      detected_intent_raw: asNullableTrimmedString(analysis.detectedIntent),
-      issue_type_id: resolvedIssueType?.id ?? null,
-      issue_type_raw: asNullableTrimmedString(analysis.issueType),
       priority: resolvedPriority,
-      category_id: suggestedCategory?.id ?? null,
-      category_name_raw: asNullableTrimmedString(analysis.categoryName),
-      confidence,
+      category_name: resolvedCategoryName,
+      confidence: confidenceCategory ?? confidence,
       raw_output: buildRawOutputPayload(analysis),
-      status: "succeeded",
-      error_message: null,
-      is_applied: applied,
-      ...(applied ? { applied_at: nowIso } : {}),
+      status: analysisStatus,
+      error_message: analysisError,
+      is_applied: appliedAny,
+      applied_at: appliedAny ? nowIso : null,
     });
     analysisRowWritten = true;
 
@@ -699,13 +392,15 @@ export async function runTicketNlpEnrichment(
       analysis,
       nlpFieldsUpdated,
       categoryUpdated,
-      skippedLowConfidence: false,
-      skippedMissingTaxonomy: false,
-      applied,
+      skippedLowConfidence,
+      skippedMissingTaxonomy,
+      applied: appliedAny,
     };
   } catch (error) {
     if (!analysisRowWritten) {
       try {
+        const resolvedPriority = analysis ? normalizePriority(analysis.priority) : null;
+        const resolvedCategoryName = analysis ? normalizeCategoryName(analysis.categoryName) : null;
         await insertTicketNlpAnalysis(input.supabase, {
           ticket_id: ticketId,
           input_text: text,
@@ -713,14 +408,8 @@ export async function runTicketNlpEnrichment(
           model_name: metadata.name,
           model_version: metadata.version,
           prompt_version: metadata.promptVersion,
-          sentiment: analysis ? normalizeSentiment(analysis.sentiment) : null,
-          detected_intent_id: analysis ? asUuidOrNull(analysis.detectedIntentId) : null,
-          detected_intent_raw: analysis ? asNullableTrimmedString(analysis.detectedIntent) : null,
-          issue_type_id: analysis ? asUuidOrNull(analysis.issueTypeId) : null,
-          issue_type_raw: analysis ? asNullableTrimmedString(analysis.issueType) : null,
-          priority: analysis ? normalizePriority(analysis.priority) : null,
-          category_id: analysis ? asUuidOrNull(analysis.categoryId) : null,
-          category_name_raw: analysis ? asNullableTrimmedString(analysis.categoryName) : null,
+          priority: resolvedPriority,
+          category_name: resolvedCategoryName,
           confidence: normalizeConfidence01(analysis?.confidence ?? null),
           raw_output: analysis ? buildRawOutputPayload(analysis) : null,
           status: "failed",

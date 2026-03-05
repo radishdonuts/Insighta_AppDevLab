@@ -4,8 +4,6 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 
-import { FeedbackForm } from "@/components/FeedbackForm";
-
 type ApiTicket = {
   id?: unknown;
   ticket_id?: unknown;
@@ -44,16 +42,6 @@ type TicketDetail = {
   submittedAt: string;
   lastUpdatedAt: string;
   guestTrackingNumber: string;
-};
-
-type FeedbackPayload = {
-  feedback?: {
-    id?: unknown;
-    rating?: unknown;
-    comment?: unknown;
-    submitted_at?: unknown;
-  } | null;
-  error?: string;
 };
 
 const STEPS = ["Received", "In Review", "In Progress", "Resolved"] as const;
@@ -97,11 +85,6 @@ function formatDate(value: string): string {
   }).format(new Date(timestamp));
 }
 
-function isResolvedLike(status: string): boolean {
-  const normalized = status.trim().toLowerCase();
-  return normalized === "resolved" || normalized === "closed";
-}
-
 export default function TicketDetailPage({ params }: { params: { id: string } }) {
   return (
     <Suspense fallback={<TicketDetailFallback id={params.id} />}>
@@ -117,7 +100,6 @@ function TicketDetailPageContent({ params }: { params: { id: string } }) {
   const [ticket, setTicket] = useState<TicketDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [feedbackInitial, setFeedbackInitial] = useState<{ rating: number; comment: string } | undefined>();
 
   useEffect(() => {
     let cancelled = false;
@@ -172,61 +154,6 @@ function TicketDetailPageContent({ params }: { params: { id: string } }) {
       cancelled = true;
     };
   }, [params.id, token]);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadFeedback() {
-      if (!ticket) {
-        setFeedbackInitial(undefined);
-        return;
-      }
-
-      const query = token ? `?token=${encodeURIComponent(token)}` : "";
-      try {
-        const response = await fetch(`/api/ticket/${encodeURIComponent(params.id)}/feedback${query}`, {
-          cache: "no-store",
-        });
-
-        if (!response.ok) {
-          if (!cancelled) setFeedbackInitial(undefined);
-          return;
-        }
-
-        const payload = (await response.json()) as FeedbackPayload;
-        const feedback = payload.feedback;
-        const rating = typeof feedback?.rating === "number" ? feedback.rating : 0;
-        const comment = asString(feedback?.comment);
-
-        if (!cancelled) {
-          setFeedbackInitial(rating >= 1 && rating <= 5 ? { rating, comment } : undefined);
-        }
-      } catch {
-        if (!cancelled) setFeedbackInitial(undefined);
-      }
-    }
-
-    void loadFeedback();
-    return () => {
-      cancelled = true;
-    };
-  }, [params.id, ticket, token]);
-
-  async function submitFeedback(data: { rating: number; comment: string }) {
-    const query = token ? `?token=${encodeURIComponent(token)}` : "";
-    const response = await fetch(`/api/ticket/${encodeURIComponent(params.id)}/feedback${query}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ rating: data.rating, comment: data.comment }),
-    });
-
-    const payload = (await response.json()) as FeedbackPayload;
-    if (!response.ok) {
-      throw new Error(asString(payload.error) || "Failed to submit feedback.");
-    }
-
-    setFeedbackInitial({ rating: data.rating, comment: data.comment });
-  }
 
   const currentStep = deriveStepIndex(ticket?.status ?? "");
   const displayIdentifier = token || ticket?.guestTrackingNumber || ticket?.reference || ticket?.id || params.id;
@@ -356,13 +283,37 @@ function TicketDetailPageContent({ params }: { params: { id: string } }) {
 
               <div style={{ borderTop: "1px solid #e5e7eb" }} />
 
-              {isResolvedLike(ticket.status) || !!feedbackInitial ? (
-                <FeedbackForm
-                  ticketId={ticket.reference || ticket.id}
-                  onSubmit={submitFeedback}
-                  initialData={feedbackInitial}
-                />
-              ) : null}
+              <div
+                style={{
+                  border: "1px solid #e5e7eb",
+                  borderRadius: "0.85rem",
+                  padding: "1rem",
+                  background: "#fafafa",
+                  display: "grid",
+                  gap: "0.6rem",
+                }}
+              >
+                <p style={{ margin: 0, color: "var(--text)", fontWeight: 600 }}>
+                  Share your feedback about our company service.
+                </p>
+                <Link
+                  href="/feedback"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    textDecoration: "none",
+                    background: "var(--accent)",
+                    color: "#fff",
+                    fontWeight: 600,
+                    borderRadius: "0.5rem",
+                    padding: "0.65rem 0.95rem",
+                    width: "fit-content",
+                  }}
+                >
+                  Submit Feedback
+                </Link>
+              </div>
 
               <div>
                 <p

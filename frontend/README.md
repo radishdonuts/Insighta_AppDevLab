@@ -27,6 +27,12 @@ FASTAPI_URL_LOCAL=
 NLP_REPROCESS_SECRET=change-me
 ```
 
+Optional NLP artifact env for FastAPI service:
+
+```bash
+NLP_ARTIFACT_DIR=/absolute/path/to/artifacts-cache/run_folder
+```
+
 ## NLP flow
 
 `POST /api/nlp` in Next.js expects:
@@ -42,15 +48,14 @@ It forwards to `$FASTAPI_URL/nlp/generate` and returns:
 
 ```json
 {
-  "sentiment": "Negative | Neutral | Positive | null",
-  "detectedIntent": "string | null",
-  "detectedIntentId": "uuid | null",
-  "issueType": "string | null",
-  "issueTypeId": "uuid | null",
   "priority": "Low | Medium | High | null",
   "categoryName": "string | null",
-  "categoryId": "uuid | null",
   "confidence": "number | null",
+  "confidenceCategory": "number | null",
+  "confidencePriority": "number | null",
+  "prioritySource": "ml | rule | null",
+  "suggestedCategoryName": "string | null",
+  "suggestedPriority": "Low | Medium | High | null",
   "rawOutput": "string | null"
 }
 ```

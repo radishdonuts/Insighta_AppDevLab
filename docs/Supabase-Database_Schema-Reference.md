@@ -448,28 +448,42 @@ Log of all notifications sent (email, in-app, etc.) related to tickets.
 
 ### feedback
 
-Customer satisfaction feedback for a resolved ticket (one feedback per ticket).
+Customer satisfaction feedback about company service (not tied to a specific ticket).
 
-| Column                | Type          | Nullable | Default             | Notes                                  |
-| --------------------- | ------------- | -------- | ------------------- | -------------------------------------- |
-| `id`                  | `uuid`        | **NO**   | `gen_random_uuid()` | PK                                     |
-| `ticket_id`           | `uuid`        | **NO**   | —                   | FK → `tickets(id)`; Unique             |
-| `rating`              | `integer`     | **NO**   | —                   | CHECK: `1 ≤ rating ≤ 5`               |
-| `comment`             | `text`        | YES      | —                   |                                        |
-| `submitted_at`        | `timestamptz` | **NO**   | `now()`             |                                        |
-| `submitted_by_user_id`| `uuid`        | YES      | —                   | FK → `profiles(id)` (logged-in user)   |
-| `submitted_by_guest_id`| `uuid`       | YES      | —                   | FK → `guest_contacts(id)` (guest user) |
+| Column                 | Type          | Nullable | Default             | Notes                                  |
+| ---------------------- | ------------- | -------- | ------------------- | -------------------------------------- |
+| `id`                   | `uuid`        | **NO**   | `gen_random_uuid()` | PK                                     |
+| `rating`      | `integer`                  | **NO**   | -       | CHECK: `1 <= rating <= 5`                |
+| `comment`              | `text`        | YES      | �                   |                                        |
+| `submitted_at`         | `timestamptz` | **NO**   | `now()`             |                                        |
+| `submitted_by_user_id` | `uuid`        | YES      | -                   | FK -> `profiles(id)` (logged-in user)   |
+| `submitted_by_guest_id`| `uuid`        | YES      | -                   | FK -> `guest_contacts(id)` (guest user) |
 
 **Constraints**
 
-- `feedback_pkey` – PRIMARY KEY (`id`)
-- Unique on `ticket_id` (one feedback per ticket)
-- `feedback_ticket_id_fkey` → `tickets(id)`
-- `feedback_submitted_by_user_id_fkey` → `profiles(id)`
-- `feedback_submitted_by_guest_id_fkey` → `guest_contacts(id)`
+- `feedback_pkey` � PRIMARY KEY (`id`)
+- `feedback_submitted_by_user_id_fkey` -> `profiles(id)`
+- `feedback_submitted_by_guest_id_fkey` -> `guest_contacts(id)`
 
 ---
 
+### feedback_category_ratings
+
+Per-category star ratings for each feedback entry.
+
+| Column        | Type                       | Nullable | Default | Notes |
+| ------------- | -------------------------- | -------- | ------- | ----- |
+| `feedback_id` | `uuid`                     | **NO**   | -       | FK -> `feedback(id)` (`ON DELETE CASCADE`) |
+| `category`    | `feedback_rating_category` | **NO**   | -       | Enum category key (7 required dimensions) |
+| `rating`      | `integer`                  | **NO**   | -       | CHECK: `1 <= rating <= 5` |
+| `created_at`  | `timestamptz`              | **NO**   | `now()` | Row timestamp |
+
+**Constraints**
+
+- Composite PK on (`feedback_id`, `category`)
+- `feedback_category_ratings_feedback_id_fkey` -> `feedback(id)`
+
+---
 ### system_activity_logs
 
 General audit / activity log for the application.
@@ -700,7 +714,7 @@ tickets
   ├─── ticket_status_history.ticket_id (1:N)
   ├─── ticket_access_tokens.ticket_id (1:N)
   ├─── notifications.ticket_id (1:N)
-  └─── feedback.ticket_id (1:1)
+  └─── feedback_category_ratings.feedback_id (1:N)
 ```
 
 ### Key Design Decisions
@@ -708,8 +722,10 @@ tickets
 - **Dual submitter model**: A ticket can be submitted by either a **logged-in user** (`customer_id` → `profiles`) or a **guest** (`guest_id` → `guest_contacts`). Exactly one should be non-null.
 - **Token-based guest access**: Raw tokens are given to guests via email; only the SHA-256 hash is stored. The `guest_ticket_lookup` function handles validation, expiry checking, and usage tracking in one RPC call.
 - **NLP enrichment**: The `sentiment`, `detected_intent`, and `issue_type` columns on `tickets` are populated asynchronously by the FastAPI NLP backend after submission.
-- **One feedback per ticket**: Enforced by the unique constraint on `feedback.ticket_id`.
+- **Universal company feedback**: Feedback is not tied to a ticket. Category-level scores are stored in `feedback_category_ratings`.
 - **Auto-timestamps**: `updated_at` and `last_updated_at` are managed by BEFORE UPDATE triggers, so application code does not need to set them manually.
 
 - **Closed NLP taxonomy**: Canonical intent and issue-type labels are maintained in `nlp_intent_labels` and `nlp_issue_type_labels`, with category routing in `nlp_issue_category_map`.
 - **NLP run traceability**: Every NLP attempt is stored in `ticket_nlp_analyses` with model metadata and status, while reviewer overrides are captured in `ticket_nlp_reviews`.
+
+

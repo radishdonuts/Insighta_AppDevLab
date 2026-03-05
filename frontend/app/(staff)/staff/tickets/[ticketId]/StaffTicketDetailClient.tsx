@@ -37,6 +37,33 @@ function priorityBadge(priority: string) {
   return badge(styles.badgeNeutral);
 }
 
+function confidenceLabel(value: number | null) {
+  if (value === null) return "No confidence score";
+  if (value >= 0.9) return "High confidence";
+  if (value >= 0.75) return "Likely correct";
+  if (value >= 0.6) return "Needs quick review";
+  return "Please confirm";
+}
+
+function confidenceGradientStyle(value: number | null) {
+  if (value === null) {
+    return {
+      background: "#f3f4f6",
+      color: "#374151",
+      border: "1px solid #d1d5db",
+    };
+  }
+
+  const bounded = Math.max(0, Math.min(1, value));
+  const hue = 6 + (bounded * 124);
+
+  return {
+    background: `hsl(${hue} 85% 94%)`,
+    color: `hsl(${hue} 72% 28%)`,
+    border: `1px solid hsl(${hue} 70% 78%)`,
+  };
+}
+
 async function readApiError(response: Response) {
   try {
     const payload = (await response.json()) as ApiErrorPayload;
@@ -62,11 +89,8 @@ export default function StaffTicketDetailClient({ ticketId }: { ticketId: string
   const [reviewMessage, setReviewMessage] = useState<string | null>(null);
   const [reviewError, setReviewError] = useState<string | null>(null);
 
-  const [reviewSentiment, setReviewSentiment] = useState("");
-  const [reviewIntentId, setReviewIntentId] = useState("");
-  const [reviewIssueTypeId, setReviewIssueTypeId] = useState("");
   const [reviewPriority, setReviewPriority] = useState("");
-  const [reviewCategoryId, setReviewCategoryId] = useState("");
+  const [reviewCategoryName, setReviewCategoryName] = useState("");
   const [reviewNotes, setReviewNotes] = useState("");
 
   async function loadDetail() {
@@ -107,11 +131,8 @@ export default function StaffTicketDetailClient({ ticketId }: { ticketId: string
 
       const payload = (await response.json()) as StaffNlpReviewOptionsResponse;
       setNlpOptions(payload.options);
-      setReviewSentiment(payload.ticket.sentiment ?? "");
-      setReviewIntentId(payload.ticket.detectedIntentId ?? "");
-      setReviewIssueTypeId(payload.ticket.issueTypeId ?? "");
       setReviewPriority(payload.ticket.priority ?? "");
-      setReviewCategoryId(payload.ticket.categoryId ?? "");
+      setReviewCategoryName(payload.ticket.categoryName ?? "");
       setReviewNotes("");
     } catch (err) {
       setReviewError(err instanceof Error ? err.message : "Failed to load NLP review options.");
@@ -133,11 +154,8 @@ export default function StaffTicketDetailClient({ ticketId }: { ticketId: string
 
     try {
       const payload: Record<string, string> = {};
-      if (reviewSentiment) payload.correctedSentiment = reviewSentiment;
-      if (reviewIntentId) payload.correctedIntentId = reviewIntentId;
-      if (reviewIssueTypeId) payload.correctedIssueTypeId = reviewIssueTypeId;
       if (reviewPriority) payload.correctedPriority = reviewPriority;
-      if (reviewCategoryId) payload.correctedCategoryId = reviewCategoryId;
+      if (reviewCategoryName) payload.correctedCategoryName = reviewCategoryName;
       if (reviewNotes.trim()) payload.notes = reviewNotes.trim();
 
       const response = await fetch(`/api/staff/tickets/${ticketId}/nlp-review`, {
@@ -245,7 +263,7 @@ export default function StaffTicketDetailClient({ ticketId }: { ticketId: string
                 <h3 className={styles.panelTitle}>Ticket Details</h3>
                 <dl className={styles.keyValueList}>
                   <div><dt>Type</dt><dd>{ticket.ticketType}</dd></div>
-                  <div><dt>Category</dt><dd>{ticket.category?.name ?? "-"}</dd></div>
+                  <div><dt>Category</dt><dd>{ticket.categoryName ?? ticket.category?.name ?? "-"}</dd></div>
                   <div><dt>Submitter Type</dt><dd>{ticket.submitterType}</dd></div>
                   <div><dt>Submitter</dt><dd>{ticket.submitter?.displayName ?? ticket.guestEmail ?? "-"}</dd></div>
                   <div><dt>Assigned Staff</dt><dd>{ticket.assignedStaff?.displayName ?? "Unassigned"}</dd></div>
@@ -256,10 +274,41 @@ export default function StaffTicketDetailClient({ ticketId }: { ticketId: string
               <div className={styles.infoPanel}>
                 <h3 className={styles.panelTitle}>NLP Fields</h3>
                 <dl className={styles.keyValueList}>
-                  <div><dt>Sentiment</dt><dd>{ticket.sentiment ?? "-"}</dd></div>
-                  <div><dt>Detected Intent</dt><dd>{ticket.detectedIntent ?? "-"}</dd></div>
-                  <div><dt>Issue Type</dt><dd>{ticket.issueType ?? "-"}</dd></div>
+                  <div><dt>Detected Category</dt><dd>{ticket.categoryName ?? "-"}</dd></div>
+                  <div><dt>Detected Priority</dt><dd>{ticket.priority ?? "-"}</dd></div>
                 </dl>
+
+                {ticket.nlpSuggestion ? (
+                  <div className={styles.infoPanel}>
+                    <h3 className={styles.panelTitle}>Suggested By NLP</h3>
+                    <dl className={styles.keyValueList}>
+                      <div><dt>Category Suggestion</dt><dd>{ticket.nlpSuggestion.suggestedCategoryName ?? "-"}</dd></div>
+                      <div><dt>Priority Suggestion</dt><dd>{ticket.nlpSuggestion.suggestedPriority ?? "-"}</dd></div>
+                      <div><dt>Priority Source</dt><dd>{ticket.nlpSuggestion.prioritySource?.toUpperCase() ?? "-"}</dd></div>
+                      <div><dt>Decision Status</dt><dd>{ticket.nlpSuggestion.isApplied ? "Auto-applied" : "Suggestion only"}</dd></div>
+                    </dl>
+                    <div className={styles.badgeRow}>
+                      <span
+                        className={styles.badge}
+                        style={confidenceGradientStyle(ticket.nlpSuggestion.confidenceCategory)}
+                      >
+                        Category: {confidenceLabel(ticket.nlpSuggestion.confidenceCategory)}
+                        {ticket.nlpSuggestion.confidenceCategory !== null
+                          ? ` (${ticket.nlpSuggestion.confidenceCategory.toFixed(2)})`
+                          : ""}
+                      </span>
+                      <span
+                        className={styles.badge}
+                        style={confidenceGradientStyle(ticket.nlpSuggestion.confidencePriority)}
+                      >
+                        Priority: {confidenceLabel(ticket.nlpSuggestion.confidencePriority)}
+                        {ticket.nlpSuggestion.confidencePriority !== null
+                          ? ` (${ticket.nlpSuggestion.confidencePriority.toFixed(2)})`
+                          : ""}
+                      </span>
+                    </div>
+                  </div>
+                ) : null}
 
                 <form className={styles.infoPanel} onSubmit={handleNlpReviewSubmit}>
                   <h3 className={styles.panelTitle}>NLP Correction</h3>
@@ -267,50 +316,8 @@ export default function StaffTicketDetailClient({ ticketId }: { ticketId: string
                   {reviewError ? <p className={styles.errorText}>{reviewError}</p> : null}
                   {nlpOptionsLoading ? <p className={styles.stateText}>Loading taxonomy options...</p> : null}
 
-                  <label className={styles.field}>
-                    <span>Sentiment</span>
-                    <select
-                      className={styles.select}
-                      value={reviewSentiment}
-                      onChange={(e) => setReviewSentiment(e.target.value)}
-                      disabled={nlpOptionsLoading || reviewSaving}
-                    >
-                      <option value="">Unspecified</option>
-                      {(nlpOptions?.sentiments ?? []).map((item) => (
-                        <option key={item} value={item}>{item}</option>
-                      ))}
-                    </select>
-                  </label>
 
-                  <label className={styles.field}>
-                    <span>Detected Intent</span>
-                    <select
-                      className={styles.select}
-                      value={reviewIntentId}
-                      onChange={(e) => setReviewIntentId(e.target.value)}
-                      disabled={nlpOptionsLoading || reviewSaving}
-                    >
-                      <option value="">Unspecified</option>
-                      {(nlpOptions?.intents ?? []).map((item) => (
-                        <option key={item.id} value={item.id}>{item.displayName}</option>
-                      ))}
-                    </select>
-                  </label>
 
-                  <label className={styles.field}>
-                    <span>Issue Type</span>
-                    <select
-                      className={styles.select}
-                      value={reviewIssueTypeId}
-                      onChange={(e) => setReviewIssueTypeId(e.target.value)}
-                      disabled={nlpOptionsLoading || reviewSaving}
-                    >
-                      <option value="">Unspecified</option>
-                      {(nlpOptions?.issueTypes ?? []).map((item) => (
-                        <option key={item.id} value={item.id}>{item.displayName}</option>
-                      ))}
-                    </select>
-                  </label>
 
                   <label className={styles.field}>
                     <span>Priority</span>
@@ -331,13 +338,13 @@ export default function StaffTicketDetailClient({ ticketId }: { ticketId: string
                     <span>Category</span>
                     <select
                       className={styles.select}
-                      value={reviewCategoryId}
-                      onChange={(e) => setReviewCategoryId(e.target.value)}
+                      value={reviewCategoryName}
+                      onChange={(e) => setReviewCategoryName(e.target.value)}
                       disabled={nlpOptionsLoading || reviewSaving}
                     >
                       <option value="">Unspecified</option>
                       {(nlpOptions?.categories ?? []).map((item) => (
-                        <option key={item.id} value={item.id}>{item.name}</option>
+                        <option key={item.id} value={item.name}>{item.name}</option>
                       ))}
                     </select>
                   </label>
@@ -474,28 +481,6 @@ export default function StaffTicketDetailClient({ ticketId }: { ticketId: string
             )}
           </section>
 
-          <section className={styles.card}>
-            <div className={styles.sectionHeader}><h2 className={styles.sectionTitle}>Feedback</h2></div>
-            {!ticket.feedback ? (
-              <p className={styles.stateText}>No feedback submitted for this ticket.</p>
-            ) : (
-              <div className={styles.infoPanel}>
-                <dl className={styles.keyValueList}>
-                  <div><dt>Rating</dt><dd>{ticket.feedback.rating} / 5</dd></div>
-                  <div><dt>Submitted</dt><dd>{formatDateTime(ticket.feedback.submittedAt)}</dd></div>
-                  <div>
-                    <dt>Submitter</dt>
-                    <dd>{ticket.feedback.submittedBy?.displayName ?? ticket.feedback.guestEmail ?? ticket.feedback.submitterType}</dd>
-                  </div>
-                  <div><dt>Submitter Type</dt><dd>{ticket.feedback.submitterType}</dd></div>
-                </dl>
-                <div className={styles.infoPanel}>
-                  <h3 className={styles.panelTitle}>Comment</h3>
-                  <p className={styles.preWrapText}>{ticket.feedback.comment ?? "No comment provided."}</p>
-                </div>
-              </div>
-            )}
-          </section>
         </>
       )}
     </main>

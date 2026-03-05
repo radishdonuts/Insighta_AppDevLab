@@ -33,3 +33,7 @@ frontend.zip
 frontend/frontend.zip
 *.zip
 
+# NLP local artifacts/cache (do not commit model weights)
+.cache/
+artifacts-cache/
+

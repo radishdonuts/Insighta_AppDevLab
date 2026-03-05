@@ -46,7 +46,6 @@ export type AdminStatsBreakdownsResponse = {
     status: AdminStatsBreakdownItem[];
     priority: AdminStatsBreakdownItem[];
     category: AdminStatsBreakdownItem[];
-    sentiment: AdminStatsBreakdownItem[];
   };
 };
 

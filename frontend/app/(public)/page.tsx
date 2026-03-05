@@ -18,6 +18,9 @@ export default function HomePage() {
           <Link href="/submit" className="btn-primary">
             Submit a Complaint
           </Link>
+          <Link href="/feedback" className="btn-outline">
+            Submit Feedback
+          </Link>
           <Link href="/track" className="btn-outline">
             Track Your Ticket
           </Link>

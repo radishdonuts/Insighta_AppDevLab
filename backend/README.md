@@ -11,6 +11,37 @@ uvicorn main:app --reload --port 8000
 
 The server will start at `http://127.0.0.1:8000`.
 
+## Model artifacts
+
+Set `NLP_ARTIFACT_DIR` to the notebook export folder that contains:
+
+- `model/` (DistilBERT weights + tokenizer)
+- `label_maps_categoryName.json`
+- `label_maps_priority.json`
+- `temperature_scaling.json` (optional)
+- `nlp_priority_rules.json`
+- `inference_config.json`
+
+The backend is fail-fast for artifacts. If the directory or required files are missing,
+`POST /nlp/generate` returns `503` and `/health` reports `status: not_ready`.
+
+## Sync from Google Drive shared folder (no Drive Desktop)
+
+Use the sync script to download dataset + a pinned artifact run:
+
+```bash
+pip install gdown
+python scripts/nlp/sync_from_drive_link.py \
+  --folder-url "https://drive.google.com/drive/folders/1CedqRQrTL_VZPPL6FJRv3dTxVHkBXJSE?usp=sharing" \
+  --run-id "distilbert_complaint_twohead_20260304_164403"
+```
+
+Then point FastAPI to the synced local path:
+
+```bash
+NLP_ARTIFACT_DIR=<repo>/artifacts-cache/distilbert_complaint_twohead_20260304_164403
+```
+
 ## Endpoints
 
 | Method | Path            | Description                        |
@@ -30,15 +61,15 @@ Response shape:
 
 ```json
 {
-  "sentiment": "Negative | Neutral | Positive | null",
-  "detectedIntent": "string | null",
-  "detectedIntentId": "uuid | null",
-  "issueType": "string | null",
-  "issueTypeId": "uuid | null",
   "priority": "Low | Medium | High | null",
   "categoryName": "string | null",
-  "categoryId": "uuid | null",
   "confidence": "number | null",
+  "confidenceCategory": "number | null",
+  "confidencePriority": "number | null",
+  "prioritySource": "ml | rule | null",
+  "suggestedCategoryName": "string | null",
+  "suggestedPriority": "Low | Medium | High | null",
+  "priorityRuleDebug": "object | null",
   "rawOutput": "string | null"
 }
 ```

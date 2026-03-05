@@ -69,16 +69,6 @@ export type StaffTicketStatusHistoryItem = {
   changedBy: StaffPersonSummary | null;
 };
 
-export type StaffTicketFeedback = {
-  id: string;
-  rating: number;
-  comment: string | null;
-  submittedAt: string;
-  submitterType: "Customer" | "Guest" | "Unknown";
-  submittedBy: StaffPersonSummary | null;
-  guestEmail: string | null;
-};
-
 export type StaffTicketDetail = {
   id: string;
   ticketNumber: string;
@@ -89,20 +79,26 @@ export type StaffTicketDetail = {
   description: string;
   submittedAt: string;
   lastUpdatedAt: string;
-  sentiment: string | null;
-  detectedIntent: string | null;
-  detectedIntentId: string | null;
-  issueType: string | null;
-  issueTypeId: string | null;
+  categoryName: string | null;
   category: StaffCategorySummary | null;
   categoryId: string | null;
   submitterType: "Customer" | "Guest" | "Unknown";
   submitter: StaffPersonSummary | null;
   guestEmail: string | null;
   assignedStaff: StaffPersonSummary | null;
+  nlpSuggestion: {
+    analysisId: string | null;
+    status: string | null;
+    isApplied: boolean;
+    suggestedCategoryName: string | null;
+    suggestedPriority: TicketPriority | string | null;
+    confidenceCategory: number | null;
+    confidencePriority: number | null;
+    prioritySource: "ml" | "rule" | null;
+    createdAt: string | null;
+  } | null;
   attachments: StaffAttachmentMetadata[];
   statusHistory: StaffTicketStatusHistoryItem[];
-  feedback: StaffTicketFeedback | null;
 };
 
 export type StaffTicketDetailResponse = {
@@ -117,24 +113,18 @@ export type StaffNlpLabelOption = {
 export type StaffNlpReviewOptionsResponse = {
   ticket: Pick<
     StaffTicketDetail,
-    "id" | "sentiment" | "detectedIntent" | "detectedIntentId" | "issueType" | "issueTypeId" | "priority" | "categoryId"
+    "id" | "priority" | "categoryName" | "categoryId"
   >;
   options: {
-    sentiments: string[];
     priorities: string[];
-    intents: StaffNlpLabelOption[];
-    issueTypes: StaffNlpLabelOption[];
     categories: StaffCategorySummary[];
   };
 };
 
 export type StaffNlpReviewRequest = {
   analysisId?: string;
-  correctedSentiment?: string | null;
-  correctedIntentId?: string | null;
-  correctedIssueTypeId?: string | null;
   correctedPriority?: string | null;
-  correctedCategoryId?: string | null;
+  correctedCategoryName?: string | null;
   notes?: string;
 };
 

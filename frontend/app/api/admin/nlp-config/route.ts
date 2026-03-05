@@ -5,9 +5,18 @@ import { getSupabaseServerClient } from "@/lib/supabase";
 
 export const runtime = "nodejs";
 
-const CONFIG_KEYS = ["nlp_provider", "nlp_api_key", "nlp_threshold", "nlp_auto_route"] as const;
+const CONFIG_KEYS = [
+    "nlp_provider",
+    "nlp_api_key",
+    "nlp_threshold",
+    "nlp_threshold_category",
+    "nlp_threshold_priority",
+    "nlp_auto_route",
+] as const;
 const DEFAULT_PROVIDER = (process.env.NLP_MODEL_PROVIDER ?? "fastapi").trim() || "fastapi";
 const DEFAULT_THRESHOLD = 0.85;
+const DEFAULT_THRESHOLD_CATEGORY = 0.75;
+const DEFAULT_THRESHOLD_PRIORITY = 0.75;
 const DEFAULT_AUTO_ROUTE = true;
 
 function asTrimmedString(value: unknown): string {
@@ -62,6 +71,8 @@ export async function GET() {
                     provider: DEFAULT_PROVIDER,
                     apiKey: "",
                     threshold: DEFAULT_THRESHOLD,
+                    thresholdCategory: DEFAULT_THRESHOLD_CATEGORY,
+                    thresholdPriority: DEFAULT_THRESHOLD_PRIORITY,
                     autoRoute: DEFAULT_AUTO_ROUTE,
                 },
             });
@@ -77,6 +88,8 @@ export async function GET() {
                 provider: asTrimmedString(configMap.nlp_provider) || DEFAULT_PROVIDER,
                 apiKey: asTrimmedString(configMap.nlp_api_key),
                 threshold: parseThreshold(configMap.nlp_threshold),
+                thresholdCategory: parseThreshold(configMap.nlp_threshold_category ?? configMap.nlp_threshold ?? DEFAULT_THRESHOLD_CATEGORY),
+                thresholdPriority: parseThreshold(configMap.nlp_threshold_priority ?? configMap.nlp_threshold ?? DEFAULT_THRESHOLD_PRIORITY),
                 autoRoute: parseBoolean(configMap.nlp_auto_route),
             },
         });
@@ -113,6 +126,12 @@ export async function PUT(request: Request) {
         }
         if (typeof body.threshold === "number") {
             settings.push({ key: "nlp_threshold", value: body.threshold });
+        }
+        if (typeof body.thresholdCategory === "number") {
+            settings.push({ key: "nlp_threshold_category", value: body.thresholdCategory });
+        }
+        if (typeof body.thresholdPriority === "number") {
+            settings.push({ key: "nlp_threshold_priority", value: body.thresholdPriority });
         }
         if (typeof body.autoRoute === "boolean") {
             settings.push({ key: "nlp_auto_route", value: body.autoRoute });

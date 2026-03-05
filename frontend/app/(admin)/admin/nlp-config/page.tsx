@@ -28,6 +28,8 @@ export default function NLPConfigPage() {
     const [apiKey, setApiKey] = useState("");
     const [showKey, setShowKey] = useState(false);
     const [threshold, setThreshold] = useState(0.85);
+    const [thresholdCategory, setThresholdCategory] = useState(0.75);
+    const [thresholdPriority, setThresholdPriority] = useState(0.75);
     const [autoRoute, setAutoRoute] = useState(true);
 
     const [saving, setSaving] = useState(false);
@@ -45,6 +47,8 @@ export default function NLPConfigPage() {
                     setProvider(data.config.provider ?? "fastapi");
                     setApiKey(data.config.apiKey ?? "");
                     setThreshold(data.config.threshold ?? 0.85);
+                    setThresholdCategory(data.config.thresholdCategory ?? data.config.threshold ?? 0.75);
+                    setThresholdPriority(data.config.thresholdPriority ?? data.config.threshold ?? 0.75);
                     setAutoRoute(data.config.autoRoute ?? true);
                 }
                 setLoaded(true);
@@ -58,7 +62,7 @@ export default function NLPConfigPage() {
             const res = await fetch("/api/admin/nlp-config", {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ provider, apiKey, threshold, autoRoute }),
+                body: JSON.stringify({ provider, apiKey, threshold, thresholdCategory, thresholdPriority, autoRoute }),
             });
             const data = await res.json();
             alert(data.message || "Configuration saved.");
@@ -153,6 +157,36 @@ export default function NLPConfigPage() {
                         <p className={styles.toggleDesc} style={{ marginTop: '0.5rem' }}>
                             Predictions below this confidence score will be flagged for manual review instead of auto-applying.
                         </p>
+                    </div>
+
+                    <div className={styles.formGroup}>
+                        <label className={styles.label}>Category Auto-Apply Threshold</label>
+                        <div className={styles.sliderWrapper}>
+                            <input
+                                type="range"
+                                min="0"
+                                max="100"
+                                value={thresholdCategory * 100}
+                                onChange={e => setThresholdCategory(parseFloat(e.target.value) / 100)}
+                                className={styles.slider}
+                            />
+                            <div className={styles.sliderValue}>{thresholdCategory.toFixed(2)}</div>
+                        </div>
+                    </div>
+
+                    <div className={styles.formGroup}>
+                        <label className={styles.label}>Priority Auto-Apply Threshold</label>
+                        <div className={styles.sliderWrapper}>
+                            <input
+                                type="range"
+                                min="0"
+                                max="100"
+                                value={thresholdPriority * 100}
+                                onChange={e => setThresholdPriority(parseFloat(e.target.value) / 100)}
+                                className={styles.slider}
+                            />
+                            <div className={styles.sliderValue}>{thresholdPriority.toFixed(2)}</div>
+                        </div>
                     </div>
 
                     <div className={styles.toggleRow}>
