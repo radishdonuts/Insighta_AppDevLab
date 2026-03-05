@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "validate:ticket-nlp:e2e": "node ./scripts/validate-ticket-nlp-e2e.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.8.0",

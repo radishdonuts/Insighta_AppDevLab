@@ -22,12 +22,14 @@ def _write_jsonl(path: Path, rows: list[dict]) -> None:
 
 
 def main() -> None:
+    backend_root = Path(__file__).resolve().parents[2]
+    data_dir = backend_root / "data" / "nlp"
     parser = argparse.ArgumentParser(description="Deterministically split JSONL dataset")
-    parser.add_argument("--input", default="data/nlp/synthetic_v1.jsonl")
-    parser.add_argument("--train", default="data/nlp/train.jsonl")
-    parser.add_argument("--val", default="data/nlp/val.jsonl")
-    parser.add_argument("--test", default="data/nlp/test.jsonl")
-    parser.add_argument("--report", default="data/nlp/dataset_report.json")
+    parser.add_argument("--input", default=str(data_dir / "synthetic_v1.jsonl"))
+    parser.add_argument("--train", default=str(data_dir / "train.jsonl"))
+    parser.add_argument("--val", default=str(data_dir / "val.jsonl"))
+    parser.add_argument("--test", default=str(data_dir / "test.jsonl"))
+    parser.add_argument("--report", default=str(data_dir / "dataset_report.json"))
     parser.add_argument("--train-size", type=int, default=1600)
     parser.add_argument("--val-size", type=int, default=200)
     parser.add_argument("--test-size", type=int, default=200)

@@ -268,8 +268,10 @@ def validate(rows: list[dict]) -> dict:
 
 
 def main() -> None:
+    backend_root = Path(__file__).resolve().parents[2]
+    data_dir = backend_root / "data" / "nlp"
     parser = argparse.ArgumentParser(description="Validate synthetic NLP JSONL dataset")
-    parser.add_argument("--input", default="data/nlp/synthetic_v1.jsonl")
+    parser.add_argument("--input", default=str(data_dir / "synthetic_v1.jsonl"))
     args = parser.parse_args()
 
     rows = _load_jsonl(Path(args.input))

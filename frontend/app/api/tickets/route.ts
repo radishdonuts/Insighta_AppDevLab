@@ -92,7 +92,14 @@ function isValidEmail(email: string): boolean {
 }
 
 function getErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "Unexpected error.";
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === "object") {
+    const maybeMessage = (error as { message?: unknown }).message;
+    if (typeof maybeMessage === "string" && maybeMessage.trim()) {
+      return maybeMessage.trim();
+    }
+  }
+  return "Unexpected error.";
 }
 
 function getErrorCode(error: unknown): string | undefined {
@@ -118,6 +125,12 @@ function isPayloadConstraintError(error: unknown): boolean {
     message.includes("violates foreign key constraint") ||
     message.includes("violates check constraint")
   );
+}
+
+function isMissingColumnError(error: unknown, columnName: string): boolean {
+  const message = getErrorMessage(error).toLowerCase();
+  const target = `'${columnName.toLowerCase()}'`;
+  return message.includes("column") && message.includes(target);
 }
 
 async function parseJsonBody(request: Request): Promise<JsonObject> {
@@ -150,6 +163,10 @@ function parseCreateTicketInput(
     readFirstString(body, ["guest_email", "guestEmail", "customer_email", "customerEmail"]) || undefined;
   const guestEmail = guestEmailRaw?.toLowerCase();
   const categoryInput = readFirstString(body, ["category_id", "categoryId", "category_name", "categoryName"]) || undefined;
+
+  if (!title) {
+    throw new ApiError(400, "Title is required.");
+  }
 
   if (title.length > TITLE_MAX_LENGTH) {
     throw new ApiError(400, `Title must be ${TITLE_MAX_LENGTH} characters or fewer.`);
@@ -391,13 +408,14 @@ async function insertTicketWithRetry(
   payload: Record<string, unknown>
 ) {
   let lastError: unknown;
+  const insertPayload: Record<string, unknown> = { ...payload };
 
   for (let attempt = 1; attempt <= MAX_TICKET_NUMBER_RETRIES; attempt += 1) {
     const ticketNumber = await getNextTicketNumber(supabase);
 
     const { data, error } = await supabase
       .from("tickets")
-      .insert({ ...payload, ticket_number: ticketNumber })
+      .insert({ ...insertPayload, ticket_number: ticketNumber })
       .select("id, ticket_number, status, priority, submitted_at")
       .single();
 
@@ -406,6 +424,12 @@ async function insertTicketWithRetry(
     }
 
     lastError = error;
+
+    if (isMissingColumnError(error, "category_source") || isMissingColumnError(error, "priority_source")) {
+      delete insertPayload.category_source;
+      delete insertPayload.priority_source;
+      continue;
+    }
 
     if (!isTicketNumberConflict(error)) {
       break;
@@ -498,40 +522,6 @@ async function uploadAttachmentsForTicket(
   return uploadedCount;
 }
 
-async function runAsyncNlpEnrichment(input: {
-  supabase: SupabaseServerClient;
-  ticketId: string;
-  text: string;
-  allowCategoryOverride: boolean;
-  uncategorizedCategoryId?: string | null;
-}) {
-  console.info("[tickets] NLP enrichment started", { ticketId: input.ticketId });
-
-  try {
-    const result = await runTicketNlpEnrichment({
-      supabase: input.supabase,
-      ticketId: input.ticketId,
-      text: input.text,
-      allowCategoryOverride: input.allowCategoryOverride,
-      uncategorizedCategoryId: input.uncategorizedCategoryId ?? null,
-    });
-
-    console.info("[tickets] NLP enrichment completed", {
-      ticketId: input.ticketId,
-      nlpFieldsUpdated: result.nlpFieldsUpdated,
-      categoryUpdated: result.categoryUpdated,
-      skippedLowConfidence: result.skippedLowConfidence,
-      skippedMissingTaxonomy: result.skippedMissingTaxonomy,
-      applied: result.applied,
-    });
-  } catch (error) {
-    console.error("[tickets] NLP enrichment failed", {
-      ticketId: input.ticketId,
-      error: getErrorMessage(error),
-    });
-  }
-}
-
 async function sendTicketCreatedEmailSafe(input: {
   recipientEmail: string | null;
   trackingNumber: string | null;
@@ -610,14 +600,65 @@ export async function POST(request: Request) {
       ticketId: ticketId || null,
     });
 
+    let nlp: {
+      status: "applied" | "failed";
+      applied: boolean;
+      error: string | null;
+      prediction: {
+        categoryName: string | null;
+        priority: string | null;
+        confidenceCategory: number | null;
+        confidencePriority: number | null;
+      } | null;
+    } | null = null;
+
     if (ticketId && input.nlpText) {
-      void runAsyncNlpEnrichment({
-        supabase,
-        ticketId,
-        text: input.nlpText,
-        allowCategoryOverride: true,
-        uncategorizedCategoryId: category.usedFallbackCategory ? category.categoryId : null,
-      });
+      console.info("[tickets] NLP enrichment started", { ticketId });
+      try {
+        const result = await runTicketNlpEnrichment({
+          supabase,
+          ticketId,
+          text: input.nlpText,
+          allowCategoryOverride: true,
+          uncategorizedCategoryId: category.usedFallbackCategory ? category.categoryId : null,
+        });
+        const analysis = result.analysis;
+        nlp = {
+          status: result.applied ? "applied" : "failed",
+          applied: result.applied,
+          error: result.applied
+            ? null
+            : result.skippedMissingTaxonomy
+              ? "NLP prediction category is not mappable to active taxonomy."
+              : "NLP prediction did not provide mappable category/priority labels.",
+          prediction: {
+            categoryName: analysis.categoryName ?? analysis.suggestedCategoryName ?? null,
+            priority: analysis.priority ?? analysis.suggestedPriority ?? null,
+            confidenceCategory: analysis.confidenceCategory ?? null,
+            confidencePriority: analysis.confidencePriority ?? null,
+          },
+        };
+        console.info("[tickets] NLP enrichment completed", {
+          ticketId,
+          nlpFieldsUpdated: result.nlpFieldsUpdated,
+          categoryUpdated: result.categoryUpdated,
+          skippedLowConfidence: result.skippedLowConfidence,
+          skippedMissingTaxonomy: result.skippedMissingTaxonomy,
+          applied: result.applied,
+        });
+      } catch (error) {
+        const message = getErrorMessage(error);
+        nlp = {
+          status: "failed",
+          applied: false,
+          error: message,
+          prediction: null,
+        };
+        console.error("[tickets] NLP enrichment failed", {
+          ticketId,
+          error: message,
+        });
+      }
     }
 
     return NextResponse.json(
@@ -632,6 +673,7 @@ export async function POST(request: Request) {
         },
         ...(guestAccessToken && guestId ? { accessToken: guestAccessToken } : {}),
         attachmentsUploaded,
+        nlp,
       },
       { status: 201 }
     );

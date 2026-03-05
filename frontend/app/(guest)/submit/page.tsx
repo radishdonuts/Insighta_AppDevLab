@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, FormEvent } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient as createSupabaseClient } from "@/utils/supabase/client";
@@ -16,6 +16,44 @@ type CategoryOption = { id: string; name: string };
 type CategoriesResponse = { ok?: boolean; categories?: Array<{ id?: unknown; name?: unknown }> };
 type TicketCreateResponse = { error?: string; details?: string; accessToken?: string; ticket?: { id?: string; reference?: string } };
 const NOT_SURE_CATEGORY = "__NOT_SURE__";
+
+type SubmitValidationInput = {
+  authUserId: string | null;
+  guestEmail: string;
+  title: string;
+  description: string;
+};
+
+function validateComplaintForm(input: SubmitValidationInput): Record<string, string> {
+  const errors: Record<string, string> = {};
+  const trimmedGuestEmail = input.guestEmail.trim();
+  const trimmedTitle = input.title.trim();
+  const trimmedDescription = input.description.trim();
+
+  if (!input.authUserId) {
+    if (!trimmedGuestEmail) {
+      errors.guestEmail = "Email is required for guests. If you have an account, please log in to skip this step.";
+    } else if (!EMAIL_REGEX.test(trimmedGuestEmail)) {
+      errors.guestEmail = "Invalid email format.";
+    }
+  }
+
+  if (!trimmedTitle) {
+    errors.title = "Title is required.";
+  } else if (trimmedTitle.length > TITLE_MAX_LENGTH) {
+    errors.title = `Max ${TITLE_MAX_LENGTH} characters.`;
+  }
+
+  if (!trimmedDescription) {
+    errors.description = "Description is required.";
+  } else if (trimmedDescription.length < DESCRIPTION_MIN_LENGTH) {
+    errors.description = `Min ${DESCRIPTION_MIN_LENGTH} characters.`;
+  } else if (trimmedDescription.length > DESCRIPTION_MAX_LENGTH) {
+    errors.description = `Max ${DESCRIPTION_MAX_LENGTH} characters.`;
+  }
+
+  return errors;
+}
 
 export default function SubmitPage() {
   const router = useRouter();
@@ -77,38 +115,35 @@ export default function SubmitPage() {
   }, [supabase]);
 
   // Validators
+  const validationErrors = useMemo(
+    () =>
+      validateComplaintForm({
+        authUserId,
+        guestEmail,
+        title,
+        description,
+      }),
+    [authUserId, guestEmail, title, description]
+  );
+
   const errors = useMemo(() => {
-    const e: Record<string, string> = {};
-    if (!authUserId && guestEmail) {
-      if (!EMAIL_REGEX.test(guestEmail)) e.guestEmail = "Invalid email format.";
-    } else if (!authUserId && touched.guestEmail) {
-      e.guestEmail = "Email is required for guests. If you have an account, please log in to skip this step.";
-    }
-
-    if (touched.title) {
-      if (!title.trim()) e.title = "Title is required.";
-      else if (title.trim().length > TITLE_MAX_LENGTH) e.title = `Max ${TITLE_MAX_LENGTH} characters.`;
-    }
-
-    if (touched.description) {
-      if (!description.trim()) e.description = "Description is required.";
-      else if (description.trim().length < DESCRIPTION_MIN_LENGTH) e.description = `Min ${DESCRIPTION_MIN_LENGTH} characters.`;
-      else if (description.trim().length > DESCRIPTION_MAX_LENGTH) e.description = `Max ${DESCRIPTION_MAX_LENGTH} characters.`;
-    }
-
-    return e;
-  }, [guestEmail, title, description, categoryId, touched, authUserId]);
+    const next: Record<string, string> = {};
+    if (touched.guestEmail && validationErrors.guestEmail) next.guestEmail = validationErrors.guestEmail;
+    if (touched.title && validationErrors.title) next.title = validationErrors.title;
+    if (touched.description && validationErrors.description) next.description = validationErrors.description;
+    return next;
+  }, [touched, validationErrors]);
 
   const handleBlur = (field: string) => setTouched((t) => ({ ...t, [field]: true }));
 
   const nextStep = () => {
     if (step === 1 && !authUserId) {
       setTouched((t) => ({ ...t, guestEmail: true }));
-      if (!guestEmail || errors.guestEmail) return;
+      if (validationErrors.guestEmail) return;
     }
     if (step === 2) {
-      setTouched((t) => ({ ...t, title: true, description: true, category: true }));
-      if (!title || !description || errors.title || errors.description || errors.category) return;
+      setTouched((t) => ({ ...t, title: true, description: true }));
+      if (validationErrors.title || validationErrors.description) return;
     }
     setStep(s => s + 1);
   };
@@ -122,6 +157,19 @@ export default function SubmitPage() {
   async function onSubmit() {
     if (isSubmitting) return;
     setSubmitError(null);
+
+    const submitErrors = validateComplaintForm({
+      authUserId,
+      guestEmail,
+      title,
+      description,
+    });
+    if (submitErrors.guestEmail || submitErrors.title || submitErrors.description) {
+      setTouched((t) => ({ ...t, guestEmail: true, title: true, description: true }));
+      setSubmitError("Please fix the form errors before submitting.");
+      return;
+    }
+
     setIsSubmitting(true);
 
     const payload = new FormData();
@@ -289,13 +337,11 @@ export default function SubmitPage() {
                 id="categoryId"
                 value={categoryId}
                 onChange={e => setCategoryId(e.target.value)}
-                onBlur={() => handleBlur("category")}
-                className={`${styles.input} ${touched.category ? (errors.category ? styles.inputError : styles.inputValid) : ''}`}
+                className={styles.input}
               >
                 <option value={NOT_SURE_CATEGORY}>Not sure (let AI classify)</option>
                 {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
-              {touched.category && errors.category && <span className={styles.errorMessage}>{errors.category}</span>}
             </div>
 
             <div className={styles.formGroup}>

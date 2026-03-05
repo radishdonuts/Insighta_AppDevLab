@@ -1,4 +1,4 @@
-import { requestNlpAnalysis, type NlpAnalysisResponse } from "@/lib/nlp/client";
+import { getNlpEndpoint, requestNlpAnalysis, type NlpAnalysisResponse } from "@/lib/nlp/client";
 import {
   type CanonicalComplaintCategory,
   normalizeCanonicalComplaintCategory,
@@ -107,7 +107,20 @@ function buildRawOutputPayload(analysis: NlpAnalysisResponse) {
 }
 
 function getErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "Unexpected error.";
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === "object") {
+    const maybeMessage = (error as { message?: unknown }).message;
+    if (typeof maybeMessage === "string" && maybeMessage.trim()) {
+      return maybeMessage.trim();
+    }
+  }
+  return "Unexpected error.";
+}
+
+function isMissingColumnError(error: unknown, columnName: string): boolean {
+  const message = getErrorMessage(error).toLowerCase();
+  const target = `'${columnName.toLowerCase()}'`;
+  return message.includes("column") && message.includes(target);
 }
 
 function normalizeCategoryName(value: unknown): TicketCategoryName | null {
@@ -266,14 +279,31 @@ export async function runTicketNlpEnrichment(
 
   const nowIso = new Date().toISOString();
   const runtimeSettings = await getConfiguredNlpRuntimeSettings(input.supabase);
-  const thresholdCategory = runtimeSettings.thresholdCategory;
-  const thresholdPriority = runtimeSettings.thresholdPriority;
   const metadata = getModelMetadata(runtimeSettings.provider);
+  const endpoint = getNlpEndpoint(runtimeSettings.provider);
 
   let analysisRowWritten = false;
   let analysis: NlpAnalysisResponse | null = null;
 
   try {
+    try {
+      const endpointUrl = new URL(endpoint);
+      const localHosts = new Set(["127.0.0.1", "localhost", "::1"]);
+      if (process.env.NODE_ENV === "production" && localHosts.has(endpointUrl.hostname.toLowerCase())) {
+        throw new Error("NLP endpoint misconfigured: FASTAPI_URL points to localhost in production runtime.");
+      }
+    } catch (endpointError) {
+      if (endpointError instanceof Error && endpointError.message.includes("misconfigured")) {
+        throw endpointError;
+      }
+    }
+
+    console.info("[nlp.enrichment] request start", {
+      ticketId,
+      provider: runtimeSettings.provider,
+      endpoint,
+    });
+
     analysis = await requestNlpAnalysis({
       text,
       ticketId,
@@ -287,24 +317,17 @@ export async function runTicketNlpEnrichment(
     const resolvedPriority = normalizePriority(analysis.priority);
     const resolvedCategoryName = normalizeCategoryName(analysis.categoryName ?? analysis.suggestedCategoryName);
 
-    const categoryPasses =
-      !!resolvedCategoryName &&
-      confidenceCategory !== null &&
-      confidenceCategory >= thresholdCategory;
-    const priorityPasses =
-      !!resolvedPriority &&
-      confidencePriority !== null &&
-      confidencePriority >= thresholdPriority;
+    const categoryPasses = !!resolvedCategoryName;
+    const priorityPasses = !!resolvedPriority;
     const skippedMissingTaxonomy = !!analysis.categoryName && !resolvedCategoryName;
-    const skippedLowConfidence =
-      (!!resolvedCategoryName && !categoryPasses) || (!!resolvedPriority && !priorityPasses);
+    const skippedLowConfidence = false;
     const appliedAny = categoryPasses || priorityPasses;
 
     const analysisStatus = appliedAny ? "succeeded" : "skipped";
     const analysisError = skippedMissingTaxonomy
       ? "Missing taxonomy mapping for categoryName."
-      : skippedLowConfidence
-        ? `Prediction below threshold (category >= ${thresholdCategory}, priority >= ${thresholdPriority}).`
+      : !appliedAny
+        ? "Prediction did not include mappable category or priority labels."
         : null;
 
     let categoryUpdated = false;
@@ -322,10 +345,21 @@ export async function runTicketNlpEnrichment(
         ...(categoryPasses && resolvedCategoryName ? { category_name: resolvedCategoryName, category_source: "nlp" } : {}),
       };
 
-      const { error: updateError } = await input.supabase
+      let ticketUpdatesForWrite = { ...ticketUpdates };
+      let { error: updateError } = await input.supabase
         .from("tickets")
-        .update(ticketUpdates)
+        .update(ticketUpdatesForWrite)
         .eq("id", ticketId);
+
+      if (updateError && (isMissingColumnError(updateError, "priority_source") || isMissingColumnError(updateError, "category_source"))) {
+        delete ticketUpdatesForWrite.priority_source;
+        delete ticketUpdatesForWrite.category_source;
+        const retry = await input.supabase
+          .from("tickets")
+          .update(ticketUpdatesForWrite)
+          .eq("id", ticketId);
+        updateError = retry.error ?? null;
+      }
 
       if (updateError) {
         throw new Error(`Failed to update NLP fields: ${updateError.message}`);

@@ -38,6 +38,17 @@ function asNullableTrimmedString(value: unknown): string | null {
   return trimmed || null;
 }
 
+function isMissingColumnError(error: unknown, columnName: string): boolean {
+  const message = asTrimmedString((error as { message?: unknown } | null)?.message).toLowerCase();
+  if (!message.includes("column")) return false;
+  const col = columnName.toLowerCase();
+  return message.includes(col) || message.includes(`tickets.${col}`) || message.includes(`'${col}'`);
+}
+
+function isSourceColumnMissingError(error: unknown): boolean {
+  return isMissingColumnError(error, "priority_source") || isMissingColumnError(error, "category_source");
+}
+
 function hasOwn(body: JsonObject, key: string): boolean {
   return Object.prototype.hasOwnProperty.call(body, key);
 }
@@ -204,10 +215,21 @@ export async function PATCH(
       ticketUpdates.category_source = "human_intervention";
     }
 
-    const { error: updateError } = await supabase
+    let updatePayload: Record<string, unknown> = { ...ticketUpdates };
+    let { error: updateError } = await supabase
       .from("tickets")
-      .update(ticketUpdates)
+      .update(updatePayload)
       .eq("id", ticketId);
+
+    if (updateError && isSourceColumnMissingError(updateError)) {
+      delete updatePayload.priority_source;
+      delete updatePayload.category_source;
+      const retry = await supabase
+        .from("tickets")
+        .update(updatePayload)
+        .eq("id", ticketId);
+      updateError = retry.error;
+    }
 
     if (updateError) {
       throw new Error(`Failed to apply ticket NLP corrections: ${updateError.message}`);

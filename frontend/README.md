@@ -30,7 +30,7 @@ NLP_REPROCESS_SECRET=change-me
 Optional NLP artifact env for FastAPI service:
 
 ```bash
-NLP_ARTIFACT_DIR=/absolute/path/to/artifacts-cache/run_folder
+NLP_ARTIFACT_DIR=/absolute/path/to/repo/backend/artifacts/distilbert_complaint_twohead_20260305_030951
 ```
 
 ## NLP flow

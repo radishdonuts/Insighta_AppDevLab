@@ -750,9 +750,11 @@ def write_jsonl(path: Path, records: list[dict]) -> None:
 
 
 def main() -> None:
+    backend_root = Path(__file__).resolve().parents[2]
+    data_dir = backend_root / "data" / "nlp"
     parser = argparse.ArgumentParser(description="Generate synthetic NLP dataset for Insighta.")
-    parser.add_argument("--output", default="data/nlp/synthetic_v1.jsonl")
-    parser.add_argument("--report", default="data/nlp/dataset_report.json")
+    parser.add_argument("--output", default=str(data_dir / "synthetic_v1.jsonl"))
+    parser.add_argument("--report", default=str(data_dir / "dataset_report.json"))
     parser.add_argument("--size", type=int, default=2000)
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()

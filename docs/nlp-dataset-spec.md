@@ -10,11 +10,11 @@ Only two labels are predicted by NLP:
 Feedback entries are excluded from NLP training and handled by star-rating workflow.
 
 ## Source Files
-- `data/nlp/synthetic_v1.jsonl`
-- `data/nlp/train.jsonl`
-- `data/nlp/val.jsonl`
-- `data/nlp/test.jsonl`
-- `data/nlp/dataset_report.json`
+- `backend/data/nlp/synthetic_v1.jsonl`
+- `backend/data/nlp/train.jsonl`
+- `backend/data/nlp/val.jsonl`
+- `backend/data/nlp/test.jsonl`
+- `backend/data/nlp/dataset_report.json`
 
 ## Schema
 Each JSONL row contains:
@@ -45,15 +45,15 @@ Each JSONL row contains:
 ## Commands
 Generate:
 ```bash
-python scripts/nlp/generate_synthetic_dataset.py --size 2000 --seed 42
+python backend/scripts/nlp/generate_synthetic_dataset.py --size 2000 --seed 42
 ```
 
 Validate:
 ```bash
-python scripts/nlp/validate_dataset.py --input data/nlp/synthetic_v1.jsonl
+python backend/scripts/nlp/validate_dataset.py --input backend/data/nlp/synthetic_v1.jsonl
 ```
 
 Split:
 ```bash
-python scripts/nlp/split_dataset.py --input data/nlp/synthetic_v1.jsonl
+python backend/scripts/nlp/split_dataset.py --input backend/data/nlp/synthetic_v1.jsonl
 ```

@@ -116,6 +116,17 @@ function asJsonObject(value: unknown): JsonObject | null {
   return null;
 }
 
+function isMissingColumnError(error: unknown, columnName: string): boolean {
+  const message = asTrimmedString((error as { message?: unknown } | null)?.message).toLowerCase();
+  if (!message.includes("column")) return false;
+  const col = columnName.toLowerCase();
+  return message.includes(col) || message.includes(`tickets.${col}`) || message.includes(`'${col}'`);
+}
+
+function isSourceColumnMissingError(error: unknown): boolean {
+  return isMissingColumnError(error, "category_source") || isMissingColumnError(error, "priority_source");
+}
+
 function mapTicketFieldSource(value: unknown): TicketFieldSource {
   const raw = asTrimmedString(value);
   if (raw === "user" || raw === "nlp" || raw === "human_intervention" || raw === "default") {
@@ -353,10 +364,7 @@ export async function listStaffTickets(
   const from = (filters.page - 1) * filters.pageSize;
   const to = from + filters.pageSize - 1;
 
-  let query: any = supabase
-    .from("tickets")
-    .select(
-      `
+  const selectWithSources = `
         id,
         ticket_number,
         ticket_type,
@@ -374,20 +382,51 @@ export async function listStaffTickets(
         assigned_staff_id,
         ticket_access_tokens!ticket_access_tokens_ticket_id_fkey (token_hash, created_at),
         assigned_staff:profiles!tickets_assigned_staff_id_fkey (id, email, first_name, last_name)
-      `,
-      { count: "exact" }
-    )
-    .order("created_at", { foreignTable: "ticket_access_tokens", ascending: false })
-    .order("last_updated_at", { ascending: false })
-    .order("submitted_at", { ascending: false })
-    .range(from, to);
+      `;
+  const selectLegacy = `
+        id,
+        ticket_number,
+        ticket_type,
+        title,
+        status,
+        priority,
+        description,
+        submitted_at,
+        last_updated_at,
+        category_name,
+        customer_id,
+        guest_id,
+        assigned_staff_id,
+        ticket_access_tokens!ticket_access_tokens_ticket_id_fkey (token_hash, created_at),
+        assigned_staff:profiles!tickets_assigned_staff_id_fkey (id, email, first_name, last_name)
+      `;
 
-  query = applyQueueFilters(query, filters, authUserId);
+  const runQuery = (selectClause: string) => {
+    let query: any = supabase
+      .from("tickets")
+      .select(selectClause, { count: "exact" })
+      .order("created_at", { foreignTable: "ticket_access_tokens", ascending: false })
+      .order("last_updated_at", { ascending: false })
+      .order("submitted_at", { ascending: false })
+      .range(from, to);
+    return applyQueueFilters(query, filters, authUserId);
+  };
 
-  const [{ data, error, count }, categoryOptions] = await Promise.all([
-    query,
+  const [resultWithSources, categoryOptions] = await Promise.all([
+    runQuery(selectWithSources),
     listActiveCategories(supabase),
   ]);
+
+  let data = resultWithSources.data;
+  let error = resultWithSources.error;
+  let count = resultWithSources.count;
+
+  if (error && isSourceColumnMissingError(error)) {
+    const legacyResult = await runQuery(selectLegacy);
+    data = legacyResult.data;
+    error = legacyResult.error;
+    count = legacyResult.count;
+  }
 
   if (error) {
     throw new Error(`Failed to load staff tickets: ${error.message}`);
@@ -416,10 +455,7 @@ export async function getStaffTicketDetail(
   supabase: SupabaseServerClient,
   ticketId: string
 ): Promise<StaffTicketDetailResponse | null> {
-  const { data: ticket, error: ticketError } = await supabase
-    .from("tickets")
-    .select(
-      `
+  const selectWithSources = `
         id,
         ticket_number,
         ticket_type,
@@ -439,12 +475,42 @@ export async function getStaffTicketDetail(
         submitter_profile:profiles!tickets_customer_id_fkey (id, email, first_name, last_name),
         assigned_staff:profiles!tickets_assigned_staff_id_fkey (id, email, first_name, last_name),
         guest_contact:guest_contacts!tickets_guest_id_fkey (id, email)
-      `
-    )
-    .eq("id", ticketId)
-    .order("created_at", { foreignTable: "ticket_access_tokens", ascending: false })
-    .limit(1)
-    .maybeSingle();
+      `;
+  const selectLegacy = `
+        id,
+        ticket_number,
+        ticket_type,
+        title,
+        status,
+        priority,
+        description,
+        submitted_at,
+        last_updated_at,
+        category_name,
+        customer_id,
+        guest_id,
+        assigned_staff_id,
+        ticket_access_tokens!ticket_access_tokens_ticket_id_fkey (token_hash, created_at),
+        submitter_profile:profiles!tickets_customer_id_fkey (id, email, first_name, last_name),
+        assigned_staff:profiles!tickets_assigned_staff_id_fkey (id, email, first_name, last_name),
+        guest_contact:guest_contacts!tickets_guest_id_fkey (id, email)
+      `;
+
+  const runDetailQuery = (selectClause: string) =>
+    supabase
+      .from("tickets")
+      .select(selectClause)
+      .eq("id", ticketId)
+      .order("created_at", { foreignTable: "ticket_access_tokens", ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+  let { data: ticket, error: ticketError } = await runDetailQuery(selectWithSources);
+  if (ticketError && isSourceColumnMissingError(ticketError)) {
+    const legacyResult = await runDetailQuery(selectLegacy);
+    ticket = legacyResult.data;
+    ticketError = legacyResult.error;
+  }
 
   if (ticketError) {
     throw new Error(`Failed to load ticket detail: ${ticketError.message}`);
@@ -453,6 +519,7 @@ export async function getStaffTicketDetail(
   if (!ticket) {
     return null;
   }
+  const ticketRow: any = ticket;
 
   const [attachmentsResult, historyResult, nlpAnalysisResult] = await Promise.all([
     supabase
@@ -509,32 +576,32 @@ export async function getStaffTicketDetail(
     })
   );
 
-  const submitterProfile = mapPerson(firstRow(ticket.submitter_profile));
-  const guestContact = firstRow<{ email?: unknown }>(ticket.guest_contact);
+  const submitterProfile = mapPerson(firstRow(ticketRow.submitter_profile));
+  const guestContact = firstRow<{ email?: unknown }>(ticketRow.guest_contact);
   const guestEmail = asNullableTrimmedString(guestContact?.email);
-  const trackingCode = readTrackingCode(ticket.ticket_access_tokens);
+  const trackingCode = readTrackingCode(ticketRow.ticket_access_tokens);
   const detail: StaffTicketDetail = {
-    id: asString(ticket.id) ?? "",
-    ticketNumber: trackingCode ?? asString(ticket.ticket_number) ?? "",
-    ticketType: asString(ticket.ticket_type) ?? "",
-    title: asNullableTrimmedString(ticket.title),
-    status: asString(ticket.status) ?? "",
-    priority: asString(ticket.priority) ?? "",
-    description: asString(ticket.description) ?? "",
-    submittedAt: safeIso(ticket.submitted_at),
-    lastUpdatedAt: safeIso(ticket.last_updated_at),
-    categoryName: asNullableTrimmedString(ticket.category_name),
+    id: asString(ticketRow.id) ?? "",
+    ticketNumber: trackingCode ?? asString(ticketRow.ticket_number) ?? "",
+    ticketType: asString(ticketRow.ticket_type) ?? "",
+    title: asNullableTrimmedString(ticketRow.title),
+    status: asString(ticketRow.status) ?? "",
+    priority: asString(ticketRow.priority) ?? "",
+    description: asString(ticketRow.description) ?? "",
+    submittedAt: safeIso(ticketRow.submitted_at),
+    lastUpdatedAt: safeIso(ticketRow.last_updated_at),
+    categoryName: asNullableTrimmedString(ticketRow.category_name),
     category: (() => {
-      const categoryName = asNullableTrimmedString(ticket.category_name);
+      const categoryName = asNullableTrimmedString(ticketRow.category_name);
       return categoryName ? { id: categoryName, name: categoryName } : null;
     })(),
-    categoryId: mapCategoryNameToId(asNullableTrimmedString(ticket.category_name)),
-    categorySource: mapTicketFieldSource(ticket.category_source),
-    prioritySource: mapTicketFieldSource(ticket.priority_source),
+    categoryId: mapCategoryNameToId(asNullableTrimmedString(ticketRow.category_name)),
+    categorySource: mapTicketFieldSource(ticketRow.category_source),
+    prioritySource: mapTicketFieldSource(ticketRow.priority_source),
     submitterType: submitterProfile ? "Customer" : guestEmail ? "Guest" : "Unknown",
     submitter: submitterProfile,
     guestEmail,
-    assignedStaff: mapPerson(firstRow(ticket.assigned_staff)),
+    assignedStaff: mapPerson(firstRow(ticketRow.assigned_staff)),
     nlpSuggestion: mapNlpSuggestion((nlpAnalysisResult.data as RawNlpAnalysisRow | null | undefined) ?? null),
     attachments,
     statusHistory: (Array.isArray(historyResult.data) ? historyResult.data : []).map(mapStatusHistoryItem),

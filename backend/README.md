@@ -31,15 +31,15 @@ Use the sync script to download dataset + a pinned artifact run:
 
 ```bash
 pip install gdown
-python scripts/nlp/sync_from_drive_link.py \
+python backend/scripts/nlp/sync_from_drive_link.py \
   --folder-url "https://drive.google.com/drive/folders/1CedqRQrTL_VZPPL6FJRv3dTxVHkBXJSE?usp=sharing" \
-  --run-id "distilbert_complaint_twohead_20260304_164403"
+  --run-id "distilbert_complaint_twohead_20260305_030951"
 ```
 
-Then point FastAPI to the synced local path:
+Then point FastAPI to the committed repo artifact path:
 
 ```bash
-NLP_ARTIFACT_DIR=<repo>/artifacts-cache/distilbert_complaint_twohead_20260304_164403
+NLP_ARTIFACT_DIR=<repo>/backend/artifacts/distilbert_complaint_twohead_20260305_030951
 ```
 
 ## Endpoints

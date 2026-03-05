@@ -84,6 +84,144 @@ class InferenceRuntime:
 _RUNTIME: Optional[InferenceRuntime] = None
 _RUNTIME_ERROR: Optional[str] = None
 
+FALLBACK_RUNTIME_RULES = RuntimeRules(
+    category_base={
+        "Policy & Account Servicing": "Medium",
+        "Claims Experience": "High",
+        "Payments, Billing & Refunds": "Medium",
+        "Documents & Requirements": "Medium",
+        "Customer Support & Service Quality": "Medium",
+        "Digital Access & Technical Issues": "Medium",
+        "Fraud, Security & Privacy": "High",
+        "Product/Partner Service Delivery": "Medium",
+        "Other / Uncategorized": "Low",
+    },
+    high_strong_patterns=[
+        r"\burgent\b",
+        r"\bimmediate\b",
+        r"\basap\b",
+        r"\bdenied\b",
+        r"\bfraud\b",
+        r"\bsecurity\b",
+        r"\bprivacy\b",
+    ],
+    high_weak_patterns=[
+        r"\bsevere\b",
+        r"\bcritical\b",
+        r"\bserious\b",
+        r"\bcomplaint\b",
+    ],
+    med_patterns=[
+        r"\bdelay\b",
+        r"\bnot resolved\b",
+        r"\bissue\b",
+        r"\bproblem\b",
+        r"\bdispute\b",
+    ],
+    low_patterns=[
+        r"\bno rush\b",
+        r"\blow priority\b",
+        r"\bwhenever possible\b",
+    ],
+    ml_priority_conf_threshold=0.75,
+    rule_advantage=0.15,
+    rule_min_confidence=0.80,
+    rule_evidence_override_gap=-0.10,
+)
+
+CATEGORY_KEYWORDS: list[tuple[str, list[str]]] = [
+    (
+        "Claims Experience",
+        [
+            "claim denied",
+            "claim rejection",
+            "claim status",
+            "claim was denied",
+            "adjuster",
+            "settlement",
+        ],
+    ),
+    (
+        "Payments, Billing & Refunds",
+        [
+            "billing",
+            "charged",
+            "payment",
+            "refund",
+            "invoice",
+            "premium",
+            "double charge",
+        ],
+    ),
+    (
+        "Digital Access & Technical Issues",
+        [
+            "website",
+            "portal",
+            "app",
+            "login",
+            "error",
+            "crash",
+            "bug",
+            "form",
+        ],
+    ),
+    (
+        "Policy & Account Servicing",
+        [
+            "policy update",
+            "policy cancellation",
+            "cancel policy",
+            "account",
+            "profile",
+            "policy details",
+        ],
+    ),
+    (
+        "Documents & Requirements",
+        [
+            "document",
+            "requirements",
+            "upload",
+            "verification",
+            "attachment",
+        ],
+    ),
+    (
+        "Customer Support & Service Quality",
+        [
+            "support",
+            "service quality",
+            "agent",
+            "response time",
+            "no response",
+            "follow up",
+        ],
+    ),
+    (
+        "Fraud, Security & Privacy",
+        [
+            "fraud",
+            "security",
+            "privacy",
+            "unauthorized",
+            "breach",
+            "scam",
+        ],
+    ),
+    (
+        "Product/Partner Service Delivery",
+        [
+            "delivery",
+            "courier",
+            "dispatch",
+            "partner",
+            "shipment",
+            "tracking",
+        ],
+    ),
+]
+
 
 def _norm_priority(value: str) -> str:
     key = value.strip().lower()
@@ -318,6 +456,23 @@ def _runtime_or_503() -> InferenceRuntime:
     return runtime
 
 
+def infer_with_fallback(text: str) -> tuple[str, float, str, float, float]:
+    lowered = text.lower()
+    best_category = "Other / Uncategorized"
+    best_hits = 0
+
+    for category, keywords in CATEGORY_KEYWORDS:
+        hits = sum(1 for keyword in keywords if keyword in lowered)
+        if hits > best_hits:
+            best_category = category
+            best_hits = hits
+
+    conf_cat = 0.78 if best_hits == 0 else min(0.80 + 0.06 * best_hits, 0.96)
+    ml_priority = _norm_priority(FALLBACK_RUNTIME_RULES.category_base.get(best_category, "Medium"))
+    conf_pri = 0.78 if best_hits == 0 else min(0.80 + 0.05 * best_hits, 0.95)
+    return best_category, float(conf_cat), ml_priority, float(conf_pri), 0.10
+
+
 def infer_with_runtime(text: str, runtime: InferenceRuntime) -> tuple[str, float, str, float, float]:
     import torch
 
@@ -353,12 +508,22 @@ async def nlp_generate(req: NLPRequest):
     text = req.text.strip()
     provider = (req.provider or "fastapi").strip().lower()
 
-    runtime = _runtime_or_503()
-    pred_category, conf_cat, ml_priority, conf_pri, ml_margin = infer_with_runtime(text, runtime)
+    if not text:
+        raise HTTPException(status_code=400, detail="Text is required.")
 
-    rule_pri, rule_conf, dbg = rule_priority(text, pred_category, runtime.rules)
+    runtime = get_runtime()
+    if runtime is None:
+        pred_category, conf_cat, ml_priority, conf_pri, ml_margin = infer_with_fallback(text)
+        rules = FALLBACK_RUNTIME_RULES
+        fallback_mode = True
+    else:
+        pred_category, conf_cat, ml_priority, conf_pri, ml_margin = infer_with_runtime(text, runtime)
+        rules = runtime.rules
+        fallback_mode = False
 
-    if rule_conf >= runtime.rules.rule_min_confidence and (rule_conf - conf_pri) >= runtime.rules.rule_advantage:
+    rule_pri, rule_conf, dbg = rule_priority(text, pred_category, rules)
+
+    if rule_conf >= rules.rule_min_confidence and (rule_conf - conf_pri) >= rules.rule_advantage:
         final_pri, final_pri_conf, pr_source = rule_pri, rule_conf, "rule"
     else:
         final_pri, final_pri_conf, pr_source = ml_priority, conf_pri, "ml"
@@ -377,7 +542,7 @@ async def nlp_generate(req: NLPRequest):
 
     if pr_source == "ml" and rule_pri != final_pri:
         rule_evidence = int(dbg.get("hi_strong", 0)) + int(dbg.get("hi_weak", 0)) + int(dbg.get("med", 0))
-        if rule_evidence >= 2 and (rule_conf - conf_pri) > runtime.rules.rule_evidence_override_gap:
+        if rule_evidence >= 2 and (rule_conf - conf_pri) > rules.rule_evidence_override_gap:
             final_pri = rule_pri
             final_pri_conf = max(rule_conf, conf_pri)
             pr_source = "rule"
@@ -388,6 +553,7 @@ async def nlp_generate(req: NLPRequest):
         "ticketId": req.ticketId,
         "prioritySource": pr_source,
         "runtimeError": _RUNTIME_ERROR,
+        "fallbackMode": fallback_mode,
         "ml_priority": ml_priority,
         "ml_priority_confidence": round(conf_pri, 4),
         "ml_priority_margin": round(ml_margin, 4),
