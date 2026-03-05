@@ -241,7 +241,8 @@ async function resolveCategorySelection(
       const { data, error } = await supabase
         .from("complaint_categories")
         .select("id")
-        .ilike("category_name", normalizedCategoryName)
+        .eq("category_name", normalizedCategoryName)
+        .eq("is_active", true)
         .limit(1)
         .maybeSingle();
 
@@ -250,7 +251,11 @@ async function resolveCategorySelection(
       }
 
       if (!data?.id) {
-        throw new ApiError(400, "Selected category is unavailable.");
+        return {
+          categoryId: await resolveUncategorizedCategoryId(supabase),
+          usedFallbackCategory: true,
+          userProvided: false,
+        };
       }
 
       return {
