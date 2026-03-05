@@ -2,6 +2,11 @@
 
 import { jsonError, jsonServerError, parseJsonRequestBody } from "@/app/api/staff/_utils";
 import {
+  CANONICAL_COMPLAINT_CATEGORIES,
+  type CanonicalComplaintCategory,
+  normalizeCanonicalComplaintCategory,
+} from "@/lib/nlp/taxonomy";
+import {
   getRequestIpAddress,
   getStaffSupabase,
   isUuid,
@@ -21,17 +26,7 @@ type TicketNlpRow = {
 };
 
 const PRIORITY_SET = new Set<string>(TICKET_PRIORITIES);
-const FIXED_CATEGORIES = [
-  "Policy & Account Servicing",
-  "Claims Experience",
-  "Payments, Billing & Refunds",
-  "Documents & Requirements",
-  "Customer Support & Service Quality",
-  "Digital Access & Technical Issues",
-  "Fraud, Security & Privacy",
-  "Product/Partner Service Delivery",
-  "Other / Uncategorized",
-] as const;
+const FIXED_CATEGORIES = CANONICAL_COMPLAINT_CATEGORIES;
 const CATEGORY_SET = new Set<string>(FIXED_CATEGORIES);
 
 function asTrimmedString(value: unknown): string {
@@ -97,8 +92,8 @@ export async function GET(
     }
 
     const dbCategories = (Array.isArray(categoriesResult.data) ? categoriesResult.data : [])
-      .map((row) => asTrimmedString((row as ActiveCategoryRow).category_name))
-      .filter((value) => value && CATEGORY_SET.has(value));
+      .map((row) => normalizeCanonicalComplaintCategory(asTrimmedString((row as ActiveCategoryRow).category_name)))
+      .filter((value): value is CanonicalComplaintCategory => !!value && CATEGORY_SET.has(value));
 
     const finalCategories = dbCategories.length > 0 ? dbCategories : [...FIXED_CATEGORIES];
     const ticket = ticketResult.data as TicketNlpRow;
@@ -201,10 +196,12 @@ export async function PATCH(
 
     if (correctedPriorityRaw !== undefined && correctedPriorityRaw !== null) {
       ticketUpdates.priority = correctedPriorityRaw;
+      ticketUpdates.priority_source = "human_intervention";
     }
 
     if (correctedCategoryName !== undefined && correctedCategoryName !== null) {
       ticketUpdates.category_name = correctedCategoryName;
+      ticketUpdates.category_source = "human_intervention";
     }
 
     const { error: updateError } = await supabase

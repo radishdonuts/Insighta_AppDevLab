@@ -16,10 +16,15 @@ import {
   type StaffTicketQueueResponse,
   type StaffTicketTab,
   type StaffTicketStatusHistoryItem,
+  type TicketFieldSource,
 } from "@/types/staff-tickets";
 import { TICKET_PRIORITIES, TICKET_STATUSES } from "@/types/tickets";
 import type { ApiRoleGuardSuccess } from "@/lib/auth/api-guards";
 import { requireAnyRole } from "@/lib/auth/api-guards";
+import {
+  CANONICAL_COMPLAINT_CATEGORIES,
+  normalizeCanonicalComplaintCategory,
+} from "@/lib/nlp/taxonomy";
 import { getSupabaseServerClient } from "@/lib/supabase";
 
 type JsonObject = Record<string, unknown>;
@@ -111,6 +116,14 @@ function asJsonObject(value: unknown): JsonObject | null {
   return null;
 }
 
+function mapTicketFieldSource(value: unknown): TicketFieldSource {
+  const raw = asTrimmedString(value);
+  if (raw === "user" || raw === "nlp" || raw === "human_intervention" || raw === "default") {
+    return raw;
+  }
+  return null;
+}
+
 function firstRow<T>(value: T | T[] | null | undefined): T | null {
   if (Array.isArray(value)) return (value[0] ?? null) as T | null;
   return (value ?? null) as T | null;
@@ -157,20 +170,7 @@ function mapPerson(raw: RawProfile | null | undefined): StaffPersonSummary | nul
 }
 
 function mapCategoryNameToId(name: string | null): string | null {
-  if (!name) return null;
-  const key = name.trim().toLowerCase();
-  const map: Record<string, string> = {
-    "policy & account servicing": "Policy & Account Servicing",
-    "claims experience": "Claims Experience",
-    "payments, billing & refunds": "Payments, Billing & Refunds",
-    "documents & requirements": "Documents & Requirements",
-    "customer support & service quality": "Customer Support & Service Quality",
-    "digital access & technical issues": "Digital Access & Technical Issues",
-    "fraud, security & privacy": "Fraud, Security & Privacy",
-    "product/partner service delivery": "Product/Partner Service Delivery",
-    "other / uncategorized": "Other / Uncategorized",
-  };
-  return map[key] ?? null;
+  return normalizeCanonicalComplaintCategory(name);
 }
 
 function safeIso(value: unknown): string {
@@ -216,6 +216,8 @@ function mapQueueItem(row: any): StaffTicketQueueItem {
     submittedAt: safeIso(row?.submitted_at),
     lastUpdatedAt: safeIso(row?.last_updated_at),
     category: categoryName ? { id: categoryName, name: categoryName } : null,
+    categorySource: mapTicketFieldSource(row?.category_source),
+    prioritySource: mapTicketFieldSource(row?.priority_source),
     assignedStaff: mapPerson(row?.assigned_staff),
     submitterType: inferSubmitterType(row?.customer_id, row?.guest_id),
   };
@@ -340,19 +342,7 @@ function applyQueueFilters(query: any, filters: StaffQueueFilters, authUserId: s
 }
 
 async function listActiveCategories(_supabase: SupabaseServerClient): Promise<StaffCategorySummary[]> {
-  const names = [
-    "Policy & Account Servicing",
-    "Claims Experience",
-    "Payments, Billing & Refunds",
-    "Documents & Requirements",
-    "Customer Support & Service Quality",
-    "Digital Access & Technical Issues",
-    "Fraud, Security & Privacy",
-    "Product/Partner Service Delivery",
-    "Other / Uncategorized",
-  ];
-
-  return names.map((name) => ({ id: name, name }));
+  return CANONICAL_COMPLAINT_CATEGORIES.map((name) => ({ id: name, name }));
 }
 
 export async function listStaffTickets(
@@ -377,6 +367,8 @@ export async function listStaffTickets(
         submitted_at,
         last_updated_at,
         category_name,
+        category_source,
+        priority_source,
         customer_id,
         guest_id,
         assigned_staff_id,
@@ -438,6 +430,8 @@ export async function getStaffTicketDetail(
         submitted_at,
         last_updated_at,
         category_name,
+        category_source,
+        priority_source,
         customer_id,
         guest_id,
         assigned_staff_id,
@@ -535,6 +529,8 @@ export async function getStaffTicketDetail(
       return categoryName ? { id: categoryName, name: categoryName } : null;
     })(),
     categoryId: mapCategoryNameToId(asNullableTrimmedString(ticket.category_name)),
+    categorySource: mapTicketFieldSource(ticket.category_source),
+    prioritySource: mapTicketFieldSource(ticket.priority_source),
     submitterType: submitterProfile ? "Customer" : guestEmail ? "Guest" : "Unknown",
     submitter: submitterProfile,
     guestEmail,

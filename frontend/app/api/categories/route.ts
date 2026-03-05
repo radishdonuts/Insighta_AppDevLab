@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
 
+import {
+  CANONICAL_COMPLAINT_CATEGORIES,
+  type CanonicalComplaintCategory,
+  normalizeCanonicalComplaintCategory,
+} from "@/lib/nlp/taxonomy";
 import { getSupabaseServerClient } from "@/lib/supabase";
 
 export const runtime = "nodejs";
@@ -30,14 +35,23 @@ export async function GET() {
       );
     }
 
-    const categories = (data ?? [])
+    const loaded = (data ?? [])
       .map((row) => {
         const item = row as CategoryRow;
         const id = asString(item.id);
         const name = asString(item.category_name);
         if (!id || !name) return null;
-        return { id, name };
+        const canonical = normalizeCanonicalComplaintCategory(name);
+        if (!canonical) return null;
+        return { id, name: canonical, key: canonical.toLowerCase() };
       })
+      .filter((item): item is { id: string; name: CanonicalComplaintCategory; key: string } => item !== null);
+
+    const byName = new Map<string, { id: string; name: string }>();
+    for (const item of loaded) byName.set(item.key, { id: item.id, name: item.name });
+
+    const categories = CANONICAL_COMPLAINT_CATEGORIES
+      .map((name) => byName.get(name.toLowerCase()) ?? null)
       .filter((item): item is { id: string; name: string } => item !== null);
 
     return NextResponse.json({ ok: true, categories });

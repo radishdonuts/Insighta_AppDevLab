@@ -12,6 +12,7 @@ import {
   type StaffTicketQueueItem,
   type StaffTicketQueueResponse,
   type StaffTicketTab,
+  type TicketFieldSource,
 } from "@/types/staff-tickets";
 import { TICKET_PRIORITIES, TICKET_STATUSES } from "@/types/tickets";
 
@@ -44,6 +45,13 @@ function priorityBadge(priority: string) {
   if (priority === "Medium") return badge(styles.badgeWarning);
   if (priority === "Low") return badge(styles.badgeSuccess);
   return badge(styles.badgeNeutral);
+}
+
+function fieldSourceLabel(source: TicketFieldSource) {
+  if (source === "nlp") return "Overridden by NLP";
+  if (source === "human_intervention") return "Overridden by human intervention";
+  if (source === "user") return "Selected by user";
+  return "Set by default flow";
 }
 
 async function readApiError(response: Response) {
@@ -279,8 +287,18 @@ export default function StaffWorkspaceClient() {
                         </div>
                       </td>
                       <td><span className={statusBadge(ticket.status)}>{ticket.status}</span></td>
-                      <td><span className={priorityBadge(ticket.priority)}>{ticket.priority}</span></td>
-                      <td>{ticket.category?.name ?? "-"}</td>
+                      <td>
+                        <div className={styles.cellStack}>
+                          <span className={priorityBadge(ticket.priority)}>{ticket.priority}</span>
+                          <span className={styles.mutedText}>{fieldSourceLabel(ticket.prioritySource)}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <div className={styles.cellStack}>
+                          <span>{ticket.category?.name ?? "-"}</span>
+                          <span className={styles.mutedText}>{fieldSourceLabel(ticket.categorySource)}</span>
+                        </div>
+                      </td>
                       <td>{ticket.assignedStaff?.displayName ?? "Unassigned"}</td>
                       <td>{formatDateTime(ticket.lastUpdatedAt)}</td>
                       <td>

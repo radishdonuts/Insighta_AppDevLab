@@ -233,7 +233,7 @@ async function resolveGuestId(supabase: SupabaseServerClient, email: string): Pr
 async function resolveCategorySelection(
   supabase: SupabaseServerClient,
   categoryIdInput?: string
-): Promise<{ categoryId: string; usedFallbackCategory: boolean }> {
+): Promise<{ categoryId: string; usedFallbackCategory: boolean; userProvided: boolean }> {
   if (categoryIdInput) {
     const { data, error } = await supabase
       .from("complaint_categories")
@@ -254,12 +254,14 @@ async function resolveCategorySelection(
     return {
       categoryId: String(data.id),
       usedFallbackCategory: false,
+      userProvided: true,
     };
   }
 
   return {
     categoryId: await resolveUncategorizedCategoryId(supabase),
     usedFallbackCategory: true,
+    userProvided: false,
   };
 }
 
@@ -554,6 +556,8 @@ export async function POST(request: Request) {
       description: input.description,
       nlp_input_text: input.nlpText,
       category_id: category.categoryId,
+      category_source: category.userProvided ? "user" : "default",
+      priority_source: "default",
       customer_id: input.customerId,
       guest_id: guestId ?? undefined,
     });
@@ -582,7 +586,7 @@ export async function POST(request: Request) {
         supabase,
         ticketId,
         text: input.nlpText,
-        allowCategoryOverride: category.usedFallbackCategory,
+        allowCategoryOverride: true,
         uncategorizedCategoryId: category.usedFallbackCategory ? category.categoryId : null,
       });
     }
