@@ -1,0 +1,72 @@
+.container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1rem;
+  background: linear-gradient(180deg, var(--surface) 0%, var(--bg) 100%);
+}
+
+.card {
+  width: 100%;
+  max-width: 760px;
+  background: var(--bg);
+  border-radius: 1rem;
+  padding: 2.25rem;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01);
+}
+
+.header {
+  text-align: center;
+  margin-bottom: 1.6rem;
+}
+
+.headerIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3rem;
+  height: 3rem;
+  border-radius: 0.75rem;
+  margin-bottom: 0.8rem;
+  color: var(--accent);
+  background: var(--surface);
+}
+
+.header h1 {
+  margin: 0 0 0.45rem;
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.header p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.stateText {
+  margin: 0;
+  color: var(--muted);
+  text-align: center;
+}
+
+.errorText {
+  margin: 0 0 1rem;
+  color: #b91c1c;
+  font-weight: 600;
+  text-align: center;
+}
+
+.linkButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 0.5rem;
+  padding: 0.65rem 1rem;
+  font-weight: 600;
+}

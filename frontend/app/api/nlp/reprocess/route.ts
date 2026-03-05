@@ -140,11 +140,8 @@ async function loadPendingTickets(input: {
     .select("id, title, description, nlp_input_text")
     .or(
       [
-        "sentiment.is.null",
-        "detected_intent.is.null",
-        "issue_type.is.null",
-        "detected_intent_id.is.null",
-        "issue_type_id.is.null",
+        "category_name.is.null",
+        "priority.is.null",
       ].join(",")
     )
     .order("submitted_at", { ascending: false })

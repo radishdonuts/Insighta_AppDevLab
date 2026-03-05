@@ -151,7 +151,7 @@ export default function AdminStatisticsClient() {
             <h1 className={styles.title}>Admin Statistics</h1>
             <p className={styles.subtitle}>
               API-backed summaries and charts for ticket volume and distribution by status, priority,
-              category, and sentiment.
+              and category.
             </p>
             {dateRange ? (
               <p className={styles.metaText}>
@@ -288,20 +288,6 @@ export default function AdminStatisticsClient() {
           }}
         />
 
-        <AdminChartCard
-          title="Sentiment Distribution"
-          subtitle="NLP sentiment labels (plus not analyzed)"
-          chart={{
-            kind: "bars",
-            data: (breakdowns?.breakdowns.sentiment ?? []).map((item) => ({
-              key: item.key,
-              label: item.label,
-              value: item.count,
-              percentage: item.percentage,
-            })),
-            emptyLabel: "No sentiment distribution data.",
-          }}
-        />
       </section>
     </main>
   );

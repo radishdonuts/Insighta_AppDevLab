@@ -36,7 +36,7 @@ export default function AboutPage() {
             <h3>Smart Classification</h3>
             <p>
               Our NLP engine analyzes complaint text in real time, detecting
-              category, sentiment, and urgency without any manual tagging.
+              category and urgency without any manual tagging.
             </p>
           </article>
           <article className="card">

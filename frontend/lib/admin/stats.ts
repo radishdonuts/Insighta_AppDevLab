@@ -1,6 +1,5 @@
 import {
   TICKET_PRIORITIES,
-  TICKET_SENTIMENTS,
   TICKET_STATUSES,
 } from "@/types/tickets";
 import type {
@@ -13,7 +12,6 @@ import type {
 } from "@/types/admin-stats";
 import {
   asString,
-  firstRow,
   type AdminSupabaseServerClient,
 } from "@/lib/admin/common";
 
@@ -37,16 +35,10 @@ type TrendsRow = {
   submitted_at?: unknown;
 };
 
-type BreakdownCategoryRow = {
-  id?: unknown;
-  category_name?: unknown;
-};
-
 type BreakdownRow = {
   status?: unknown;
   priority?: unknown;
-  sentiment?: unknown;
-  category?: BreakdownCategoryRow | BreakdownCategoryRow[] | null;
+  category_name?: unknown;
 };
 
 export type AdminStatsQueryRange = AdminStatsDateRange & {
@@ -353,7 +345,7 @@ export async function getAdminTicketBreakdowns(
         `
           status,
           priority,
-          category:complaint_categories!tickets_category_id_fkey (id, category_name)
+          category_name
         `
       ),
     range
@@ -368,7 +360,6 @@ export async function getAdminTicketBreakdowns(
 
   const statusCounts = new Map<string, number>();
   const priorityCounts = new Map<string, number>();
-  const sentimentCounts = new Map<string, number>();
   const categoryCounts = new Map<string, number>();
 
   for (const row of rows) {
@@ -378,11 +369,7 @@ export async function getAdminTicketBreakdowns(
     const priority = asString(row.priority) ?? "Unknown";
     priorityCounts.set(priority, (priorityCounts.get(priority) ?? 0) + 1);
 
-    const sentiment = asString(row.sentiment) ?? "Not Analyzed";
-    sentimentCounts.set(sentiment, (sentimentCounts.get(sentiment) ?? 0) + 1);
-
-    const category = firstRow(row.category);
-    const categoryLabel = asString(category?.category_name) ?? "Uncategorized";
+    const categoryLabel = asString(row.category_name) ?? "Other / Uncategorized";
     categoryCounts.set(categoryLabel, (categoryCounts.get(categoryLabel) ?? 0) + 1);
   }
 
@@ -393,11 +380,6 @@ export async function getAdminTicketBreakdowns(
       status: buildKnownValueBreakdown(TICKET_STATUSES, statusCounts, totalTickets),
       priority: buildKnownValueBreakdown(TICKET_PRIORITIES, priorityCounts, totalTickets),
       category: buildMapBreakdown(categoryCounts, totalTickets),
-      sentiment: buildKnownValueBreakdown(
-        [...TICKET_SENTIMENTS, "Not Analyzed"],
-        sentimentCounts,
-        totalTickets
-      ),
     },
   };
 }

@@ -1,4 +1,3 @@
-export type NlpSentiment = "Negative" | "Neutral" | "Positive";
 export type NlpPriority = "Low" | "Medium" | "High";
 
 export type NlpAnalysisRequest = {
@@ -9,19 +8,18 @@ export type NlpAnalysisRequest = {
 };
 
 export type NlpAnalysisResponse = {
-  sentiment: NlpSentiment | null;
-  detectedIntent: string | null;
-  detectedIntentId: string | null;
-  issueType: string | null;
-  issueTypeId: string | null;
   priority: NlpPriority | null;
   categoryName: string | null;
-  categoryId: string | null;
   confidence: number | null;
+  confidenceCategory: number | null;
+  confidencePriority: number | null;
+  prioritySource: "ml" | "rule" | null;
+  suggestedCategoryName: string | null;
+  suggestedPriority: NlpPriority | null;
+  priorityRuleDebug: Record<string, unknown> | null;
   rawOutput: string | null;
 };
 
-const ALLOWED_SENTIMENTS = new Set<NlpSentiment>(["Negative", "Neutral", "Positive"]);
 const ALLOWED_PRIORITIES = new Set<NlpPriority>(["Low", "Medium", "High"]);
 
 export class NlpClientError extends Error {
@@ -40,25 +38,19 @@ function asTrimmedString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
-function normalizeSentiment(value: unknown): NlpSentiment | null {
-  const raw = asTrimmedString(value);
-  if (!raw) return null;
-
-  const key = raw.toLowerCase();
-  const normalized =
-    key === "negative" ? "Negative" : key === "neutral" ? "Neutral" : key === "positive" ? "Positive" : raw;
-
-  return ALLOWED_SENTIMENTS.has(normalized as NlpSentiment)
-    ? (normalized as NlpSentiment)
-    : null;
-}
-
 function normalizePriority(value: unknown): NlpPriority | null {
   const raw = asTrimmedString(value);
   if (!raw) return null;
 
   const key = raw.toLowerCase();
-  const normalized = key === "low" ? "Low" : key === "medium" ? "Medium" : key === "high" ? "High" : raw;
+  const normalized =
+    key === "low"
+      ? "Low"
+      : key === "medium" || key === "med"
+        ? "Medium"
+        : key === "high"
+          ? "High"
+          : raw;
 
   return ALLOWED_PRIORITIES.has(normalized as NlpPriority)
     ? (normalized as NlpPriority)
@@ -78,45 +70,41 @@ function normalizeConfidence(value: unknown): number | null {
   return null;
 }
 
-function isUuid(value: string): boolean {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
-}
-
-function normalizeUuid(value: unknown): string | null {
-  const raw = asTrimmedString(value);
-  return raw && isUuid(raw) ? raw : null;
-}
-
 function normalizeNlpPayload(payload: unknown): NlpAnalysisResponse {
   const record =
     payload && typeof payload === "object" && !Array.isArray(payload)
       ? (payload as Record<string, unknown>)
       : {};
 
-  const detectedIntent = asTrimmedString(record.detectedIntent) || asTrimmedString(record.detected_intent) || null;
-  const detectedIntentId =
-    normalizeUuid(record.detectedIntentId) || normalizeUuid(record.detected_intent_id) || null;
-  const issueType = asTrimmedString(record.issueType) || asTrimmedString(record.issue_type) || null;
-  const issueTypeId = normalizeUuid(record.issueTypeId) || normalizeUuid(record.issue_type_id) || null;
   const categoryName = asTrimmedString(record.categoryName) || asTrimmedString(record.category_name) || null;
-  const categoryId = normalizeUuid(record.categoryId) || normalizeUuid(record.category_id) || null;
   const rawOutput =
     asTrimmedString(record.rawOutput) ||
+    (record.rawOutput && typeof record.rawOutput === "object" ? JSON.stringify(record.rawOutput) : "") ||
     asTrimmedString(record.raw_output) ||
     asTrimmedString(record.output) ||
     asTrimmedString(record.response) ||
     null;
+  const prioritySourceRaw = asTrimmedString(record.prioritySource) || asTrimmedString(record.priority_source);
+  const prioritySource = prioritySourceRaw === "ml" || prioritySourceRaw === "rule" ? prioritySourceRaw : null;
 
   return {
-    sentiment: normalizeSentiment(record.sentiment),
-    detectedIntent,
-    detectedIntentId,
-    issueType,
-    issueTypeId,
     priority: normalizePriority(record.priority),
     categoryName,
-    categoryId,
     confidence: normalizeConfidence(record.confidence),
+    confidenceCategory: normalizeConfidence(record.confidenceCategory ?? record.confidence_category ?? record.categoryConfidence),
+    confidencePriority: normalizeConfidence(record.confidencePriority ?? record.confidence_priority ?? record.priorityConfidence),
+    prioritySource,
+    suggestedCategoryName:
+      asTrimmedString(record.suggestedCategoryName) ||
+      asTrimmedString(record.suggested_category_name) ||
+      categoryName,
+    suggestedPriority: normalizePriority(record.suggestedPriority ?? record.suggested_priority ?? record.priority),
+    priorityRuleDebug:
+      record.priorityRuleDebug && typeof record.priorityRuleDebug === "object"
+        ? (record.priorityRuleDebug as Record<string, unknown>)
+        : record.priority_rule_debug && typeof record.priority_rule_debug === "object"
+          ? (record.priority_rule_debug as Record<string, unknown>)
+          : null,
     rawOutput,
   };
 }

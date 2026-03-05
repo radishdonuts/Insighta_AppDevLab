@@ -11,6 +11,7 @@ type TicketStatusEmailInput = {
   trackingNumber: string;
   status: string;
   remarks?: string | null;
+  feedbackUrl?: string | null;
 };
 
 function asTrimmed(value: string | undefined): string {
@@ -129,6 +130,8 @@ export async function sendTicketStatusUpdatedEmail(input: TicketStatusEmailInput
   const tracking = input.trackingNumber.trim();
   const status = input.status.trim();
   const remarks = input.remarks?.trim();
+  const feedbackUrl = input.feedbackUrl?.trim() || "";
+  const includeFeedbackLink = !!feedbackUrl && (status.toLowerCase() === "resolved" || status.toLowerCase() === "closed");
 
   const subject = `Insighta: Ticket status updated to ${status}`;
   const text = [
@@ -137,6 +140,7 @@ export async function sendTicketStatusUpdatedEmail(input: TicketStatusEmailInput
     `Tracking number: ${tracking}`,
     `New status: ${status}`,
     ...(remarks ? ["", `Remarks: ${remarks}`] : []),
+    ...(includeFeedbackLink ? ["", `Share your feedback: ${feedbackUrl}`] : []),
     "",
     "Use your tracking number on the Track Ticket page to view the latest status.",
   ].join("\n");
@@ -147,6 +151,7 @@ export async function sendTicketStatusUpdatedEmail(input: TicketStatusEmailInput
       <p style="margin: 0 0 6px;"><strong>Tracking number:</strong> <span style="font-family: monospace; color: #1d4ed8;">${escapeHtml(tracking)}</span></p>
       <p style="margin: 0 0 6px;"><strong>New status:</strong> ${escapeHtml(status)}</p>
       ${remarks ? `<p style="margin: 0 0 6px;"><strong>Remarks:</strong> ${escapeHtml(remarks)}</p>` : ""}
+      ${includeFeedbackLink ? `<p style="margin: 0 0 6px;"><strong>Share feedback:</strong> <a href="${escapeHtml(feedbackUrl)}">${escapeHtml(feedbackUrl)}</a></p>` : ""}
       <p style="margin: 12px 0 0;">Use your tracking number on the Track Ticket page to view the latest status.</p>
     </div>
   `;

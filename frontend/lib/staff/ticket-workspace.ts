@@ -12,7 +12,6 @@ import {
   type StaffStatusUpdateResponse,
   type StaffTicketDetail,
   type StaffTicketDetailResponse,
-  type StaffTicketFeedback,
   type StaffTicketQueueItem,
   type StaffTicketQueueResponse,
   type StaffTicketTab,
@@ -33,13 +32,18 @@ type RawProfile = {
   last_name?: unknown;
 };
 
-type RawCategory = {
-  id?: unknown;
-  category_name?: unknown;
-};
-
 type RawTicketAccessToken = {
   token_hash?: unknown;
+};
+type RawNlpAnalysisRow = {
+  id?: unknown;
+  priority?: unknown;
+  category_name?: unknown;
+  confidence?: unknown;
+  status?: unknown;
+  is_applied?: unknown;
+  raw_output?: unknown;
+  created_at?: unknown;
 };
 
 type MutationNotFound = { ok: false; reason: "not_found" };
@@ -57,7 +61,6 @@ const DEFAULT_PAGE_SIZE = 10;
 const MAX_PAGE_SIZE = 50;
 const STAFF_ATTACHMENT_SIGNED_URL_TTL_SECONDS = 60 * 60;
 const STORAGE_BUCKET = process.env.SUPABASE_STORAGE_BUCKET || "attachments";
-
 export async function requireStaffApiAuth() {
   return requireAnyRole(STAFF_WORKSPACE_ROLES);
 }
@@ -83,8 +86,29 @@ function asNullableTrimmedString(value: unknown): string | null {
   return trimmed || null;
 }
 
-function asNumber(value: unknown): number | null {
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
+function asFiniteNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const parsed = Number.parseFloat(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
+}
+
+function asJsonObject(value: unknown): JsonObject | null {
+  if (!value) return null;
+  if (typeof value === "object" && !Array.isArray(value)) return value as JsonObject;
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        return parsed as JsonObject;
+      }
+    } catch {
+      return null;
+    }
+  }
+  return null;
 }
 
 function firstRow<T>(value: T | T[] | null | undefined): T | null {
@@ -132,12 +156,21 @@ function mapPerson(raw: RawProfile | null | undefined): StaffPersonSummary | nul
   };
 }
 
-function mapCategory(raw: RawCategory | null | undefined): StaffCategorySummary | null {
-  if (!raw || typeof raw !== "object") return null;
-  const id = asString(raw.id);
-  const name = asNullableTrimmedString(raw.category_name);
-  if (!id || !name) return null;
-  return { id, name };
+function mapCategoryNameToId(name: string | null): string | null {
+  if (!name) return null;
+  const key = name.trim().toLowerCase();
+  const map: Record<string, string> = {
+    "policy & account servicing": "Policy & Account Servicing",
+    "claims experience": "Claims Experience",
+    "payments, billing & refunds": "Payments, Billing & Refunds",
+    "documents & requirements": "Documents & Requirements",
+    "customer support & service quality": "Customer Support & Service Quality",
+    "digital access & technical issues": "Digital Access & Technical Issues",
+    "fraud, security & privacy": "Fraud, Security & Privacy",
+    "product/partner service delivery": "Product/Partner Service Delivery",
+    "other / uncategorized": "Other / Uncategorized",
+  };
+  return map[key] ?? null;
 }
 
 function safeIso(value: unknown): string {
@@ -170,6 +203,7 @@ function sanitizeSearchTerm(raw: string): string {
 
 function mapQueueItem(row: any): StaffTicketQueueItem {
   const trackingCode = readTrackingCode(row?.ticket_access_tokens);
+  const categoryName = asNullableTrimmedString(row?.category_name);
 
   return {
     id: asString(row?.id) ?? "",
@@ -181,7 +215,7 @@ function mapQueueItem(row: any): StaffTicketQueueItem {
     description: asString(row?.description) ?? "",
     submittedAt: safeIso(row?.submitted_at),
     lastUpdatedAt: safeIso(row?.last_updated_at),
-    category: mapCategory(row?.category),
+    category: categoryName ? { id: categoryName, name: categoryName } : null,
     assignedStaff: mapPerson(row?.assigned_staff),
     submitterType: inferSubmitterType(row?.customer_id, row?.guest_id),
   };
@@ -198,24 +232,31 @@ function mapStatusHistoryItem(row: any): StaffTicketStatusHistoryItem {
   };
 }
 
-function mapFeedback(row: any): StaffTicketFeedback | null {
-  if (!row || typeof row !== "object") return null;
-  const id = asString(row.id);
-  const rating = asNumber(row.rating);
-  if (!id || rating === null) return null;
-
-  const submitterProfile = mapPerson(row.submitted_by_user);
-  const guestEmail = asNullableTrimmedString(row.submitted_by_guest?.email);
-  const submitterType = submitterProfile ? "Customer" : guestEmail ? "Guest" : "Unknown";
+function mapNlpSuggestion(row: RawNlpAnalysisRow | null | undefined) {
+  if (!row) return null;
+  const rawOutput = asJsonObject(row.raw_output);
+  const prioritySourceRaw = asTrimmedString(rawOutput?.prioritySource ?? rawOutput?.priority_source);
+  const prioritySource: "ml" | "rule" | null =
+    prioritySourceRaw === "ml" || prioritySourceRaw === "rule" ? prioritySourceRaw : null;
+  const suggestedCategoryName =
+    asNullableTrimmedString(rawOutput?.suggestedCategoryName ?? rawOutput?.suggested_category_name) ??
+    asNullableTrimmedString(row.category_name);
+  const suggestedPriority =
+    asNullableTrimmedString(rawOutput?.suggestedPriority ?? rawOutput?.suggested_priority) ??
+    asNullableTrimmedString(row.priority);
+  const confidenceCategory = asFiniteNumber(rawOutput?.confidenceCategory ?? rawOutput?.confidence_category ?? row.confidence);
+  const confidencePriority = asFiniteNumber(rawOutput?.confidencePriority ?? rawOutput?.confidence_priority ?? row.confidence);
 
   return {
-    id,
-    rating,
-    comment: asNullableTrimmedString(row.comment),
-    submittedAt: safeIso(row.submitted_at),
-    submitterType,
-    submittedBy: submitterProfile,
-    guestEmail,
+    analysisId: asNullableTrimmedString(row.id),
+    status: asNullableTrimmedString(row.status),
+    isApplied: row.is_applied === true,
+    suggestedCategoryName,
+    suggestedPriority,
+    confidenceCategory,
+    confidencePriority,
+    prioritySource,
+    createdAt: asNullableTrimmedString(row.created_at),
   };
 }
 
@@ -276,8 +317,8 @@ function applyQueueFilters(query: any, filters: StaffQueueFilters, authUserId: s
     query = query.eq("priority", filters.priority);
   }
 
-  if (filters.categoryId && isUuid(filters.categoryId)) {
-    query = query.eq("category_id", filters.categoryId);
+  if (filters.categoryId) {
+    query = query.eq("category_name", filters.categoryId);
   }
 
   if (filters.assignment === "mine") {
@@ -298,18 +339,20 @@ function applyQueueFilters(query: any, filters: StaffQueueFilters, authUserId: s
   return query;
 }
 
-async function listActiveCategories(supabase: SupabaseServerClient): Promise<StaffCategorySummary[]> {
-  const { data, error } = await supabase
-    .from("complaint_categories")
-    .select("id, category_name")
-    .eq("is_active", true)
-    .order("category_name", { ascending: true });
+async function listActiveCategories(_supabase: SupabaseServerClient): Promise<StaffCategorySummary[]> {
+  const names = [
+    "Policy & Account Servicing",
+    "Claims Experience",
+    "Payments, Billing & Refunds",
+    "Documents & Requirements",
+    "Customer Support & Service Quality",
+    "Digital Access & Technical Issues",
+    "Fraud, Security & Privacy",
+    "Product/Partner Service Delivery",
+    "Other / Uncategorized",
+  ];
 
-  if (error) {
-    throw new Error(`Failed to load categories: ${error.message}`);
-  }
-
-  return (Array.isArray(data) ? data : []).map(mapCategory).filter(Boolean) as StaffCategorySummary[];
+  return names.map((name) => ({ id: name, name }));
 }
 
 export async function listStaffTickets(
@@ -333,12 +376,11 @@ export async function listStaffTickets(
         description,
         submitted_at,
         last_updated_at,
-        category_id,
+        category_name,
         customer_id,
         guest_id,
         assigned_staff_id,
         ticket_access_tokens!ticket_access_tokens_ticket_id_fkey (token_hash, created_at),
-        category:complaint_categories!tickets_category_id_fkey (id, category_name),
         assigned_staff:profiles!tickets_assigned_staff_id_fkey (id, email, first_name, last_name)
       `,
       { count: "exact" }
@@ -395,17 +437,11 @@ export async function getStaffTicketDetail(
         description,
         submitted_at,
         last_updated_at,
-        sentiment,
-        detected_intent,
-        detected_intent_id,
-        issue_type,
-        issue_type_id,
-        category_id,
+        category_name,
         customer_id,
         guest_id,
         assigned_staff_id,
         ticket_access_tokens!ticket_access_tokens_ticket_id_fkey (token_hash, created_at),
-        category:complaint_categories!tickets_category_id_fkey (id, category_name),
         submitter_profile:profiles!tickets_customer_id_fkey (id, email, first_name, last_name),
         assigned_staff:profiles!tickets_assigned_staff_id_fkey (id, email, first_name, last_name),
         guest_contact:guest_contacts!tickets_guest_id_fkey (id, email)
@@ -424,7 +460,7 @@ export async function getStaffTicketDetail(
     return null;
   }
 
-  const [attachmentsResult, historyResult, feedbackResult] = await Promise.all([
+  const [attachmentsResult, historyResult, nlpAnalysisResult] = await Promise.all([
     supabase
       .from("attachments")
       .select("id, file_name, file_type, file_path, uploaded_at")
@@ -445,18 +481,10 @@ export async function getStaffTicketDetail(
       .eq("ticket_id", ticketId)
       .order("changed_at", { ascending: false }),
     supabase
-      .from("feedback")
-      .select(
-        `
-          id,
-          rating,
-          comment,
-          submitted_at,
-          submitted_by_user:profiles!feedback_submitted_by_user_id_fkey (id, email, first_name, last_name),
-          submitted_by_guest:guest_contacts!feedback_submitted_by_guest_id_fkey (id, email)
-        `
-      )
+      .from("ticket_nlp_analyses")
+      .select("id, priority, category_name, confidence, status, is_applied, raw_output, created_at")
       .eq("ticket_id", ticketId)
+      .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
   ]);
@@ -468,9 +496,8 @@ export async function getStaffTicketDetail(
   if (historyResult.error) {
     throw new Error(`Failed to load status history: ${historyResult.error.message}`);
   }
-
-  if (feedbackResult.error) {
-    throw new Error(`Failed to load feedback: ${feedbackResult.error.message}`);
+  if (nlpAnalysisResult.error) {
+    throw new Error(`Failed to load NLP analysis summary: ${nlpAnalysisResult.error.message}`);
   }
 
   const attachmentRows = Array.isArray(attachmentsResult.data) ? attachmentsResult.data : [];
@@ -502,20 +529,19 @@ export async function getStaffTicketDetail(
     description: asString(ticket.description) ?? "",
     submittedAt: safeIso(ticket.submitted_at),
     lastUpdatedAt: safeIso(ticket.last_updated_at),
-    sentiment: asNullableTrimmedString(ticket.sentiment),
-    detectedIntent: asNullableTrimmedString(ticket.detected_intent),
-    detectedIntentId: asNullableTrimmedString(ticket.detected_intent_id),
-    issueType: asNullableTrimmedString(ticket.issue_type),
-    issueTypeId: asNullableTrimmedString(ticket.issue_type_id),
-    category: mapCategory(firstRow(ticket.category)),
-    categoryId: asNullableTrimmedString(ticket.category_id),
+    categoryName: asNullableTrimmedString(ticket.category_name),
+    category: (() => {
+      const categoryName = asNullableTrimmedString(ticket.category_name);
+      return categoryName ? { id: categoryName, name: categoryName } : null;
+    })(),
+    categoryId: mapCategoryNameToId(asNullableTrimmedString(ticket.category_name)),
     submitterType: submitterProfile ? "Customer" : guestEmail ? "Guest" : "Unknown",
     submitter: submitterProfile,
     guestEmail,
     assignedStaff: mapPerson(firstRow(ticket.assigned_staff)),
+    nlpSuggestion: mapNlpSuggestion((nlpAnalysisResult.data as RawNlpAnalysisRow | null | undefined) ?? null),
     attachments,
     statusHistory: (Array.isArray(historyResult.data) ? historyResult.data : []).map(mapStatusHistoryItem),
-    feedback: mapFeedback(feedbackResult.data),
   };
 
   return { ticket: detail };

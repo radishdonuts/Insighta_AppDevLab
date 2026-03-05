@@ -19,7 +19,7 @@ type TicketRow = {
   submitted_at?: unknown;
   last_updated_at?: unknown;
   customer_id?: unknown;
-  category?: unknown;
+  category_name?: unknown;
   ticket_access_tokens?: unknown;
 };
 
@@ -31,18 +31,6 @@ function asString(value: unknown): string | null {
 
 function isUuid(value: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
-}
-
-function readCategoryName(value: unknown): string | null {
-  if (Array.isArray(value)) {
-    return readCategoryName(value[0]);
-  }
-
-  if (!value || typeof value !== "object") {
-    return null;
-  }
-
-  return asString((value as { category_name?: unknown }).category_name);
 }
 
 function readTrackingCode(value: unknown): string | null {
@@ -99,7 +87,7 @@ export async function GET(
         submitted_at,
         last_updated_at,
         customer_id,
-        category:complaint_categories!tickets_category_id_fkey (category_name),
+        category_name,
         ticket_access_tokens!ticket_access_tokens_ticket_id_fkey (token_hash, created_at)
       `
     )
@@ -170,7 +158,7 @@ export async function GET(
       description: asString(ticket.description),
       submittedAt: asString(ticket.submitted_at),
       lastUpdatedAt: asString(ticket.last_updated_at),
-      categoryName: readCategoryName(ticket.category),
+      categoryName: asString(ticket.category_name),
       guest_tracking_number: trackingNumber,
     },
   });
