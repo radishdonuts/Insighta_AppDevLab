@@ -3,6 +3,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
 
 import { isEmailConfigured, sendTicketCreatedEmail } from "@/lib/email";
+import { normalizeCanonicalComplaintCategory } from "@/lib/nlp/taxonomy";
 import { buildNlpInputText, runTicketNlpEnrichment, resolveUncategorizedCategoryId } from "@/lib/nlp/ticket-enrichment";
 import { getSupabaseServerClient } from "@/lib/supabase";
 import { createClient } from "@/utils/supabase/server";
@@ -18,7 +19,7 @@ type ParsedCreateTicketInput = {
   ticketType: "Complaint";
   customerId?: string;
   guestEmail?: string;
-  categoryIdInput?: string;
+  categoryInput?: string;
   nlpText: string;
 };
 
@@ -148,7 +149,7 @@ function parseCreateTicketInput(
   const guestEmailRaw =
     readFirstString(body, ["guest_email", "guestEmail", "customer_email", "customerEmail"]) || undefined;
   const guestEmail = guestEmailRaw?.toLowerCase();
-  const categoryIdInput = readFirstString(body, ["category_id", "categoryId"]) || undefined;
+  const categoryInput = readFirstString(body, ["category_id", "categoryId", "category_name", "categoryName"]) || undefined;
 
   if (title.length > TITLE_MAX_LENGTH) {
     throw new ApiError(400, `Title must be ${TITLE_MAX_LENGTH} characters or fewer.`);
@@ -185,8 +186,8 @@ function parseCreateTicketInput(
     }
   }
 
-  if (categoryIdInput && !isUuid(categoryIdInput)) {
-    throw new ApiError(400, "Category ID must be a valid UUID.");
+  if (categoryInput && !isUuid(categoryInput) && !normalizeCanonicalComplaintCategory(categoryInput)) {
+    throw new ApiError(400, "Category is invalid.");
   }
 
   return {
@@ -195,7 +196,7 @@ function parseCreateTicketInput(
     ticketType: "Complaint",
     customerId: authUserId ?? undefined,
     guestEmail: authUserId ? undefined : guestEmail,
-    categoryIdInput,
+    categoryInput,
     nlpText: buildNlpInputText(title, description),
   };
 }
@@ -232,14 +233,37 @@ async function resolveGuestId(supabase: SupabaseServerClient, email: string): Pr
 
 async function resolveCategorySelection(
   supabase: SupabaseServerClient,
-  categoryIdInput?: string
+  categoryInput?: string
 ): Promise<{ categoryId: string; usedFallbackCategory: boolean; userProvided: boolean }> {
-  if (categoryIdInput) {
+  if (categoryInput) {
+    const normalizedCategoryName = normalizeCanonicalComplaintCategory(categoryInput);
+    if (normalizedCategoryName) {
+      const { data, error } = await supabase
+        .from("complaint_categories")
+        .select("id")
+        .ilike("category_name", normalizedCategoryName)
+        .limit(1)
+        .maybeSingle();
+
+      if (error) {
+        throw new Error(`Failed to resolve category: ${error.message}`);
+      }
+
+      if (!data?.id) {
+        throw new ApiError(400, "Selected category is unavailable.");
+      }
+
+      return {
+        categoryId: String(data.id),
+        usedFallbackCategory: false,
+        userProvided: true,
+      };
+    }
+
     const { data, error } = await supabase
       .from("complaint_categories")
       .select("id")
-      .eq("id", categoryIdInput)
-      .eq("is_active", true)
+      .eq("id", categoryInput)
       .limit(1)
       .maybeSingle();
 
@@ -248,7 +272,7 @@ async function resolveCategorySelection(
     }
 
     if (!data?.id) {
-      throw new ApiError(400, "Category not found or inactive.");
+      throw new ApiError(400, "Category not found.");
     }
 
     return {
@@ -547,7 +571,7 @@ export async function POST(request: Request) {
     const input = parseCreateTicketInput(body, user?.id ?? null);
     const supabase = getSupabaseServerClient();
 
-    const category = await resolveCategorySelection(supabase, input.categoryIdInput);
+    const category = await resolveCategorySelection(supabase, input.categoryInput);
     const guestId = input.guestEmail ? await resolveGuestId(supabase, input.guestEmail) : null;
 
     const insertPayload = compactObject({
