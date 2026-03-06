@@ -39,7 +39,7 @@ function ConfirmationContent({
 
   const tokenQuery = token ? `?token=${encodeURIComponent(token)}` : "";
   const viewTicketHref = ticketId
-    ? `/ticket/${encodeURIComponent(ticketId)}${tokenQuery}`
+    ? `/view/${encodeURIComponent(ticketId)}${tokenQuery}`
     : `/track${tokenQuery}`;
 
   return (

@@ -3,11 +3,22 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import styles from "@/app/(admin)/admin/admin.module.css";
-import { AdminChartCard } from "@/components/admin/AdminCharts";
+import chartStyles from "./statistics.module.css";
 import type {
   AdminStatsBreakdownsResponse,
   AdminTicketsTrendsResponse,
+  AdminResolutionTimeResponse,
+  AdminCreatedResolvedResponse,
+  AdminStatsOverviewResponse,
 } from "@/types/admin-stats";
+import {
+  TicketsOverTimeChart,
+  CreatedVsResolvedChart,
+  StatusDistributionChart,
+  PriorityDonutChart,
+  CategoryBreakdownChart,
+  ResolutionTimeTrendChart,
+} from "@/components/admin/RechartsComponents";
 
 type ApiErrorPayload = { error?: string; message?: string };
 
@@ -38,6 +49,9 @@ async function readApiError(response: Response) {
   }
 }
 
+type GranularityToggle = "daily" | "weekly";
+type ResolutionGranularity = "week" | "month";
+
 export default function AdminStatisticsClient() {
   const router = useRouter();
   const pathname = usePathname();
@@ -46,10 +60,18 @@ export default function AdminStatisticsClient() {
 
   const [trends, setTrends] = useState<AdminTicketsTrendsResponse | null>(null);
   const [breakdowns, setBreakdowns] = useState<AdminStatsBreakdownsResponse | null>(null);
+  const [resolutionTime, setResolutionTime] = useState<AdminResolutionTimeResponse | null>(null);
+  const [createdResolved, setCreatedResolved] = useState<AdminCreatedResolvedResponse | null>(null);
+  const [overview, setOverview] = useState<AdminStatsOverviewResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [draftFrom, setDraftFrom] = useState("");
   const [draftTo, setDraftTo] = useState("");
+
+  // Granularity toggles
+  const [ticketsOverTimeGranularity, setTicketsOverTimeGranularity] = useState<GranularityToggle>("daily");
+  const [resolutionGranularity, setResolutionGranularity] = useState<ResolutionGranularity>("week");
+  const [createdResolvedGranularity, setCreatedResolvedGranularity] = useState<ResolutionGranularity>("week");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -61,9 +83,13 @@ export default function AdminStatisticsClient() {
       try {
         const qs = searchParams.toString();
         const suffix = qs ? `?${qs}` : "";
-        const [trendsResponse, breakdownsResponse] = await Promise.all([
+        const separator = qs ? "&" : "?";
+        const [trendsResponse, breakdownsResponse, resolutionResponse, createdResolvedResponse, overviewResponse] = await Promise.all([
           fetch(`/api/admin/stats/tickets-trends${suffix}`, { cache: "no-store", signal: controller.signal }),
           fetch(`/api/admin/stats/breakdowns${suffix}`, { cache: "no-store", signal: controller.signal }),
+          fetch(`/api/admin/stats/resolution-time${suffix}${separator}granularity=${resolutionGranularity}`, { cache: "no-store", signal: controller.signal }),
+          fetch(`/api/admin/stats/created-resolved${suffix}${separator}granularity=${createdResolvedGranularity}`, { cache: "no-store", signal: controller.signal }),
+          fetch(`/api/admin/stats/overview${suffix}`, { cache: "no-store", signal: controller.signal }),
         ]);
 
         if (!trendsResponse.ok) {
@@ -81,6 +107,21 @@ export default function AdminStatisticsClient() {
 
         setTrends(trendsPayload);
         setBreakdowns(breakdownsPayload);
+
+        // Handle resolution time - may fail if no data
+        if (resolutionResponse.ok) {
+          setResolutionTime(await resolutionResponse.json() as AdminResolutionTimeResponse);
+        }
+
+        // Handle created vs resolved - may fail if no data
+        if (createdResolvedResponse.ok) {
+          setCreatedResolved(await createdResolvedResponse.json() as AdminCreatedResolvedResponse);
+        }
+
+        // Handle overview metrics
+        if (overviewResponse.ok) {
+          setOverview(await overviewResponse.json() as AdminStatsOverviewResponse);
+        }
       } catch (err) {
         if ((err as Error).name === "AbortError") return;
         setError(err instanceof Error ? err.message : "Failed to load statistics.");
@@ -91,7 +132,7 @@ export default function AdminStatisticsClient() {
 
     void load();
     return () => controller.abort();
-  }, [searchKey, searchParams]);
+  }, [searchKey, searchParams, resolutionGranularity, createdResolvedGranularity]);
 
   useEffect(() => {
     const urlFrom = searchParams.get("from");
@@ -134,14 +175,59 @@ export default function AdminStatisticsClient() {
     updateDateQuery({ from: null, to: null });
   }
 
-  const lineData = (trends?.series ?? []).map((point) => ({
-    key: point.date,
+  // Prepare chart data
+  const ticketsOverTimeData = (trends?.series ?? []).map((point) => ({
     label: point.label,
-    value: point.count,
+    date: point.date,
+    count: point.count,
+  }));
+
+  // Aggregate to weekly if needed
+  const weeklyTicketsData = aggregateToWeekly(ticketsOverTimeData);
+
+  const statusData = (breakdowns?.breakdowns.status ?? []).map((item) => ({
+    key: item.key,
+    label: item.label,
+    count: item.count,
+    percentage: item.percentage,
+  }));
+
+  const priorityData = (breakdowns?.breakdowns.priority ?? []).map((item) => ({
+    key: item.key,
+    label: item.label,
+    count: item.count,
+    percentage: item.percentage,
+  }));
+
+  const categoryData = (breakdowns?.breakdowns.category ?? [])
+    .filter((item) => !item.label.toLowerCase().includes("other") && !item.label.toLowerCase().includes("uncategorized"))
+    .map((item) => ({
+      key: item.key,
+      label: item.label,
+      count: item.count,
+      percentage: item.percentage,
+    }));
+
+  const resolutionTrendData = (resolutionTime?.series ?? []).map((point) => ({
+    label: point.label,
+    period: point.period,
+    avgHours: point.avgHours,
+  }));
+
+  const createdResolvedData = (createdResolved?.series ?? []).map((point) => ({
+    label: point.label,
+    created: point.created,
+    resolved: point.resolved,
   }));
 
   const totalTickets = breakdowns?.totalTickets ?? trends?.totalTickets ?? 0;
   const dateRange = breakdowns?.dateRange ?? trends?.dateRange;
+
+  // Calculate summary stats
+  const resolvedCount = statusData.find((s) => s.label === "Resolved")?.count ?? 0;
+  const closedCount = statusData.find((s) => s.label === "Closed")?.count ?? 0;
+  const totalResolved = resolvedCount + closedCount;
+  const openCount = totalTickets - totalResolved;
 
   return (
     <main className={styles.page}>
@@ -150,8 +236,7 @@ export default function AdminStatisticsClient() {
           <div className={styles.titleWrap}>
             <h1 className={styles.title}>Admin Statistics</h1>
             <p className={styles.subtitle}>
-              API-backed summaries and charts for ticket volume and distribution by status, priority,
-              and category.
+              Comprehensive analytics for ticket management, resolution performance, and category distribution.
             </p>
             {dateRange ? (
               <p className={styles.metaText}>
@@ -160,7 +245,6 @@ export default function AdminStatisticsClient() {
               </p>
             ) : null}
           </div>
-
         </div>
 
         <div className={styles.toolbar}>
@@ -221,74 +305,214 @@ export default function AdminStatisticsClient() {
         <p className={styles.stateText}>No statistics data available.</p>
       ) : null}
 
-      {!loading && !error && totalTickets === 0 ? (
-        <div className={styles.emptyPanel}>
-          <p className={styles.stateText}>
-            No tickets found in the selected range. Charts remain visible with empty-state messaging.
-          </p>
-        </div>
-      ) : null}
+      {!loading && !error && (
+        <>
+          {/* Summary KPIs */}
+          <section className={styles.kpiGrid} aria-label="Admin ticket KPIs">
+            <article className={styles.kpiCard}>
+              <span className={styles.kpiLabel}>Total Tickets</span>
+              <strong className={styles.kpiValue}>{(overview?.metrics.totalTickets ?? totalTickets).toLocaleString()}</strong>
+              <span className={styles.kpiHint}>Submitted in selected range</span>
+            </article>
+            <article className={styles.kpiCard}>
+              <span className={styles.kpiLabel}>Open / In Progress</span>
+              <strong className={styles.kpiValue}>{(overview?.metrics.openInProgressTickets ?? openCount).toLocaleString()}</strong>
+              <span className={styles.kpiHint}>Excludes Resolved and Closed</span>
+            </article>
+            <article className={styles.kpiCard}>
+              <span className={styles.kpiLabel}>Resolved / Closed</span>
+              <strong className={styles.kpiValue}>{(overview?.metrics.resolvedTickets ?? totalResolved).toLocaleString()}</strong>
+              <span className={styles.kpiHint}>Completed tickets in range</span>
+            </article>
+            <article className={styles.kpiCard}>
+              <span className={styles.kpiLabel}>Unassigned</span>
+              <strong className={styles.kpiValue}>{(overview?.metrics.unassignedTickets ?? 0).toLocaleString()}</strong>
+              <span className={styles.kpiHint}>No assigned staff member</span>
+            </article>
+            <article className={styles.kpiCard}>
+              <span className={styles.kpiLabel}>Created Today</span>
+              <strong className={styles.kpiValue}>{(overview?.metrics.createdToday ?? 0).toLocaleString()}</strong>
+              <span className={styles.kpiHint}>Today, within selected range</span>
+            </article>
+            <article className={styles.kpiCard}>
+              <span className={styles.kpiLabel}>Created This Week</span>
+              <strong className={styles.kpiValue}>{(overview?.metrics.createdThisWeek ?? 0).toLocaleString()}</strong>
+              <span className={styles.kpiHint}>Current ISO week, within selected range</span>
+            </article>
+          </section>
 
-      <section className={styles.statsGrid}>
-        <div className={styles.span2}>
-          <AdminChartCard
-            title="Tickets Over Time"
-            subtitle="Daily ticket submissions in the selected range"
-            chart={{
-              kind: "line",
-              data: lineData,
-              emptyLabel: "No tickets were submitted during the selected period.",
-            }}
-          />
-        </div>
+          {/* Activity Overview Section */}
+          <section className={chartStyles.statsSection}>
+            <h2 className={chartStyles.sectionTitle}>Activity Overview</h2>
+            <div className={chartStyles.chartGrid2}>
+              <div className={chartStyles.chartCard}>
+                <div className={chartStyles.chartHeader}>
+                  <div>
+                    <h3 className={chartStyles.chartTitle}>Tickets Over Time</h3>
+                    <p className={chartStyles.chartSubtitle}>Ticket submissions in the selected range</p>
+                  </div>
+                  <div className={chartStyles.toggleGroup}>
+                    <button
+                      type="button"
+                      className={`${chartStyles.toggleBtn} ${ticketsOverTimeGranularity === "daily" ? chartStyles.toggleActive : ""}`}
+                      onClick={() => setTicketsOverTimeGranularity("daily")}
+                    >
+                      Daily
+                    </button>
+                    <button
+                      type="button"
+                      className={`${chartStyles.toggleBtn} ${ticketsOverTimeGranularity === "weekly" ? chartStyles.toggleActive : ""}`}
+                      onClick={() => setTicketsOverTimeGranularity("weekly")}
+                    >
+                      Weekly
+                    </button>
+                  </div>
+                </div>
+                <TicketsOverTimeChart
+                  data={ticketsOverTimeGranularity === "daily" ? ticketsOverTimeData : weeklyTicketsData}
+                  granularity={ticketsOverTimeGranularity}
+                />
+              </div>
 
-        <AdminChartCard
-          title="Status Distribution"
-          subtitle="Ticket lifecycle stages"
-          chart={{
-            kind: "bars",
-            data: (breakdowns?.breakdowns.status ?? []).map((item) => ({
-              key: item.key,
-              label: item.label,
-              value: item.count,
-              percentage: item.percentage,
-            })),
-            emptyLabel: "No status distribution data.",
-          }}
-        />
+              <div className={chartStyles.chartCard}>
+                <div className={chartStyles.chartHeader}>
+                  <div>
+                    <h3 className={chartStyles.chartTitle}>Created vs Resolved</h3>
+                    <p className={chartStyles.chartSubtitle}>Ticket workflow comparison</p>
+                  </div>
+                  <div className={chartStyles.toggleGroup}>
+                    <button
+                      type="button"
+                      className={`${chartStyles.toggleBtn} ${createdResolvedGranularity === "week" ? chartStyles.toggleActive : ""}`}
+                      onClick={() => setCreatedResolvedGranularity("week")}
+                    >
+                      Weekly
+                    </button>
+                    <button
+                      type="button"
+                      className={`${chartStyles.toggleBtn} ${createdResolvedGranularity === "month" ? chartStyles.toggleActive : ""}`}
+                      onClick={() => setCreatedResolvedGranularity("month")}
+                    >
+                      Monthly
+                    </button>
+                  </div>
+                </div>
+                <CreatedVsResolvedChart data={createdResolvedData} />
+              </div>
+            </div>
+          </section>
 
-        <AdminChartCard
-          title="Priority Distribution"
-          subtitle="Urgency mix for tickets"
-          chart={{
-            kind: "bars",
-            data: (breakdowns?.breakdowns.priority ?? []).map((item) => ({
-              key: item.key,
-              label: item.label,
-              value: item.count,
-              percentage: item.percentage,
-            })),
-            emptyLabel: "No priority distribution data.",
-          }}
-        />
+          {/* Tickets Overview Section */}
+          <section className={chartStyles.statsSection}>
+            <h2 className={chartStyles.sectionTitle}>Tickets Overview</h2>
+            
+            {/* Category Breakdown - Full Width on Top */}
+            <div className={chartStyles.chartGridFull}>
+              <div className={chartStyles.chartCard}>
+                <div className={chartStyles.chartHeader}>
+                  <div>
+                    <h3 className={chartStyles.chartTitle}>Category Breakdown</h3>
+                    <p className={chartStyles.chartSubtitle}>All complaint categories</p>
+                  </div>
+                </div>
+                <CategoryBreakdownChart data={categoryData} />
+              </div>
+            </div>
 
-        <AdminChartCard
-          title="Category Distribution"
-          subtitle="Top complaint categories by ticket count"
-          chart={{
-            kind: "bars",
-            data: (breakdowns?.breakdowns.category ?? []).map((item) => ({
-              key: item.key,
-              label: item.label,
-              value: item.count,
-              percentage: item.percentage,
-            })),
-            emptyLabel: "No category distribution data.",
-            maxItems: 12,
-          }}
-        />
+            {/* Status and Priority - 2 Column Grid */}
+            <div className={chartStyles.chartGrid2}>
+              <div className={chartStyles.chartCard}>
+                <div className={chartStyles.chartHeader}>
+                  <div>
+                    <h3 className={chartStyles.chartTitle}>Status Distribution</h3>
+                    <p className={chartStyles.chartSubtitle}>Ticket lifecycle stages</p>
+                  </div>
+                </div>
+                <StatusDistributionChart data={statusData} />
+              </div>
 
-      </section>
+              <div className={chartStyles.chartCard}>
+                <div className={chartStyles.chartHeader}>
+                  <div>
+                    <h3 className={chartStyles.chartTitle}>Priority Distribution</h3>
+                    <p className={chartStyles.chartSubtitle}>Urgency mix for tickets</p>
+                  </div>
+                </div>
+                <PriorityDonutChart data={priorityData} />
+              </div>
+            </div>
+          </section>
+
+          {/* Operational Performance Section */}
+          <section className={chartStyles.statsSection}>
+            <h2 className={chartStyles.sectionTitle}>Operational Performance</h2>
+            <div className={chartStyles.chartGridFull}>
+              <div className={chartStyles.chartCard}>
+                <div className={chartStyles.chartHeader}>
+                  <div>
+                    <h3 className={chartStyles.chartTitle}>Resolution Time Trend</h3>
+                    <p className={chartStyles.chartSubtitle}>
+                      Average time to resolve tickets ({resolutionTime?.totalResolvedTickets ?? 0} resolved)
+                    </p>
+                  </div>
+                  <div className={chartStyles.toggleGroup}>
+                    <button
+                      type="button"
+                      className={`${chartStyles.toggleBtn} ${resolutionGranularity === "week" ? chartStyles.toggleActive : ""}`}
+                      onClick={() => setResolutionGranularity("week")}
+                    >
+                      Weekly
+                    </button>
+                    <button
+                      type="button"
+                      className={`${chartStyles.toggleBtn} ${resolutionGranularity === "month" ? chartStyles.toggleActive : ""}`}
+                      onClick={() => setResolutionGranularity("month")}
+                    >
+                      Monthly
+                    </button>
+                  </div>
+                </div>
+                <ResolutionTimeTrendChart data={resolutionTrendData} />
+              </div>
+            </div>
+          </section>
+        </>
+      )}
     </main>
   );
+}
+
+// Helper function to aggregate daily data to weekly
+function aggregateToWeekly(dailyData: Array<{ label: string; date: string; count: number }>) {
+  if (!dailyData.length) return [];
+
+  const weekMap = new Map<string, { count: number; dates: string[] }>();
+
+  for (const point of dailyData) {
+    const date = new Date(point.date + "T00:00:00Z");
+    const day = date.getUTCDay();
+    const mondayOffset = (day + 6) % 7;
+    const monday = new Date(date);
+    monday.setUTCDate(monday.getUTCDate() - mondayOffset);
+    const weekKey = monday.toISOString().slice(0, 10);
+
+    const existing = weekMap.get(weekKey) || { count: 0, dates: [] };
+    existing.count += point.count;
+    existing.dates.push(point.date);
+    weekMap.set(weekKey, existing);
+  }
+
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  });
+
+  return Array.from(weekMap.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([weekKey, data]) => ({
+      label: `Week of ${formatter.format(new Date(weekKey + "T00:00:00Z"))}`,
+      date: weekKey,
+      count: data.count,
+    }));
 }

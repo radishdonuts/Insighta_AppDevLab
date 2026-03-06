@@ -10,8 +10,8 @@ export default async function AdminPage() {
       roleLabel="Admin"
       firstName={firstName}
       description="Review platform health, monitor ticket trends, and manage categories using the button below."
-      ctaHref="/admin/overview"
-      ctaLabel="Go to Overview"
+      ctaHref="/admin/statistics"
+      ctaLabel="Go to Statistics"
     />
   );
 }

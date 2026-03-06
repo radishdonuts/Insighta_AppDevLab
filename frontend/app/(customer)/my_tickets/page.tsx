@@ -232,7 +232,7 @@ export default function MyTicketsPage() {
                                             className={styles.tableRow}
                                             onClick={() => {
                                                 const token = toTrackToken(ticket.tracking_number);
-                                                router.push(`/ticket/${ticket.id}${token ? `?token=${encodeURIComponent(token)}` : ""}`);
+                                                router.push(`/view/${ticket.id}${token ? `?token=${encodeURIComponent(token)}` : ""}`);
                                             }}
                                         >
                                             <td className={styles.ticketNumber}>{ticket.tracking_number ?? "Pending"}</td>
@@ -263,7 +263,7 @@ export default function MyTicketsPage() {
                                     className={styles.mobileCard}
                                     onClick={() => {
                                         const token = toTrackToken(ticket.tracking_number);
-                                        router.push(`/ticket/${ticket.id}${token ? `?token=${encodeURIComponent(token)}` : ""}`);
+                                        router.push(`/view/${ticket.id}${token ? `?token=${encodeURIComponent(token)}` : ""}`);
                                     }}
                                 >
                                     <div className={styles.mobileHeader}>
