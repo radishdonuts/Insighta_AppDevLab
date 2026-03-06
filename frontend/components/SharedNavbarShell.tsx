@@ -55,7 +55,6 @@ export default function SharedNavbarShell({
         {session.status === "authenticated" ? (
           <>
             <div className="auth-indicator auth-indicator-signed" aria-live="polite">
-              <span className="auth-state-label">Signed in</span>
 
               <span className="auth-user-label" title={session.accountLabel}>
                 {session.accountLabel}

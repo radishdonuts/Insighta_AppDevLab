@@ -15,7 +15,7 @@ export default function StaffNavbar({ session }: StaffNavbarProps) {
         Home
       </Link>
       <Link href="/staff/work-tickets" className="nav-link">
-        My Tickets
+        Work Tickets
       </Link>
     </SharedNavbarShell>
   );

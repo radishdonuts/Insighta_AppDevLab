@@ -4,7 +4,7 @@ import { getNavbarSessionState } from "@/lib/auth/navbar-session";
 import StaffNavbar from "@/components/StaffNavbar";
 
 export default async function StaffGroupLayout({ children }: { children: React.ReactNode }) {
-  await requireAnyPageRole(["Staff", "Admin"], "/unauthorized");
+  await requireAnyPageRole(["Staff"], "/unauthorized");
   const session = await getNavbarSessionState();
 
   return (

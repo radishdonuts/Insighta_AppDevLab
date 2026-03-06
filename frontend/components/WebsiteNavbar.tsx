@@ -33,7 +33,7 @@ export default function WebsiteNavbar({ session }: WebsiteNavbarProps) {
         </>
       ) : (
         <>
-          <Link href="/tickets" className="nav-link">
+          <Link href="/my_tickets" className="nav-link">
             My Tickets
           </Link>
           <Link href="/submit" className="nav-link">

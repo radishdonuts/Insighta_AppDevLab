@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { loginAction } from "@/app/(public)/login/action";
+import { loginAction } from "@/app/(guest)/login/action";
 import { GlassPageShell } from "@/components/GlassPageShell";
 
 function readParam(value: string | string[] | undefined) {

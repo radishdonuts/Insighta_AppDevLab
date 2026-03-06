@@ -1,4 +1,4 @@
-// app/(customer)/tickets/layout.tsx
+// app/(customer)/layout.tsx
 import { requireAnyPageRole } from "@/lib/auth/page-guards";
 import { getNavbarSessionState } from "@/lib/auth/navbar-session";
 import WebsiteNavbar from "@/components/WebsiteNavbar";

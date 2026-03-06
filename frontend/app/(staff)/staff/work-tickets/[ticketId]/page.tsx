@@ -1,4 +1,4 @@
-import StaffTicketDetailClient from "@/app/(staff)/staff/tickets/[ticketId]/StaffTicketDetailClient";
+import StaffTicketDetailClient from "./StaffTicketDetailClient";
 
 export default function StaffTicketDetailPage({
   params,
