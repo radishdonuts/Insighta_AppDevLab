@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 
 import { isEmailConfigured, sendTicketCreatedEmail } from "@/lib/email";
 import { normalizeCanonicalComplaintCategory } from "@/lib/nlp/taxonomy";
-import { buildNlpInputText, runTicketNlpEnrichment, resolveUncategorizedCategoryId } from "@/lib/nlp/ticket-enrichment";
+import { buildNlpInputText, resolveUncategorizedCategoryId } from "@/lib/nlp/ticket-enrichment";
 import { getSupabaseServerClient } from "@/lib/supabase";
 import { createClient } from "@/utils/supabase/server";
 
@@ -554,6 +554,42 @@ async function sendTicketCreatedEmailSafe(input: {
   }
 }
 
+async function enqueueTicketNlpJob(input: {
+  supabase: SupabaseServerClient;
+  ticketId: string;
+  nlpText: string;
+}) {
+  const ticketId = asTrimmedString(input.ticketId);
+  const nlpText = asTrimmedString(input.nlpText);
+  if (!ticketId || !nlpText) return;
+
+  const nowIso = new Date().toISOString();
+  const row = {
+    ticket_id: ticketId,
+    input_text: nlpText,
+    status: "pending",
+    available_at: nowIso,
+    locked_at: null,
+    locked_by: null,
+    last_error: null,
+  };
+
+  const { error } = await input.supabase
+    .from("ticket_nlp_jobs")
+    .upsert(row, { onConflict: "ticket_id" });
+
+  if (error) {
+    const message = getErrorMessage(error);
+    if (message.toLowerCase().includes("relation") && message.toLowerCase().includes("ticket_nlp_jobs")) {
+      console.warn("[tickets] NLP queue table is unavailable; skipping job enqueue", {
+        ticketId,
+      });
+      return;
+    }
+    throw new Error(`Failed to enqueue NLP job: ${message}`);
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const authClient = await createClient();
@@ -601,60 +637,34 @@ export async function POST(request: Request) {
     });
 
     let nlp: {
-      status: "applied" | "failed";
-      applied: boolean;
+      status: "queued";
+      applied: false;
       error: string | null;
-      prediction: {
-        categoryName: string | null;
-        priority: string | null;
-        confidenceCategory: number | null;
-        confidencePriority: number | null;
-      } | null;
+      prediction: null;
     } | null = null;
 
     if (ticketId && input.nlpText) {
-      console.info("[tickets] NLP enrichment started", { ticketId });
       try {
-        const result = await runTicketNlpEnrichment({
+        await enqueueTicketNlpJob({
           supabase,
           ticketId,
-          text: input.nlpText,
-          allowCategoryOverride: true,
-          uncategorizedCategoryId: category.usedFallbackCategory ? category.categoryId : null,
+          nlpText: input.nlpText,
         });
-        const analysis = result.analysis;
         nlp = {
-          status: result.applied ? "applied" : "failed",
-          applied: result.applied,
-          error: result.applied
-            ? null
-            : result.skippedMissingTaxonomy
-              ? "NLP prediction category is not mappable to active taxonomy."
-              : "NLP prediction did not provide mappable category/priority labels.",
-          prediction: {
-            categoryName: analysis.categoryName ?? analysis.suggestedCategoryName ?? null,
-            priority: analysis.priority ?? analysis.suggestedPriority ?? null,
-            confidenceCategory: analysis.confidenceCategory ?? null,
-            confidencePriority: analysis.confidencePriority ?? null,
-          },
+          status: "queued",
+          applied: false,
+          error: null,
+          prediction: null,
         };
-        console.info("[tickets] NLP enrichment completed", {
-          ticketId,
-          nlpFieldsUpdated: result.nlpFieldsUpdated,
-          categoryUpdated: result.categoryUpdated,
-          skippedLowConfidence: result.skippedLowConfidence,
-          skippedMissingTaxonomy: result.skippedMissingTaxonomy,
-          applied: result.applied,
-        });
       } catch (error) {
         const message = getErrorMessage(error);
         nlp = {
-          status: "failed",
+          status: "queued",
           applied: false,
           error: message,
           prediction: null,
         };
-        console.error("[tickets] NLP enrichment failed", {
+        console.error("[tickets] Failed to enqueue NLP job", {
           ticketId,
           error: message,
         });

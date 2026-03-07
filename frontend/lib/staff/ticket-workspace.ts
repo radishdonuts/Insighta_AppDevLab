@@ -294,8 +294,6 @@ async function createAttachmentSignedUrl(
 
 export function parseStaffQueueFilters(searchParams: URLSearchParams): StaffQueueFilters {
   const tabRaw = asTrimmedString(searchParams.get("tab"));
-  const tab = (STAFF_TAB_SET.has(tabRaw) ? tabRaw : "my") as StaffTicketTab;
-
   const statusRaw = asTrimmedString(searchParams.get("status"));
   const priorityRaw = asTrimmedString(searchParams.get("priority"));
   const categoryId = asTrimmedString(searchParams.get("categoryId")) || undefined;
@@ -304,10 +302,30 @@ export function parseStaffQueueFilters(searchParams: URLSearchParams): StaffQueu
   const pageSize = clamp(parsePositiveInt(searchParams.get("pageSize"), DEFAULT_PAGE_SIZE), 1, MAX_PAGE_SIZE);
 
   const assignmentRaw = asTrimmedString(searchParams.get("assignment"));
-  const derivedAssignment: StaffAssignmentFilter = tab === "unassigned" ? "unassigned" : "mine";
-  const assignment = (
-    STAFF_ASSIGNMENT_FILTER_SET.has(assignmentRaw) ? assignmentRaw : derivedAssignment
-  ) as StaffAssignmentFilter;
+  const assignedToRaw = asTrimmedString(searchParams.get("assignedTo"));
+  const assignedTo = isUuid(assignedToRaw) ? assignedToRaw : undefined;
+
+  // Canonical precedence: assignedTo > assignment > tab > default.
+  let assignment: StaffAssignmentFilter = "mine";
+  let tab: StaffTicketTab = "my";
+
+  if (assignedTo) {
+    assignment = "all";
+    tab = "all";
+  } else if (STAFF_ASSIGNMENT_FILTER_SET.has(assignmentRaw)) {
+    // Keep legacy `assigned` accepted in URLs, but canonicalize it to `all`
+    // so UI state and API semantics stay aligned.
+    assignment = assignmentRaw === "assigned" ? "all" : (assignmentRaw as StaffAssignmentFilter);
+    tab =
+      assignment === "mine"
+        ? "my"
+        : assignment === "unassigned"
+          ? "unassigned"
+          : "all";
+  } else if (STAFF_TAB_SET.has(tabRaw)) {
+    tab = tabRaw as StaffTicketTab;
+    assignment = tab === "my" ? "mine" : tab === "unassigned" ? "unassigned" : "all";
+  }
 
   return {
     tab,
@@ -317,6 +335,7 @@ export function parseStaffQueueFilters(searchParams: URLSearchParams): StaffQueu
     priority: TICKET_PRIORITY_SET.has(priorityRaw) ? (priorityRaw as StaffQueueFilters["priority"]) : undefined,
     categoryId,
     assignment,
+    assignedTo,
     q,
   };
 }
@@ -334,7 +353,9 @@ function applyQueueFilters(query: any, filters: StaffQueueFilters, authUserId: s
     query = query.eq("category_name", filters.categoryId);
   }
 
-  if (filters.assignment === "mine") {
+  if (filters.assignedTo) {
+    query = query.eq("assigned_staff_id", filters.assignedTo);
+  } else if (filters.assignment === "mine") {
     query = query.eq("assigned_staff_id", authUserId);
   } else if (filters.assignment === "unassigned") {
     query = query.is("assigned_staff_id", null);
@@ -354,6 +375,35 @@ function applyQueueFilters(query: any, filters: StaffQueueFilters, authUserId: s
 
 async function listActiveCategories(_supabase: SupabaseServerClient): Promise<StaffCategorySummary[]> {
   return CANONICAL_COMPLAINT_CATEGORIES.map((name) => ({ id: name, name }));
+}
+
+async function listAssignableStaff(supabase: SupabaseServerClient): Promise<StaffPersonSummary[]> {
+  const { data, error } = await supabase
+    .from("tickets")
+    .select(
+      `
+        assigned_staff_id,
+        assigned_staff:profiles!tickets_assigned_staff_id_fkey (id, email, first_name, last_name)
+      `
+    )
+    .not("assigned_staff_id", "is", null)
+    .order("last_updated_at", { ascending: false })
+    .limit(5000);
+
+  if (error) {
+    throw new Error(`Failed to load assignable staff: ${error.message}`);
+  }
+
+  const deduped = new Map<string, StaffPersonSummary>();
+  for (const row of Array.isArray(data) ? data : []) {
+    const person = mapPerson(firstRow(row?.assigned_staff) as RawProfile | null);
+    if (!person) continue;
+    if (!deduped.has(person.id)) {
+      deduped.set(person.id, person);
+    }
+  }
+
+  return Array.from(deduped.values()).sort((a, b) => a.displayName.localeCompare(b.displayName));
 }
 
 export async function listStaffTickets(
@@ -412,9 +462,10 @@ export async function listStaffTickets(
     return applyQueueFilters(query, filters, authUserId);
   };
 
-  const [resultWithSources, categoryOptions] = await Promise.all([
+  const [resultWithSources, categoryOptions, staffOptions] = await Promise.all([
     runQuery(selectWithSources),
     listActiveCategories(supabase),
+    listAssignableStaff(supabase),
   ]);
 
   let data = resultWithSources.data;
@@ -448,6 +499,7 @@ export async function listStaffTickets(
       page: clamp(filters.page, 1, totalPages),
     },
     categoryOptions,
+    staffOptions,
   };
 }
 

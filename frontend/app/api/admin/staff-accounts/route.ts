@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { jsonError, jsonServerError, parseJsonRequestBody } from "@/app/api/admin/_utils";
+import { jsonError, jsonServerError, parseJsonRequestBody } from "@/lib/api/admin-utils";
 import {
   createStaffAccount,
   getAdminSupabase,
@@ -38,3 +38,4 @@ export async function POST(request: Request) {
     return jsonServerError(error, "Failed to create Staff account.");
   }
 }
+

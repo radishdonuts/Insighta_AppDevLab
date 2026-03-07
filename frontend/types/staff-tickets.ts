@@ -1,9 +1,10 @@
-import type { PaginatedResponse, PaginationMeta } from "@/types/api";
+﻿import type { PaginatedResponse, PaginationMeta } from "@/types/api";
 import type { TicketPriority, TicketStatus, TicketType } from "@/types/tickets";
 
-export const STAFF_TICKET_TABS = ["my", "unassigned"] as const;
+export const STAFF_TICKET_TABS = ["my", "unassigned", "all"] as const;
 export type StaffTicketTab = (typeof STAFF_TICKET_TABS)[number];
 
+// "assigned" is kept as a read-only legacy value for backward URL compatibility.
 export const STAFF_ASSIGNMENT_FILTERS = ["all", "mine", "assigned", "unassigned"] as const;
 export type StaffAssignmentFilter = (typeof STAFF_ASSIGNMENT_FILTERS)[number];
 
@@ -15,6 +16,7 @@ export type StaffQueueFilters = {
   priority?: TicketPriority;
   categoryId?: string;
   assignment: StaffAssignmentFilter;
+  assignedTo?: string;
   q?: string;
 };
 
@@ -53,6 +55,7 @@ export type StaffTicketQueueItem = {
 export type StaffTicketQueueResponse = PaginatedResponse<StaffTicketQueueItem> & {
   filters: StaffQueueFilters;
   categoryOptions: StaffCategorySummary[];
+  staffOptions: StaffPersonSummary[];
 };
 
 export type StaffAttachmentMetadata = {

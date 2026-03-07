@@ -8,9 +8,9 @@ export default async function StaffGroupLayout({ children }: { children: React.R
   const session = await getNavbarSessionState();
 
   return (
-    <>
+    <div className="staff-route-shell">
       <StaffNavbar session={session} />
       {children}
-    </>
+    </div>
   );
 }

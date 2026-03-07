@@ -1,0 +1,520 @@
+﻿.page {
+  width: min(1180px, 100%);
+  margin: 0 auto;
+  padding: clamp(0.85rem, 1.6vw, 1.2rem);
+  display: grid;
+  gap: 0.78rem;
+  background: transparent;
+  --ws-text: #101828;
+  --ws-muted: #667085;
+  --ws-border: #e4e7ec;
+  --ws-surface: #ffffff;
+  --ws-toolbar: #f5f8ff;
+  --ws-accent: #0f5ea8;
+  --ws-accent-soft: rgba(15, 94, 168, 0.08);
+  --ws-shadow: 0 10px 26px rgba(2, 6, 23, 0.06);
+}
+
+.workspaceHeader {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.headerRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.9rem;
+  flex-wrap: wrap;
+}
+
+.headerText {
+  min-width: min(560px, 100%);
+}
+
+.title {
+  font-family: var(--font-sora), system-ui, -apple-system, sans-serif;
+  font-size: clamp(1.14rem, 2vw, 1.52rem);
+  line-height: 1.15;
+  font-weight: 650;
+  color: var(--ws-text);
+}
+
+.subtitle {
+  margin-top: 0.24rem;
+  color: var(--ws-muted);
+  font-size: 0.89rem;
+}
+
+.tabRow {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.24rem;
+  align-items: center;
+  border: 1px solid var(--ws-border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.78);
+  padding: 0.24rem;
+  width: fit-content;
+}
+
+.tabButton {
+  border: 1px solid transparent;
+  background: transparent;
+  color: #344054;
+  border-radius: 6px;
+  padding: 0.34rem 0.72rem;
+  font-size: 0.81rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+
+.tabButton:hover {
+  background: #eef4ff;
+  color: #1f2a37;
+}
+
+.tabButtonActive {
+  background: var(--ws-accent);
+  color: #fff;
+  border-color: var(--ws-accent);
+}
+
+.toolbar {
+  display: grid;
+  gap: 0.46rem;
+  padding: 0.62rem 0.72rem 0.56rem;
+  border: 1px solid var(--ws-border);
+  border-radius: 10px;
+  background: var(--ws-toolbar);
+  box-shadow: 0 6px 18px rgba(2, 6, 23, 0.05);
+}
+
+.toolbarContext {
+  min-height: 1.5rem;
+  display: flex;
+  align-items: center;
+  margin-bottom: 0.04rem;
+  padding-right: 0;
+}
+
+.assignedChip {
+  display: inline-flex;
+  align-items: center;
+  max-width: min(55vw, 360px);
+  border: 1px solid var(--ws-border);
+  border-radius: 999px;
+  padding: 0.14rem 0.54rem;
+  font-size: 0.75rem;
+  color: #344054;
+  background: #f9fafb;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.toolbarRightActions {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  justify-content: flex-end;
+  min-height: 2.22rem;
+}
+
+.fieldActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  margin-top: 0.35rem;
+}
+
+.toolbarActionsCell {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  align-self: start;
+  margin-top: 0.18rem;
+}
+
+.updatingInline {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+  color: var(--ws-muted);
+  font-size: 0.75rem;
+}
+
+.spinner {
+  width: 0.66rem;
+  height: 0.66rem;
+  border: 2px solid #dbe3f0;
+  border-top-color: var(--ws-accent);
+  border-radius: 999px;
+  animation: spin 0.8s linear infinite;
+}
+
+.resetButton {
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.82);
+  color: #1d2939;
+  border-radius: 8px;
+  padding: 0.28rem 0.52rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.resetButton:hover {
+  border-color: #d0dae8;
+  background: #ffffff;
+}
+
+.toolbarGrid {
+  display: grid;
+  gap: 0.48rem;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+}
+
+.field {
+  display: grid;
+  gap: 0.24rem;
+}
+
+.searchField {
+  grid-column: span 1;
+}
+
+.fieldLabel {
+  color: var(--ws-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.input,
+.select {
+  width: 100%;
+  border: 1px solid var(--ws-border);
+  border-radius: 8px;
+  padding: 0.5rem 0.62rem;
+  font: inherit;
+  font-size: 0.84rem;
+  background: #fff;
+  color: var(--ws-text);
+  min-height: 2.22rem;
+}
+
+.queueContainer {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.queueContent {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.queueHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.72rem;
+  flex-wrap: wrap;
+  padding-bottom: 0.25rem;
+}
+
+.sectionTitle {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #111827;
+}
+
+.queueHeaderRight {
+  display: flex;
+  align-items: center;
+  gap: 0.58rem;
+  flex-wrap: wrap;
+}
+
+.metaText {
+  color: var(--ws-muted);
+  font-size: 0.79rem;
+}
+
+.compactPager {
+  display: inline-flex;
+  border: 1px solid #e5e7eb;
+  border-radius: 7px;
+  overflow: hidden;
+}
+
+.compactPagerButton {
+  border: 0;
+  border-right: 1px solid #e5e7eb;
+  background: #fff;
+  color: #111827;
+  padding: 0.32rem 0.58rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.compactPagerButton:last-child {
+  border-right: 0;
+}
+
+.compactPagerButton:disabled {
+  color: #98a2b3;
+  cursor: not-allowed;
+}
+
+.grid {
+  display: grid;
+  gap: 0.62rem;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+}
+
+.ticketCard {
+  display: grid;
+  gap: 0.55rem;
+  min-height: 178px;
+}
+
+.ticketCardContent {
+  display: grid;
+  gap: 0.52rem;
+}
+
+.clickableCard {
+  cursor: pointer;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease, background-color 0.12s ease;
+}
+
+.clickableCard:hover,
+.clickableCard:focus-visible {
+  border-color: #d1d5db;
+  box-shadow: 0 10px 18px rgba(15, 23, 42, 0.08);
+  background: #fafafa;
+}
+
+.ticketCardTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.6rem;
+}
+
+.cardHoverChevron {
+  color: #9ca3af;
+  font-size: 0.86rem;
+  line-height: 1;
+  opacity: 0;
+  transform: translateX(-2px);
+  transition: opacity 0.12s ease, transform 0.12s ease;
+}
+
+.clickableCard:hover .cardHoverChevron,
+.clickableCard:focus-visible .cardHoverChevron {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.cardTitle {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #111827;
+  line-height: 1.25;
+}
+
+.cardSubtitle {
+  margin-top: 0.18rem;
+  color: #6b7280;
+  font-size: 0.78rem;
+}
+
+.cardDescription {
+  color: #374151;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  min-height: 2.82em;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.cardIconSupport {
+  color: #9ca3af;
+  font-size: 0.72rem;
+}
+
+.badgeRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.34rem;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  padding: 0.1rem 0.42rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+}
+
+.badgeNeutral {
+  background: #f8fafc;
+  color: #475467;
+  border-color: var(--ws-border);
+}
+
+.badgeInfo {
+  background: #f2f6ff;
+  color: #3f5fa5;
+  border-color: #dbe6ff;
+}
+
+.badgeSuccess {
+  background: #f1faf5;
+  color: #1f6b47;
+  border-color: #d3f0e2;
+}
+
+.badgeWarning {
+  background: #fff8ef;
+  color: #8b5a0c;
+  border-color: #f7dfba;
+}
+
+.badgeDanger {
+  background: #fef4f4;
+  color: #972d2d;
+  border-color: #f3d2d2;
+}
+
+.badgeAccent {
+  background: var(--ws-accent-soft);
+  color: var(--ws-accent);
+  border-color: rgba(15, 94, 168, 0.2);
+}
+
+.metaList {
+  display: grid;
+  gap: 0.22rem;
+}
+
+.metaItem {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.25rem;
+  font-size: 0.73rem;
+}
+
+.metaLabel {
+  color: #9ca3af;
+  font-weight: 600;
+}
+
+.metaValue {
+  color: #4b5563;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.footerNote {
+  color: #9ca3af;
+  font-size: 0.7rem;
+  margin-top: 0.08rem;
+}
+
+.stateCard {
+  border: 1px dashed #d7dee8;
+  border-radius: 9px;
+  background: #fbfcfe;
+  color: var(--ws-muted);
+  padding: 0.92rem;
+  font-size: 0.84rem;
+}
+
+.errorText {
+  color: #b42318;
+}
+
+.queueFooterText {
+  color: var(--ws-muted);
+  font-size: 0.76rem;
+}
+
+.input:focus-visible,
+.select:focus-visible,
+.tabButton:focus-visible,
+.resetButton:focus-visible,
+.compactPagerButton:focus-visible,
+.clickableCard:focus-visible {
+  outline: 2px solid rgba(15, 94, 168, 0.35);
+  outline-offset: 2px;
+}
+
+@media (min-width: 760px) {
+  .toolbarGrid {
+    grid-template-columns: minmax(280px, 2.3fr) repeat(2, minmax(122px, 1fr));
+  }
+
+  .searchField {
+    grid-column: span 3;
+  }
+
+  .toolbarActionsCell {
+    grid-column: 3;
+  }
+
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1080px) {
+  .toolbarGrid {
+    grid-template-columns: minmax(300px, 2.4fr) repeat(4, minmax(122px, 1fr));
+  }
+
+  .searchField {
+    grid-column: span 2;
+  }
+
+  .toolbarActionsCell {
+    grid-column: 5;
+  }
+
+  .grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1380px) {
+  .grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner,
+  .clickableCard,
+  .tabButton,
+  .cardHoverChevron {
+    animation: none;
+    transition: none;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

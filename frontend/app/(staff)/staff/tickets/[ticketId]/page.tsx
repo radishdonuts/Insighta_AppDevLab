@@ -1,4 +1,4 @@
-import StaffTicketDetailClient from "@/app/(staff)/staff/tickets/[ticketId]/StaffTicketDetailClient";
+import StaffTicketDetailClient from "@/components/features/staff/ticket-detail/StaffTicketDetailClient";
 
 export default function StaffTicketDetailPage({
   params,
@@ -7,3 +7,4 @@ export default function StaffTicketDetailPage({
 }) {
   return <StaffTicketDetailClient ticketId={params.ticketId} />;
 }
+

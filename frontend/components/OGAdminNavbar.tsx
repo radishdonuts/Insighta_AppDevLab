@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 
-import styles from "./admin.module.css";
+import styles from "@/components/features/admin/admin.module.css";
 
 function isActive(pathname: string, href: string) {
   return pathname === href;

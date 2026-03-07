@@ -25,6 +25,7 @@ FASTAPI_URL_GEMINI=
 FASTAPI_URL_CLAUDE=
 FASTAPI_URL_LOCAL=
 NLP_REPROCESS_SECRET=change-me
+CRON_SECRET=change-me
 ```
 
 Optional NLP artifact env for FastAPI service:
@@ -76,4 +77,24 @@ Request body is optional and supports:
   "ticketIds": ["uuid-1", "uuid-2"],
   "limit": 25
 }
+```
+
+`POST /api/nlp/jobs` processes queued NLP jobs (used by `vercel.json` cron). Auth is either:
+
+1. Header `x-nlp-reprocess-secret: $NLP_REPROCESS_SECRET`
+2. Header `Authorization: Bearer $CRON_SECRET`
+3. An authenticated Admin user session
+
+Request body is optional and supports:
+
+```json
+{
+  "limit": 10
+}
+```
+
+Non-mutating local validation loop:
+
+```bash
+npm run validate:nlp:health
 ```

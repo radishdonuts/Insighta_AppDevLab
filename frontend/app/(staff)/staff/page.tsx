@@ -1,7 +1,8 @@
 export const dynamic = "force-dynamic";
 
-import StaffWorkspaceClient from "@/app/(staff)/staff/StaffWorkspaceClient";
+import StaffWorkspaceClient from "@/components/features/staff/workspace/StaffWorkspaceClient";
 
 export default function StaffWorkspacePage() {
   return <StaffWorkspaceClient />;
 }
+

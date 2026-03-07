@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient as createSupabaseClient } from "@/utils/supabase/client";
 import { FileUpload } from "@/components/FileUpload";
-import styles from "./submit.module.css";
+import styles from "@/components/features/guest/submit/submit.module.css";
 
 const TITLE_MAX_LENGTH = 120;
 const DESCRIPTION_MIN_LENGTH = 20;

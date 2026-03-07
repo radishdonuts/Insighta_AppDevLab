@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import styles from "@/app/(admin)/admin/admin.module.css";
+import styles from "../admin.module.css";
 import { AdminChartCard } from "@/components/admin/AdminCharts";
 import type {
   AdminStatsBreakdownsResponse,

@@ -1,5 +1,6 @@
-import AdminStatisticsClient from "@/app/(admin)/admin/statistics/AdminStatisticsClient";
+import AdminStatisticsClient from "@/components/features/admin/statistics/AdminStatisticsClient";
 
 export default async function AdminStatisticsPage() {
   return <AdminStatisticsClient />;
 }
+

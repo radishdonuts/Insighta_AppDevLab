@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { jsonServerError } from "@/app/api/admin/_utils";
+import { jsonServerError } from "@/lib/api/admin-utils";
 import {
   getAdminStatsOverview,
   getAdminSupabase,
@@ -25,3 +25,4 @@ export async function GET(request: Request) {
     return jsonServerError(error, "Failed to load admin overview stats.");
   }
 }
+

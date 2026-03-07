@@ -10,7 +10,7 @@ import type {
   AdminStatsOverviewResponse,
 } from "@/types/admin-stats";
 
-import styles from "./admin.module.css";
+import styles from "../admin.module.css";
 
 type ApiErrorPayload = { error?: string; message?: string };
 

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { jsonError, jsonServerError } from "@/app/api/staff/_utils";
+import { jsonError, jsonServerError } from "@/lib/api/staff-utils";
 import {
   getStaffSupabase,
   getStaffTicketDetail,
@@ -35,3 +35,4 @@ export async function GET(
     return jsonServerError(error, "Failed to load ticket detail.");
   }
 }
+

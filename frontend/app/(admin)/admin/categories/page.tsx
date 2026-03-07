@@ -1,5 +1,6 @@
-import AdminCategoriesClient from "@/app/(admin)/admin/categories/AdminCategoriesClient";
+import AdminCategoriesClient from "@/components/features/admin/categories/AdminCategoriesClient";
 
 export default async function AdminCategoriesPage() {
   return <AdminCategoriesClient />;
 }
+

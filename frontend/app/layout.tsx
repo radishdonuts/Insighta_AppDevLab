@@ -1,6 +1,6 @@
 // app/layout.tsx
-import "@/app/(public)/globals.css";
-import { sora, jakarta } from "@/app/fonts";
+import "@/components/styles/globals.css";
+import { sora, jakarta } from "@/lib/fonts";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

@@ -4,7 +4,7 @@ import { useState } from "react";
 
 import { FeedbackForm, type FeedbackData } from "@/components/FeedbackForm";
 
-import styles from "@/app/(public)/feedback/[id]/page.module.css";
+import styles from "@/components/features/public/feedback/page.module.css";
 
 type ApiResponse = {
   error?: string;

@@ -2,7 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 
 import { NextResponse } from "next/server";
 
-import { jsonError, jsonServerError, parseJsonRequestBody } from "@/app/api/staff/_utils";
+import { jsonError, jsonServerError, parseJsonRequestBody } from "@/lib/api/staff-utils";
 import { isEmailConfigured, sendTicketStatusUpdatedEmail } from "@/lib/email";
 import {
   getRequestIpAddress,
@@ -227,3 +227,4 @@ export async function PATCH(
     return jsonServerError(error, "Failed to update ticket status.");
   }
 }
+

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { jsonError, jsonServerError } from "@/app/api/admin/_utils";
+import { jsonError, jsonServerError } from "@/lib/api/admin-utils";
 import {
   getAdminCategories,
   getAdminSupabase,
@@ -32,3 +32,4 @@ export async function POST(request: Request) {
   void request;
   return jsonError(403, "Category management is locked.", "Complaint categories are fixed and cannot be created.");
 }
+
