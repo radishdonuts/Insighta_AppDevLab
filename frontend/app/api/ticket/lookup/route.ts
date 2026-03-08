@@ -67,6 +67,28 @@ export async function GET(req: Request) {
   }
 
   if (!row?.ticket_id) {
+    const writer = getSupabaseServerClient();
+    const { data: ticketRow, error: ticketError } = await writer
+      .from("tickets")
+      .select("id, status")
+      .eq("ticket_number", token)
+      .limit(1)
+      .maybeSingle();
+
+    if (ticketError) {
+      return NextResponse.json({ ok: false, message: "Lookup failed." }, { status: 500 });
+    }
+
+    if (ticketRow?.id) {
+      return NextResponse.json({
+        ok: true,
+        ticket: {
+          status: ticketRow.status ?? null,
+          guest_tracking_number: token,
+        },
+      });
+    }
+
     return NextResponse.json({ ok: false, message: "Invalid or expired link." }, { status: 404 });
   }
 

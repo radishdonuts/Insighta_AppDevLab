@@ -311,22 +311,15 @@ async function resolveCategorySelection(
   };
 }
 
-async function getNextTicketNumber(supabase: SupabaseServerClient): Promise<string> {
-  const { data, error } = await supabase
-    .from("tickets")
-    .select("ticket_number")
-    .order("submitted_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+function buildTrackingCode(): string {
+  const bytes = randomBytes(12);
+  let value = "";
 
-  if (error) {
-    throw new Error(`Failed to generate ticket number: ${error.message}`);
+  for (let index = 0; index < bytes.length; index += 1) {
+    value += TRACKING_CODE_ALPHABET[bytes[index] % TRACKING_CODE_ALPHABET.length];
   }
 
-  const current = asTrimmedString(data?.ticket_number);
-  const match = /^TKT-(\d+)$/.exec(current);
-  const nextNumber = match ? Number.parseInt(match[1], 10) + 1 : 1;
-  return `TKT-${String(nextNumber).padStart(5, "0")}`;
+  return `TRK-${value.slice(0, 4)}-${value.slice(4, 8)}-${value.slice(8, 12)}`;
 }
 
 function compactObject<T extends Record<string, unknown>>(obj: T): Partial<T> {
@@ -411,7 +404,7 @@ async function insertTicketWithRetry(
   const insertPayload: Record<string, unknown> = { ...payload };
 
   for (let attempt = 1; attempt <= MAX_TICKET_NUMBER_RETRIES; attempt += 1) {
-    const ticketNumber = await getNextTicketNumber(supabase);
+    const ticketNumber = buildTrackingCode();
 
     const { data, error } = await supabase
       .from("tickets")
@@ -469,14 +462,7 @@ async function createGuestAccessToken(
 }
 
 function buildGuestTrackingCode(): string {
-  const bytes = randomBytes(12);
-  let value = "";
-
-  for (let index = 0; index < bytes.length; index += 1) {
-    value += TRACKING_CODE_ALPHABET[bytes[index] % TRACKING_CODE_ALPHABET.length];
-  }
-
-  return `TRK-${value.slice(0, 4)}-${value.slice(4, 8)}-${value.slice(8, 12)}`;
+  return buildTrackingCode();
 }
 
 async function uploadAttachmentsForTicket(
