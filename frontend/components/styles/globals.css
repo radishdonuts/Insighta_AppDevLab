@@ -61,14 +61,30 @@
   --ring: 212.7 26.8% 83.9%;
 }
 
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    min-height: 100%;
+  }
+
+  body {
+    min-height: 100vh;
+    margin: 0;
+    font-family: var(--font-jakarta), system-ui, -apple-system, sans-serif;
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
+  }
 }
 
-body {
-  font-family: var(--font-jakarta), system-ui, -apple-system, sans-serif;
+@layer components {
+
+.public-theme {
+  min-height: 100vh;
   background:
     radial-gradient(circle at 15% 12%, rgba(14, 98, 165, 0.4), transparent 43%),
     radial-gradient(circle at 78% 16%, rgba(12, 76, 133, 0.35), transparent 36%),
@@ -80,17 +96,19 @@ body {
 .staff-route-shell {
   min-height: 100vh;
   background: #f7f8fa;
+  color: hsl(222.2 84% 4.9%);
+  isolation: isolate;
 }
 
-.glass-shell {
+.public-theme .glass-shell {
   position: relative;
   min-height: calc(100vh - 56px);
   padding: clamp(1.4rem, 3vw, 2.8rem) 1rem clamp(2.2rem, 5vw, 3.8rem);
   overflow: hidden;
 }
 
-.glass-shell::before,
-.glass-shell::after {
+.public-theme .glass-shell::before,
+.public-theme .glass-shell::after {
   content: "";
   position: absolute;
   border-radius: 999px;
@@ -98,7 +116,7 @@ body {
   filter: blur(44px);
 }
 
-.glass-shell::before {
+.public-theme .glass-shell::before {
   width: 430px;
   height: 430px;
   left: -140px;
@@ -106,7 +124,7 @@ body {
   background: rgba(14, 98, 165, 0.24);
 }
 
-.glass-shell::after {
+.public-theme .glass-shell::after {
   width: 420px;
   height: 420px;
   right: -145px;
@@ -114,7 +132,7 @@ body {
   background: rgba(12, 76, 133, 0.2);
 }
 
-.glass-shell-word {
+.public-theme .glass-shell-word {
   position: absolute;
   inset: 3.8rem 0 auto;
   text-align: center;
@@ -128,7 +146,7 @@ body {
   z-index: 1;
 }
 
-.glass-shell-panel {
+.public-theme .glass-shell-panel {
   position: relative;
   z-index: 2;
   width: min(95vw, 1120px);
@@ -142,29 +160,29 @@ body {
   padding: clamp(1.2rem, 2.4vw, 2.4rem);
 }
 
-.glass-shell-panel--compact {
+.public-theme .glass-shell-panel--compact {
   max-width: 480px;
 }
 
-.glass-shell-panel--narrow {
+.public-theme .glass-shell-panel--narrow {
   max-width: 680px;
 }
 
-.glass-shell-panel--wide {
+.public-theme .glass-shell-panel--wide {
   max-width: 1140px;
 }
 
-h1,
-h2,
-h3,
-h4,
-h5,
-h6,
-.hero h1,
-.features h2,
-.hero-backdrop-word,
-.hero-tag,
-.auth-state-label {
+.public-theme h1,
+.public-theme h2,
+.public-theme h3,
+.public-theme h4,
+.public-theme h5,
+.public-theme h6,
+.public-theme .hero h1,
+.public-theme .features h2,
+.public-theme .hero-backdrop-word,
+.public-theme .hero-tag,
+.public-theme .auth-state-label {
   font-family: var(--font-sora), system-ui, -apple-system, sans-serif;
 }
 
@@ -322,15 +340,15 @@ h6,
   background: #fee2e2;
 }
 
-.hero {
+.public-theme .hero {
   position: relative;
   overflow: hidden;
   padding: 3.4rem 1.4rem 2.2rem;
   background: transparent;
 }
 
-.hero::before,
-.hero::after {
+.public-theme .hero::before,
+.public-theme .hero::after {
   content: "";
   position: absolute;
   border-radius: 999px;
@@ -338,7 +356,7 @@ h6,
   pointer-events: none;
 }
 
-.hero::before {
+.public-theme .hero::before {
   width: 460px;
   height: 460px;
   left: -130px;
@@ -346,7 +364,7 @@ h6,
   background: rgba(14, 98, 165, 0.32);
 }
 
-.hero::after {
+.public-theme .hero::after {
   width: 480px;
   height: 480px;
   right: -160px;
@@ -354,7 +372,7 @@ h6,
   background: rgba(18, 85, 146, 0.25);
 }
 
-.hero-backdrop-word {
+.public-theme .hero-backdrop-word {
   position: absolute;
   inset: 4.2rem 0 auto;
   text-align: center;
@@ -368,7 +386,7 @@ h6,
   mix-blend-mode: soft-light;
 }
 
-.hero-glass {
+.public-theme .hero-glass {
   position: relative;
   z-index: 3;
   width: min(96vw, 1580px);
@@ -388,7 +406,7 @@ h6,
   justify-content: center;
 }
 
-.hero-tag {
+.public-theme .hero-tag {
   display: inline-block;
   padding: 0.28rem 0.8rem;
   border-radius: 999px;
@@ -401,7 +419,7 @@ h6,
   margin-bottom: 0.8rem;
 }
 
-.hero h1 {
+.public-theme .hero h1 {
   font-size: clamp(2rem, 4.8vw, 3.9rem);
   font-weight: 800;
   line-height: 1.12;
@@ -411,11 +429,11 @@ h6,
   z-index: 4;
 }
 
-.hero h1 .highlight {
+.public-theme .hero h1 .highlight {
   color: var(--accent);
 }
 
-.hero-copy {
+.public-theme .hero-copy {
   max-width: 700px;
   margin: 0 auto 1rem;
   color: var(--muted);
@@ -425,7 +443,7 @@ h6,
   z-index: 4;
 }
 
-.hero-phone-wrap {
+.public-theme .hero-phone-wrap {
   width: min(100%, 300px);
   margin: -4rem auto 0.2rem;
   position: relative;
@@ -433,7 +451,7 @@ h6,
   border-radius: 10rem;
 }
 
-.hero-phone-image {
+.public-theme .hero-phone-image {
   width: 100%;
   margin-top: -10rem;
   height: auto;
@@ -443,7 +461,7 @@ h6,
   border-radius: 0 0 7rem 9rem;
 }
 
-.hero-curve-fade {
+.public-theme .hero-curve-fade {
   position: relative;
   z-index: 3;
   margin: -0.4rem auto 0.9rem;
@@ -455,7 +473,7 @@ h6,
   pointer-events: none;
 }
 
-.hero-buttons {
+.public-theme .hero-buttons {
   display: flex;
   justify-content: center;
   gap: 0.95rem;
@@ -464,7 +482,7 @@ h6,
   z-index: 4;
 }
 
-.btn-primary {
+.public-theme .btn-primary {
   display: inline-block;
   text-decoration: none;
   font-family: var(--font-jakarta), system-ui, -apple-system, sans-serif;
@@ -478,11 +496,11 @@ h6,
   transition: background 0.15s ease;
 }
 
-.btn-primary:hover {
+.public-theme .btn-primary:hover {
   background: var(--accent-hover);
 }
 
-.btn-outline {
+.public-theme .btn-outline {
   display: inline-block;
   text-decoration: none;
   font-family: var(--font-jakarta), system-ui, -apple-system, sans-serif;
@@ -496,32 +514,32 @@ h6,
   transition: border-color 0.15s ease, background 0.15s ease;
 }
 
-.btn-outline:hover {
+.public-theme .btn-outline:hover {
   border-color: rgba(14, 98, 165, 0.48);
   background: rgba(255, 255, 255, 0.9);
 }
 
-.features {
+.public-theme .features {
   max-width: 1080px;
   margin: 0 auto;
   padding: 1.2rem 1.4rem 4.4rem;
 }
 
-.features h2 {
+.public-theme .features h2 {
   text-align: left;
   font-size: 1.85rem;
   font-weight: 750;
   margin-bottom: 1.25rem;
 }
 
-.bento-grid {
+.public-theme .bento-grid {
   display: grid;
   gap: 1rem;
   grid-template-columns: repeat(1, minmax(0, 1fr));
   grid-auto-rows: minmax(140px, auto);
 }
 
-.bento-card {
+.public-theme .bento-card {
   border: 1px solid var(--line);
   border-radius: 1.2rem;
   padding: 1.2rem;
@@ -530,7 +548,7 @@ h6,
   backdrop-filter: blur(12px);
 }
 
-.after-hero-surface {
+.public-theme .after-hero-surface {
   position: relative;
   margin-top: -3.4rem;
   padding-top: 0.75rem;
@@ -541,7 +559,7 @@ h6,
   overflow: hidden;
 }
 
-.after-hero-transition {
+.public-theme .after-hero-transition {
   position: absolute;
   left: 0;
   right: 0;
@@ -553,47 +571,47 @@ h6,
   z-index: 1;
 }
 
-.features {
+.public-theme .features {
   position: relative;
   z-index: 2;
 }
 
-.bento-card h3 {
+.public-theme .bento-card h3 {
   font-size: 1.05rem;
   margin-bottom: 0.45rem;
 }
 
-.bento-card p {
+.public-theme .bento-card p {
   color: var(--muted);
   font-size: 0.95rem;
   line-height: 1.6;
 }
 
 @media (min-width: 820px) {
-  .bento-grid {
+  .public-theme .bento-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
-  .bento-wide {
+  .public-theme .bento-wide {
     grid-column: span 2;
   }
 
-  .bento-tall {
+  .public-theme .bento-tall {
     grid-row: span 2;
   }
 }
 
 @media (max-width: 920px) {
-  .glass-shell {
+  .public-theme .glass-shell {
     padding: 1.15rem 0.75rem 2rem;
   }
 
-  .glass-shell-word {
+  .public-theme .glass-shell-word {
     inset: 3.6rem 0 auto;
     font-size: clamp(2.1rem, 15vw, 4.4rem);
   }
 
-  .glass-shell-panel {
+  .public-theme .glass-shell-panel {
     border-radius: 1.4rem;
     padding: 1rem;
   }
@@ -613,26 +631,28 @@ h6,
     max-width: 100%;
   }
 
-  .hero-backdrop-word {
+  .public-theme .hero-backdrop-word {
     inset: 4.1rem 0 auto;
     font-size: clamp(3rem, 16vw, 5.4rem);
   }
 
-  .hero-glass {
+  .public-theme .hero-glass {
     min-height: auto;
     border-radius: 3rem 3rem 2rem 2rem;
     width: 100%;
     margin-top: 74px;
   }
 
-  .hero-phone-wrap {
+  .public-theme .hero-phone-wrap {
     width: min(100%, 440px);
     margin-top: -0.4rem;
   }
 
-  .after-hero-surface {
+  .public-theme .after-hero-surface {
     border-radius: 2rem 2rem 0 0;
     margin-top: -1.8rem;
     padding-top: 0.7rem;
   }
 }
+
+} /* end @layer components */

@@ -8,10 +8,10 @@ import { useEffect, useState } from "react";
 import TicketCard, {
   type TicketCardBadge,
   type TicketCardBadgeTone,
-} from "@/components/ticket-workspace/TicketCard";
-import TicketGrid from "@/components/ticket-workspace/TicketGrid";
-import WorkspaceTopStrip from "@/components/ticket-workspace/WorkspaceTopStrip";
-import workspaceStyles from "@/components/ticket-workspace/workspace-ui.module.css";
+} from "@/components/features/customer/tickets/TicketCard";
+import TicketGrid from "@/components/features/customer/tickets/TicketGrid";
+import WorkspaceTopStrip from "@/components/features/customer/tickets/WorkspaceTopStrip";
+import workspaceStyles from "@/components/features/customer/tickets/workspace-ui.module.css";
 import { TicketPriority, TicketStatus } from "@/types/tickets";
 
 type UserTicket = {

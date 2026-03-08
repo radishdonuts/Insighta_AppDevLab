@@ -76,6 +76,21 @@ export type StaffTicketStatusHistoryItem = {
   changedBy: StaffPersonSummary | null;
 };
 
+export type StaffTicketNote = {
+  id: string;
+  content: string;
+  createdAt: string;
+  author: StaffPersonSummary | null;
+};
+
+export type StaffTicketMessage = {
+  id: string;
+  content: string;
+  senderType: string;
+  createdAt: string;
+  sender: StaffPersonSummary | null;
+};
+
 export type StaffTicketDetail = {
   id: string;
   ticketNumber: string;
@@ -139,6 +154,24 @@ export type StaffNlpReviewRequest = {
 
 export type StaffNlpReviewResponse = {
   message: string;
+};
+
+export type StaffTicketNotesResponse = {
+  notes: StaffTicketNote[];
+};
+
+export type StaffTicketNoteCreateResponse = {
+  message: string;
+  note: unknown;
+};
+
+export type StaffTicketMessagesResponse = {
+  messages: StaffTicketMessage[];
+};
+
+export type StaffTicketMessageCreateResponse = {
+  message: string;
+  data: unknown;
 };
 
 export type StaffStatusUpdateRequest = {

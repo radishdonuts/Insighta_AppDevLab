@@ -16,9 +16,9 @@ export default async function RootLayout({
   const session = await getNavbarSessionState();
 
   return (
-    <>
+    <div className="public-theme">
       <AppNavbar session={session} />
       {children}
-    </>
+    </div>
   );
 }

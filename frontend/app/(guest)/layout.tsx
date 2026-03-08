@@ -8,9 +8,9 @@ export default async function GuestGroupLayout({ children }: { children: React.R
   const session = await getNavbarSessionState();
 
   return (
-    <>
+    <div className="public-theme">
       <WebsiteNavbar session={session} />
       {children}
-    </>
+    </div>
   );
 }

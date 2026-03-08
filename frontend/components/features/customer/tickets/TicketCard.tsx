@@ -69,7 +69,7 @@ export default function TicketCard({
       onClick={clickable ? handleCardClick : undefined}
       onKeyDown={clickable ? handleKeyDown : undefined}
     >
-      <CardHeader className="flex flex-row items-start justify-between gap-3 px-4 pt-4 pb-1">
+      <CardHeader className="flex flex-row items-start justify-between gap-3 px-4 pb-1 pt-4">
         <div className="min-w-0 flex-1">
           <div className="mb-1 flex items-center gap-2">
             {icon ? <span className="text-muted-foreground">{icon}</span> : null}
@@ -88,7 +88,7 @@ export default function TicketCard({
         ) : null}
       </CardHeader>
 
-      <CardContent className="grid gap-3 px-4 pt-0 pb-0">
+      <CardContent className="grid gap-3 px-4 pb-0 pt-0">
         {description ? (
           <CardDescription
             className="line-clamp-2 text-sm leading-relaxed text-foreground/80"
@@ -122,10 +122,9 @@ export default function TicketCard({
         ) : null}
       </CardContent>
 
-      <CardFooter className="mt-1 min-h-7 px-4 pt-0 pb-4">
+      <CardFooter className="mt-1 min-h-7 px-4 pb-4 pt-0">
         {footerNote ? <p className="truncate text-xs text-muted-foreground">{footerNote}</p> : null}
       </CardFooter>
     </Card>
   );
 }
-
