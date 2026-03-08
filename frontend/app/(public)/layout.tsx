@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 import { getNavbarSessionState } from "@/lib/auth/navbar-session";
-import AppNavbar from "../../components/AppNavbar";
+import PublicLayoutShell from "@/components/PublicLayoutShell";
 
 export const metadata: Metadata = {
   title: "Insighta",
@@ -15,10 +15,5 @@ export default async function RootLayout({
 }) {
   const session = await getNavbarSessionState();
 
-  return (
-    <div className="public-theme">
-      <AppNavbar session={session} />
-      {children}
-    </div>
-  );
+  return <PublicLayoutShell session={session}>{children}</PublicLayoutShell>;
 }
