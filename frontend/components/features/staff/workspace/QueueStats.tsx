@@ -43,7 +43,7 @@ export default function QueueStats({ stats, loading }: QueueStatsProps) {
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, delay: i * 0.1 }}
-          className="flex flex-col gap-1 p-5 border rounded-lg bg-card transition-colors hover:border-primary/30"
+          className="flex flex-col gap-1 p-5 border border-[#0e62a5]/15 rounded-xl bg-white/80 backdrop-blur-sm shadow-sm transition-colors hover:border-[#0e62a5]/40 hover:shadow-md hover:bg-white"
         >
           <div className="flex items-center gap-2 mb-2">
             {stat.icon && (
@@ -55,7 +55,7 @@ export default function QueueStats({ stats, loading }: QueueStatsProps) {
               {stat.label}
             </span>
           </div>
-          <h2 className="text-3xl tracking-tight font-bold text-card-foreground">
+          <h2 className="text-3xl tracking-tight font-bold text-[#0d1b2a]">
             {stat.value}
           </h2>
           <p className="text-xs leading-relaxed text-muted-foreground">

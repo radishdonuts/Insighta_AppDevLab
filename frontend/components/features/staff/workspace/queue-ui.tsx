@@ -73,7 +73,9 @@ export function priorityBadge(priority: string): BadgeInfo {
     case "High":
       return { label: priority, variant: "outline", className: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400 border-red-200 dark:border-red-800" };
     case "Medium":
-      return { label: priority, variant: "outline", className: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 border-amber-200 dark:border-amber-800" };
+      return { label: priority, variant: "outline", className: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400 border-orange-200 dark:border-orange-800" };
+    case "Low":
+      return { label: priority, variant: "outline", className: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800" };
     default:
       return { label: priority, variant: "outline", className: "bg-slate-100 text-slate-800 dark:bg-slate-800/40 dark:text-slate-400 border-slate-200 dark:border-slate-700" };
   }

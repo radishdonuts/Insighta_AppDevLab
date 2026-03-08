@@ -56,6 +56,16 @@ export type StaffTicketQueueResponse = PaginatedResponse<StaffTicketQueueItem> &
   filters: StaffQueueFilters;
   categoryOptions: StaffCategorySummary[];
   staffOptions: StaffPersonSummary[];
+  tabCounts: {
+    my: number;
+    unassigned: number;
+    all: number;
+  };
+  summary: {
+    total: number;
+    unassigned: number;
+    highPriority: number;
+  };
 };
 
 export type StaffAttachmentMetadata = {

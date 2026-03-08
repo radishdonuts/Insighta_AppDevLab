@@ -373,6 +373,22 @@ function applyQueueFilters(query: any, filters: StaffQueueFilters, authUserId: s
   return query;
 }
 
+async function countStaffTickets(
+  supabase: SupabaseServerClient,
+  filters: StaffQueueFilters,
+  authUserId: string
+): Promise<number> {
+  let query: any = supabase.from("tickets").select("id", { count: "exact", head: true });
+  query = applyQueueFilters(query, filters, authUserId);
+  const { count, error } = await query;
+
+  if (error) {
+    throw new Error(`Failed to count staff tickets: ${error.message}`);
+  }
+
+  return count ?? 0;
+}
+
 async function listActiveCategories(_supabase: SupabaseServerClient): Promise<StaffCategorySummary[]> {
   return CANONICAL_COMPLAINT_CATEGORIES.map((name) => ({ id: name, name }));
 }
@@ -462,10 +478,37 @@ export async function listStaffTickets(
     return applyQueueFilters(query, filters, authUserId);
   };
 
-  const [resultWithSources, categoryOptions, staffOptions] = await Promise.all([
+  const myCountFilters: StaffQueueFilters = {
+    ...filters,
+    tab: "my",
+    assignment: "mine",
+    assignedTo: undefined,
+  };
+  const unassignedCountFilters: StaffQueueFilters = {
+    ...filters,
+    tab: "unassigned",
+    assignment: "unassigned",
+    assignedTo: undefined,
+  };
+  const allCountFilters: StaffQueueFilters = {
+    ...filters,
+    tab: "all",
+    assignment: "all",
+    assignedTo: undefined,
+  };
+  const highPriorityCountFilters: StaffQueueFilters = {
+    ...filters,
+    priority: "High",
+  };
+
+  const [resultWithSources, categoryOptions, staffOptions, myCount, unassignedCount, allCount, highPriorityCount] = await Promise.all([
     runQuery(selectWithSources),
     listActiveCategories(supabase),
     listAssignableStaff(supabase),
+    countStaffTickets(supabase, myCountFilters, authUserId),
+    countStaffTickets(supabase, unassignedCountFilters, authUserId),
+    countStaffTickets(supabase, allCountFilters, authUserId),
+    countStaffTickets(supabase, highPriorityCountFilters, authUserId),
   ]);
 
   let data = resultWithSources.data;
@@ -500,6 +543,16 @@ export async function listStaffTickets(
     },
     categoryOptions,
     staffOptions,
+    tabCounts: {
+      my: myCount,
+      unassigned: unassignedCount,
+      all: allCount,
+    },
+    summary: {
+      total,
+      unassigned: unassignedCount,
+      highPriority: highPriorityCount,
+    },
   };
 }
 
