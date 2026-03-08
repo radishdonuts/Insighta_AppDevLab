@@ -1,6 +1,4 @@
 "use client";
-
-import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { motion } from "framer-motion";
@@ -14,8 +12,6 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 
 const fadeIn = {
   hidden: { opacity: 0, y: 20 },
@@ -30,57 +26,49 @@ const itemFadeIn = {
 const cards = [
   {
     icon: FileSearch,
-    title: "AI Intake Triage",
-    body: "Capture complaint details, evidence, and policy context in one guided flow.",
+    title: "Guided Complaint Intake",
+    body: "Collect complaint details, policy context, attachments, and supporting evidence in one structured flow.",
   },
   {
     icon: ShieldCheck,
-    title: "Insurance-Safe Review",
-    body: "Keep staff, admins, and complainants aligned through one status path.",
+    title: "AI-Assisted Triage",
+    body: "Support faster review with category, urgency, and prioritization signals for incoming complaint cases.",
   },
   {
     icon: LineChart,
-    title: "Queue Visibility",
-    body: "Surface urgency, category, and escalation risk before cases get buried.",
+    title: "Complaint Tracking and Structured Feedback",
+    body: "Keep complaint progress visible while capturing customer feedback through star ratings and preset categories.",
   },
 ];
 
 const steps = [
-  "Collect complaint narrative, policy details, and attachments.",
-  "Classify category and urgency with AI-assisted routing.",
-  "Resolve through shared queues, notes, and visible status updates.",
+  "Submit a complaint with policy details and supporting information, or share structured feedback through ratings and preset categories.",
+  "Review, classify, prioritize, and route complaint cases for the right next action.",
+  "Track case updates and keep customer submissions visible in one organized workflow.",
 ];
 
 const outcomeCards = [
   {
-    label: "Priority-first queues",
-    value: "Fewer buried critical cases",
+    label: "PRIORITY-FIRST TRIAGE",
+    value: "Fewer urgent cases get buried",
     description:
-      "High-severity complaints rise faster with structured metadata and clearer next actions.",
+      "Structured complaint data helps teams identify high-priority cases earlier.",
   },
   {
-    label: "Clearer follow-up",
-    value: "One transparent status path",
+    label: "CLEARER FOLLOW-THROUGH",
+    value: "One visible status path",
     description:
-      "Customers track progress without bouncing between disconnected inbox updates.",
+      "Customers can follow case progress without relying on scattered updates.",
   },
   {
-    label: "Shared team context",
-    value: "Better handoffs",
+    label: "STRUCTURED CUSTOMER INPUT",
+    value: "Feedback stays organized",
     description:
-      "Admins and staff work from the same complaint snapshot, reducing routing ambiguity.",
+      "Ratings and preset categories make customer feedback easier to capture, review, and compare.",
   },
 ];
 
 export function InsightaLandingPage() {
-  const [, setScrollY] = useState(0);
-
-  useEffect(() => {
-    const handleScroll = () => setScrollY(window.scrollY);
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
-
   return (
     <div className="flex min-h-screen flex-col bg-[radial-gradient(circle_at_top_left,_rgba(15,23,42,0.08),_transparent_28%),radial-gradient(circle_at_top_right,_rgba(14,165,233,0.18),_transparent_24%),linear-gradient(180deg,_#f8fbff_0%,_#eef5ff_42%,_#ffffff_100%)] text-slate-950">
       <main className="flex-1">
@@ -90,16 +78,17 @@ export function InsightaLandingPage() {
               <div className="space-y-4">
                 <div className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-sm font-medium text-sky-900">
                   <ClipboardCheck className="size-4" />
-                  AI-powered complaint resolution for insurance teams
+                  AI-assisted complaint and feedback management
                 </div>
                 <h1 className="max-w-3xl text-4xl font-bold tracking-tight sm:text-5xl xl:text-6xl xl:leading-[1.05]">
-                  Resolve insurance complaints with
+                  Manage insurance complaints and feedback with
                   <span className="bg-gradient-to-r from-slate-950 via-sky-700 to-cyan-500 bg-clip-text text-transparent">
-                    {" "}faster triage, clearer routing, and visible follow-up.
+                    {" "}clearer intake, faster triage, and visible follow-through.
                   </span>
                 </h1>
                 <p className="max-w-2xl text-base leading-8 text-slate-600 sm:text-lg">
-                  Insighta helps insurers capture complaint context, classify urgency with AI, and keep customers and teams aligned from intake to resolution.
+                  Insighta helps customers submit insurance complaints clearly, share structured feedback through
+                  ratings and categories, and keep complaint progress visible from intake to resolution.
                 </p>
               </div>
 
@@ -111,14 +100,31 @@ export function InsightaLandingPage() {
                   </Link>
                 </Button>
                 <Button asChild variant="outline" size="lg" className="rounded-full px-7">
-                  <Link href="/track">Track Your Ticket</Link>
+                  <Link href="/track">Track a Ticket</Link>
                 </Button>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-3">
-                {["Guided intake for policy-heavy cases", "Automatic classification and prioritization", "Shared timeline for staff and complainants"].map((point) => (
-                  <div key={point} className="rounded-[1.25rem] border border-slate-200/80 bg-slate-50/80 px-4 py-4 text-sm font-medium text-slate-700">
-                    {point}
+                {[
+                  {
+                    title: "Guided complaint intake",
+                    description:
+                      "Capture policy details, issue context, and supporting evidence in one clear flow.",
+                  },
+                  {
+                    title: "AI-assisted prioritization",
+                    description:
+                      "Surface urgency, category, and routing signals to support faster complaint review.",
+                  },
+                  {
+                    title: "Structured feedback submission",
+                    description:
+                      "Collect customer feedback through star ratings and preset categories in a consistent format.",
+                  },
+                ].map((point) => (
+                  <div key={point.title} className="rounded-[1.25rem] border border-slate-200/80 bg-slate-50/80 px-4 py-4 text-sm text-slate-700">
+                    <p className="font-semibold text-slate-950">{point.title}</p>
+                    <p className="mt-2 leading-6 text-slate-600">{point.description}</p>
                   </div>
                 ))}
               </div>
@@ -129,14 +135,14 @@ export function InsightaLandingPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-semibold uppercase tracking-[0.25em] text-sky-100/80">
-                      Live Queue Preview
+                      Queue preview
                     </p>
                     <h2 className="mt-3 max-w-sm text-2xl font-semibold leading-tight">
-                      Complaints routed by urgency, category, and escalation risk.
+                      Priority-aware complaint routing for insurance operations.
                     </h2>
                   </div>
                   <div className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold">
-                    Real-time ops
+                    Keep case progress and customer input visible
                   </div>
                 </div>
 
@@ -154,7 +160,7 @@ export function InsightaLandingPage() {
                       </div>
                     </div>
                     <div className="mt-3 flex items-center justify-between rounded-[1.25rem] border border-white/10 bg-slate-950/20 px-4 py-3 text-sm">
-                      <span>Auto-tagged with probable escalation path</span>
+                      <span>Help teams spot urgent, misrouted, or high-risk complaint cases before they stall.</span>
                       <ArrowRight className="size-4" />
                     </div>
                   </div>
@@ -166,8 +172,8 @@ export function InsightaLandingPage() {
                           <UserRoundSearch className="size-5" />
                         </div>
                         <div>
-                          <p className="text-sm font-semibold text-sky-50/80">Trackable status</p>
-                          <p className="text-lg font-semibold">One timeline for everyone</p>
+                          <p className="text-sm font-semibold text-sky-50/80">Complaint and feedback visibility</p>
+                          <p className="text-lg font-semibold">Keep case progress and customer input visible</p>
                         </div>
                       </div>
                     </div>
@@ -222,10 +228,11 @@ export function InsightaLandingPage() {
                 Workflow
               </div>
               <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
-                From complaint submission to coordinated resolution.
+                From issue submission to coordinated follow-through.
               </h2>
               <p className="text-base leading-8 text-slate-300 sm:text-lg">
-                This first pass implements only the landing-page component. The dedicated 21st.dev feature-section gets integrated next.
+                Insighta helps teams manage insurance complaints more clearly while also capturing structured customer
+                feedback in one platform.
               </p>
               <div className="overflow-hidden rounded-[1.5rem] border border-white/10 bg-white/5">
                 <Image src="/assets/images/blue_logo.png" alt="Insighta logo artwork" width={800} height={800} className="h-[280px] w-full object-cover" />
@@ -246,13 +253,13 @@ export function InsightaLandingPage() {
         </section>
 
         <section id="contact" className="px-4 py-14 sm:px-6 lg:px-8 lg:py-20">
-          <div className="mx-auto grid max-w-7xl gap-6 rounded-[2rem] border border-slate-200/80 bg-white p-6 shadow-[0_20px_60px_rgba(15,23,42,0.06)] lg:grid-cols-[0.95fr_1.05fr] xl:p-10">
+          <div className="mx-auto max-w-5xl rounded-[2rem] border border-slate-200/80 bg-white p-6 shadow-[0_20px_60px_rgba(15,23,42,0.06)] xl:p-10">
             <div className="space-y-5">
               <div className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-sm font-medium text-slate-700">
-                Review
+                Why Insighta
               </div>
               <h2 className="text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
-                Review the new homepage, then the feature-section comes next.
+                Bring more structure to complaints and customer input.
               </h2>
               <div className="grid gap-4">
                 {outcomeCards.map((card) => (
@@ -263,24 +270,6 @@ export function InsightaLandingPage() {
                   </div>
                 ))}
               </div>
-            </div>
-
-            <div className="rounded-[1.75rem] border border-slate-200 bg-slate-50/70 p-5">
-              <h3 className="text-xl font-semibold text-slate-950">Send a product inquiry</h3>
-              <p className="mt-2 text-sm leading-7 text-slate-600">
-                This form is presentational for the landing-page phase and keeps the source section structure intact.
-              </p>
-              <form className="mt-6 flex flex-col gap-4">
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <Input placeholder="First name" className="rounded-full bg-white" />
-                  <Input placeholder="Last name" className="rounded-full bg-white" />
-                </div>
-                <Input type="email" placeholder="Work email" className="rounded-full bg-white" />
-                <Textarea placeholder="Tell us what you want to review on the homepage next." className="min-h-[140px] rounded-[1.25rem] bg-white" />
-                <Button type="submit" className="rounded-full bg-slate-950 hover:bg-slate-800">
-                  Send message
-                </Button>
-              </form>
             </div>
           </div>
         </section>
