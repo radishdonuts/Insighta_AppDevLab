@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
+import { motion } from "framer-motion";
 
 type ApiTicket = {
   id?: unknown;
@@ -93,7 +94,11 @@ export default function TicketDetailPage({ params }: { params: { id: string } })
   );
 }
 
-function TicketDetailPageContent({ params }: { params: { id: string } }) {
+function TicketDetailPageContent({
+  params,
+}: {
+  params: { id: string };
+}) {
   const searchParams = useSearchParams();
   const token = asString(searchParams.get("token"));
 
@@ -109,7 +114,9 @@ function TicketDetailPageContent({ params }: { params: { id: string } }) {
       setError(null);
 
       try {
-        const primaryEndpoint = token
+        const useTokenLookup = Boolean(token);
+
+        const primaryEndpoint = useTokenLookup
           ? `/api/ticket/lookup?token=${encodeURIComponent(token)}`
           : `/api/ticket/${encodeURIComponent(params.id)}`;
 
@@ -123,7 +130,7 @@ function TicketDetailPageContent({ params }: { params: { id: string } }) {
           return;
         }
 
-        if (token) {
+        if (useTokenLookup) {
           const fallbackResponse = await fetch(`/api/ticket/${encodeURIComponent(params.id)}`, { cache: "no-store" });
           const fallbackPayload = (await fallbackResponse.json()) as TicketResponse;
 
@@ -158,215 +165,143 @@ function TicketDetailPageContent({ params }: { params: { id: string } }) {
   const currentStep = deriveStepIndex(ticket?.status ?? "");
   const displayIdentifier = token || ticket?.guestTrackingNumber || ticket?.reference || ticket?.id || params.id;
   const displayLabel = token ? "Tracking" : "Ticket";
-  const priorityColors: Record<string, { bg: string; color: string; border: string }> = {
-    High: { bg: "#fef2f2", color: "#b91c1c", border: "#fecaca" },
-    Medium: { bg: "#fffbeb", color: "#b45309", border: "#fde68a" },
-    Low: { bg: "#f0fdf4", color: "#15803d", border: "#bbf7d0" },
+  const priorityColors: Record<string, { bg: string; text: string; border: string }> = {
+    High: { bg: "bg-red-50", text: "text-red-700", border: "border-red-200" },
+    Medium: { bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-200" },
+    Low: { bg: "bg-green-50", text: "text-green-700", border: "border-green-200" },
   };
   const priorityStyle = priorityColors[ticket?.priority ?? ""] ?? priorityColors.Low;
 
-  return (
-    <main className="glass-shell">
-      <div className="glass-shell-word" aria-hidden="true">
-        INSIGHTA
-      </div>
-      <section className="glass-shell-panel glass-shell-panel--narrow">
-      <div style={{ maxWidth: 600, margin: "0 auto" }}>
-        <h1
-          style={{
-            fontSize: "1.8rem",
-            fontWeight: 800,
-            marginBottom: "1.5rem",
-            color: "var(--text)",
-          }}
-        >
-          {displayLabel}: {displayIdentifier}
-        </h1>
+  const cardVariants = {
+    hidden: { opacity: 0, y: 30 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      transition: {
+        type: "spring" as const,
+        stiffness: 100,
+        damping: 15,
+        staggerChildren: 0.1,
+      },
+    },
+  };
 
-        <section
-          style={{
-            background: "rgba(255, 255, 255, 0.84)",
-            border: "1px solid #e5e7eb",
-            borderRadius: "1rem",
-            padding: "2rem",
-            display: "grid",
-            gap: "1.5rem",
-          }}
+  const itemVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: { opacity: 1, y: 0 },
+  };
+
+  return (
+    <div className="flex min-h-screen flex-col bg-[radial-gradient(circle_at_top_left,_rgba(15,23,42,0.08),_transparent_28%),radial-gradient(circle_at_top_right,_rgba(14,165,233,0.18),_transparent_24%),linear-gradient(180deg,_#f8fbff_0%,_#eef5ff_42%,_#ffffff_100%)] text-slate-950">
+      <main className="flex-1 px-4 py-16 sm:px-6 lg:px-8">
+        <motion.div
+          variants={cardVariants}
+          initial="hidden"
+          animate="visible"
+          className="mx-auto max-w-3xl rounded-[2rem] border border-white/70 bg-white/75 p-8 shadow-[0_30px_80px_rgba(15,23,42,0.08)] backdrop-blur sm:p-10"
         >
+          <motion.div variants={itemVariants} className="mb-6">
+            <Link
+              href="/track"
+              className="inline-flex items-center rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:border-sky-300 hover:text-sky-700"
+            >
+              Back to tracking
+            </Link>
+          </motion.div>
+
+          <motion.h1
+            variants={itemVariants}
+            className="mb-2 text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl"
+          >
+            {displayLabel}: {displayIdentifier}
+          </motion.h1>
+          <motion.p variants={itemVariants} className="mb-8 text-base leading-relaxed text-slate-600">
+            View the details and status of your complaint.
+          </motion.p>
+
           {loading ? (
-            <p style={{ margin: 0, color: "var(--muted)" }}>Loading ticket details...</p>
+            <motion.p variants={itemVariants} className="text-slate-500">
+              Loading ticket details...
+            </motion.p>
           ) : null}
 
           {error ? (
-            <div style={{ display: "grid", gap: "0.75rem" }}>
-              <p style={{ margin: 0, color: "#b91c1c", fontWeight: 600 }}>{error}</p>
-              <Link href="/track" style={{ color: "var(--accent)", textDecoration: "none", fontWeight: 600 }}>
+            <motion.div variants={itemVariants} className="space-y-3">
+              <p className="font-semibold text-red-700">{error}</p>
+              <Link
+                href="/track"
+                className="inline-block font-semibold text-sky-600 hover:text-sky-700"
+              >
                 Back to tracking
               </Link>
-            </div>
+            </motion.div>
           ) : null}
 
           {!loading && !error && ticket ? (
-            <>
-              <div>
-                <h3
-                  style={{
-                    fontSize: "1.1rem",
-                    fontWeight: 700,
-                    marginBottom: "0.75rem",
-                    color: "var(--text)",
-                  }}
-                >
+            <div className="space-y-6">
+              {/* Ticket Details */}
+              <motion.div variants={itemVariants}>
+                <h3 className="mb-3 text-lg font-bold text-slate-800">
                   {`${ticket.ticketType || "Ticket"} details`}
                 </h3>
                 {ticket.title ? (
-                  <p style={{ color: "var(--text)", fontSize: "0.95rem", fontWeight: 600, margin: "0 0 0.75rem" }}>
-                    {ticket.title}
-                  </p>
+                  <p className="mb-3 text-base font-semibold text-slate-900">{ticket.title}</p>
                 ) : null}
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  <span
-                    style={{
-                      padding: "4px 12px",
-                      borderRadius: 999,
-                      background: "var(--surface)",
-                      border: "1px solid #e5e7eb",
-                      fontSize: 12,
-                      fontWeight: 600,
-                      color: "var(--accent)",
-                    }}
-                  >
+                <div className="flex flex-wrap gap-2">
+                  <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700">
                     {ticket.category || "Uncategorized"}
                   </span>
                   <span
-                    style={{
-                      padding: "4px 12px",
-                      borderRadius: 999,
-                      background: priorityStyle.bg,
-                      border: `1px solid ${priorityStyle.border}`,
-                      fontSize: 12,
-                      fontWeight: 600,
-                      color: priorityStyle.color,
-                    }}
+                    className={`rounded-full border px-3 py-1 text-xs font-semibold ${priorityStyle.bg} ${priorityStyle.text} ${priorityStyle.border}`}
                   >
                     {(ticket.priority || "Low") + " Priority"}
                   </span>
                 </div>
-              </div>
+              </motion.div>
 
-              <div>
-                <p
-                  style={{
-                    fontSize: "0.9rem",
-                    fontWeight: 600,
-                    color: "var(--muted)",
-                    marginBottom: "0.4rem",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.05em",
-                  }}
-                >
+              {/* Description */}
+              <motion.div variants={itemVariants}>
+                <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Description
                 </p>
-                <p style={{ color: "var(--text)", fontSize: "0.95rem", lineHeight: 1.6, margin: 0 }}>
+                <p className="leading-relaxed text-slate-700">
                   {ticket.description || "No description provided."}
                 </p>
-              </div>
+              </motion.div>
 
-              <div style={{ display: "grid", gap: "0.35rem" }}>
+              {/* Dates */}
+              <motion.div variants={itemVariants} className="space-y-1">
                 {ticket.submittedAt ? (
-                  <p style={{ margin: 0, color: "var(--muted)", fontSize: "0.875rem" }}>
-                    Submitted: {formatDate(ticket.submittedAt)}
-                  </p>
+                  <p className="text-sm text-slate-500">Submitted: {formatDate(ticket.submittedAt)}</p>
                 ) : null}
                 {ticket.lastUpdatedAt ? (
-                  <p style={{ margin: 0, color: "var(--muted)", fontSize: "0.875rem" }}>
-                    Last updated: {formatDate(ticket.lastUpdatedAt)}
-                  </p>
+                  <p className="text-sm text-slate-500">Last updated: {formatDate(ticket.lastUpdatedAt)}</p>
                 ) : null}
-              </div>
+              </motion.div>
 
-              <div style={{ borderTop: "1px solid #e5e7eb" }} />
+              <div className="border-t border-slate-200" />
 
-              <div
-                style={{
-                  border: "1px solid #e5e7eb",
-                  borderRadius: "0.85rem",
-                  padding: "1rem",
-                  background: "#fafafa",
-                  display: "grid",
-                  gap: "0.6rem",
-                }}
-              >
-                <p style={{ margin: 0, color: "var(--text)", fontWeight: 600 }}>
-                  Share your feedback about our company service.
-                </p>
-                <Link
-                  href="/feedback"
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    textDecoration: "none",
-                    background: "var(--accent)",
-                    color: "#fff",
-                    fontWeight: 600,
-                    borderRadius: "0.5rem",
-                    padding: "0.65rem 0.95rem",
-                    width: "fit-content",
-                  }}
-                >
-                  Submit Feedback
-                </Link>
-              </div>
-
-              <div>
-                <p
-                  style={{
-                    fontSize: "0.9rem",
-                    fontWeight: 600,
-                    color: "var(--muted)",
-                    marginBottom: "1.25rem",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.05em",
-                  }}
-                >
+              {/* Status Stepper */}
+              <motion.div variants={itemVariants}>
+                <p className="mb-5 text-xs font-semibold uppercase tracking-wide text-slate-500">
                   Status
                 </p>
 
-                <div
-                  style={{
-                    position: "relative",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "flex-start",
-                  }}
-                >
+                <div className="relative flex items-start justify-between">
+                  {/* Background line */}
                   <div
-                    style={{
-                      position: "absolute",
-                      top: 14,
-                      left: "calc(100% / 8)",
-                      right: "calc(100% / 8)",
-                      height: 3,
-                      background: "#e5e7eb",
-                      borderRadius: 999,
-                      zIndex: 0,
-                    }}
+                    className="absolute top-[14px] left-[12.5%] right-[12.5%] h-[3px] rounded-full bg-slate-200"
+                    style={{ zIndex: 0 }}
                   />
 
+                  {/* Progress line */}
                   <div
+                    className="absolute top-[14px] left-[12.5%] h-[3px] rounded-full bg-sky-500 transition-all duration-400"
                     style={{
-                      position: "absolute",
-                      top: 14,
-                      left: "calc(100% / 8)",
                       width:
                         currentStep === 0
                           ? "0%"
                           : `calc(${(currentStep / (STEPS.length - 1)) * 100}% - 25%)`,
-                      height: 3,
-                      background: "var(--accent)",
-                      borderRadius: 999,
-                      transition: "width 0.4s ease",
                       zIndex: 1,
                     }}
                   />
@@ -377,27 +312,14 @@ function TicketDetailPageContent({ params }: { params: { id: string } }) {
                     return (
                       <div
                         key={step}
-                        style={{
-                          display: "flex",
-                          flexDirection: "column",
-                          alignItems: "center",
-                          gap: 8,
-                          zIndex: 2,
-                          flex: 1,
-                        }}
+                        className="relative z-[2] flex flex-1 flex-col items-center gap-2"
                       >
                         <div
-                          style={{
-                            width: 30,
-                            height: 30,
-                            borderRadius: "50%",
-                            background: done || active ? "var(--accent)" : "var(--bg)",
-                            border: `2.5px solid ${done || active ? "var(--accent)" : "#d1d5db"}`,
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            transition: "all 0.2s ease",
-                          }}
+                          className={`flex h-[30px] w-[30px] items-center justify-center rounded-full border-[2.5px] transition-all duration-200 ${
+                            done || active
+                              ? "border-sky-500 bg-sky-500"
+                              : "border-slate-300 bg-white"
+                          }`}
                         >
                           {done ? (
                             <svg
@@ -414,33 +336,19 @@ function TicketDetailPageContent({ params }: { params: { id: string } }) {
                               <polyline points="20 6 9 17 4 12" />
                             </svg>
                           ) : active ? (
-                            <div
-                              style={{
-                                width: 8,
-                                height: 8,
-                                borderRadius: "50%",
-                                background: "#fff",
-                              }}
-                            />
+                            <div className="h-2 w-2 rounded-full bg-white" />
                           ) : (
-                            <div
-                              style={{
-                                width: 8,
-                                height: 8,
-                                borderRadius: "50%",
-                                background: "#d1d5db",
-                              }}
-                            />
+                            <div className="h-2 w-2 rounded-full bg-slate-300" />
                           )}
                         </div>
                         <span
-                          style={{
-                            fontSize: "0.75rem",
-                            fontWeight: active ? 700 : 500,
-                            color: active ? "var(--accent)" : done ? "var(--text)" : "var(--muted)",
-                            textAlign: "center",
-                            lineHeight: 1.3,
-                          }}
+                          className={`text-center text-xs leading-tight ${
+                            active
+                              ? "font-bold text-cyan-500"
+                              : done
+                              ? "font-semibold text-slate-950"
+                              : "font-medium text-slate-400"
+                          }`}
                         >
                           {step}
                         </span>
@@ -448,46 +356,53 @@ function TicketDetailPageContent({ params }: { params: { id: string } }) {
                     );
                   })}
                 </div>
-              </div>
-            </>
+              </motion.div>
+
+              {/* Feedback CTA */}
+              <motion.div
+                variants={itemVariants}
+                className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-center"
+              >
+                <p className="mb-3 text-sm leading-relaxed text-slate-600">
+                  Have a minute? Share your feedback and help us improve.
+                </p>
+                <Link
+                  href="/feedback"
+                  className="inline-flex items-center justify-center rounded-full bg-sky-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-sky-700"
+                >
+                  Submit Feedback
+                </Link>
+              </motion.div>
+            </div>
           ) : null}
-        </section>
-      </div>
-      </section>
-    </main>
+        </motion.div>
+      </main>
+    </div>
   );
 }
 
 function TicketDetailFallback({ id }: { id: string }) {
   return (
-    <main className="glass-shell">
-      <div className="glass-shell-word" aria-hidden="true">
-        INSIGHTA
-      </div>
-      <section className="glass-shell-panel glass-shell-panel--narrow">
-      <div style={{ maxWidth: 600, margin: "0 auto" }}>
-        <h1
-          style={{
-            fontSize: "1.8rem",
-            fontWeight: 800,
-            marginBottom: "1.5rem",
-            color: "var(--text)",
-          }}
-        >
-          Ticket: {id}
-        </h1>
-        <section
-          style={{
-            background: "rgba(255, 255, 255, 0.84)",
-            border: "1px solid #e5e7eb",
-            borderRadius: "1rem",
-            padding: "2rem",
-          }}
-        >
-          <p style={{ margin: 0, color: "var(--muted)" }}>Loading ticket details...</p>
-        </section>
-      </div>
-      </section>
-    </main>
+    <div className="flex min-h-screen flex-col bg-[radial-gradient(circle_at_top_left,_rgba(15,23,42,0.08),_transparent_28%),radial-gradient(circle_at_top_right,_rgba(14,165,233,0.18),_transparent_24%),linear-gradient(180deg,_#f8fbff_0%,_#eef5ff_42%,_#ffffff_100%)] text-slate-950">
+      <main className="flex-1 px-4 py-16 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-3xl rounded-[2rem] border border-white/70 bg-white/75 p-8 shadow-[0_30px_80px_rgba(15,23,42,0.08)] backdrop-blur sm:p-10">
+          <div className="mb-6">
+            <Link
+              href="/track"
+              className="inline-flex items-center rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:border-sky-300 hover:text-sky-700"
+            >
+              Back to tracking
+            </Link>
+          </div>
+          <h1 className="mb-2 text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
+            Ticket: {id}
+          </h1>
+          <p className="mb-8 text-base leading-relaxed text-slate-600">
+            View the details and status of your complaint.
+          </p>
+          <p className="text-slate-500">Loading ticket details...</p>
+        </div>
+      </main>
+    </div>
   );
 }

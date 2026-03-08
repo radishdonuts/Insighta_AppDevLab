@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { loginAction } from "@/app/(guest)/login/action";
 import { GlassPageShell } from "@/components/GlassPageShell";
+import { FlashToast } from "@/components/ui/flash-toast";
 
 function readParam(value: string | string[] | undefined) {
   if (Array.isArray(value)) return value[0] ?? "";
@@ -167,8 +168,7 @@ export default function LoginPage({
             <p>Sign in to your Insighta account</p>
           </div>
 
-          {message ? <p className="login-feedback login-feedback-success">{message}</p> : null}
-          {error ? <p className="login-feedback login-feedback-error">{error}</p> : null}
+          <FlashToast message={message} error={error} />
 
           <form action={loginAction} className="login-form">
             <input type="hidden" name="next" value={next} />

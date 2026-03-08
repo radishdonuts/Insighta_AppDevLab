@@ -1,11 +1,14 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, useRef, type FormEvent, type KeyboardEvent } from "react";
+import { useRouter } from "next/navigation";
+import AnimatedGlowingSearchBar from "@/components/ui/animated-glowing-search-bar";
 
 type LookupResponse = {
   ok?: boolean;
   message?: string;
   ticket?: {
+    id?: unknown;
     status?: unknown;
     guest_tracking_number?: unknown;
   };
@@ -41,6 +44,8 @@ function extractToken(input: string): string {
 }
 
 export default function TrackTicketLookup({ initialToken = "" }: TrackTicketLookupProps) {
+  const router = useRouter();
+  const formRef = useRef<HTMLFormElement>(null);
   const [tokenInput, setTokenInput] = useState(initialToken);
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -51,6 +56,13 @@ export default function TrackTicketLookup({ initialToken = "" }: TrackTicketLook
     if (!nextToken) return;
     setTokenInput(nextToken);
   }, [initialToken]);
+
+  function handleKeyDown(e: KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      formRef.current?.requestSubmit();
+    }
+  }
 
   async function onSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -83,7 +95,26 @@ export default function TrackTicketLookup({ initialToken = "" }: TrackTicketLook
       }
 
       const trackingNumber = asString(data.ticket?.guest_tracking_number) || token;
-      setStatusResult({ trackingNumber, status });
+      const ticketId = asString(data.ticket?.id);
+
+      if (ticketId) {
+        const accessCheck = await fetch(`/api/ticket/${encodeURIComponent(ticketId)}`, {
+          cache: "no-store",
+        });
+
+        if (accessCheck.status === 200) {
+          router.push(`/tickets/${encodeURIComponent(ticketId)}?token=${encodeURIComponent(trackingNumber)}`);
+          return;
+        }
+
+        if (accessCheck.status === 403) {
+          router.push("/no_access_ticket");
+          return;
+        }
+      }
+
+      // Guest fallback route
+      router.push(`/view/${encodeURIComponent(trackingNumber)}?token=${encodeURIComponent(trackingNumber)}`);
     } catch (lookupError) {
       setError(lookupError instanceof Error ? lookupError.message : "Ticket lookup failed.");
     } finally {
@@ -92,139 +123,57 @@ export default function TrackTicketLookup({ initialToken = "" }: TrackTicketLook
   }
 
   return (
-    <section
-      className="card"
-      style={{
-        background: "rgba(255, 255, 255, 0.84)",
-        border: "1px solid #e5e7eb",
-        borderRadius: "1rem",
-        padding: "2rem",
-      }}
-    >
-      <h3 style={{ marginBottom: "0.4rem" }}>Enter your ticket access token</h3>
-      <p
-        style={{
-          color: "var(--muted)",
-          fontSize: "0.95rem",
-          lineHeight: 1.6,
-          marginBottom: "1.5rem",
-        }}
-      >
-        Use your guest tracking number from the confirmation screen to check your ticket status.
+    <div>
+      <h3 className="mb-1 text-lg font-semibold text-slate-800">Enter your ticket access token</h3>
+      <p className="mb-6 text-sm leading-relaxed text-slate-500">
+        Use your tracking number from the confirmation screen to check your ticket status.
       </p>
 
-      <form onSubmit={onSearch} style={{ display: "grid", gap: 12 }}>
-        <label
-          style={{
-            display: "grid",
-            gap: 6,
-            fontWeight: 500,
-            fontSize: "0.95rem",
-            color: "var(--text)",
-          }}
-        >
-          Tracking Number
-          <input
+      <form ref={formRef} onSubmit={onSearch} className="space-y-4">
+        <div className="flex flex-col items-center">
+          <label className="mb-2 block text-sm font-medium text-slate-700">
+            Tracking Number
+          </label>
+          <AnimatedGlowingSearchBar
             value={tokenInput}
-            onChange={(event) => setTokenInput(event.target.value)}
+            onChange={setTokenInput}
+            onKeyDown={handleKeyDown}
             placeholder="TRK-XXXX-XXXX-XXXX"
-            style={{
-              width: "100%",
-              padding: "0.6rem 0.75rem",
-              borderRadius: "0.5rem",
-              border: "1.5px solid #d1d5db",
-              fontSize: "0.95rem",
-              outline: "none",
-              transition: "border-color 0.15s",
-              color: "var(--text)",
-              background: "var(--bg)",
-            }}
-            onFocus={(event) => {
-              event.currentTarget.style.borderColor = "var(--accent)";
-            }}
-            onBlur={(event) => {
-              event.currentTarget.style.borderColor = "#d1d5db";
-            }}
+            disabled={isSearching}
           />
-        </label>
+        </div>
 
         {error ? (
-          <p style={{ margin: 0, color: "#b91c1c", fontSize: "0.875rem", fontWeight: 500 }}>{error}</p>
+          <p className="text-center text-sm font-medium text-red-700">{error}</p>
         ) : null}
 
         {statusResult ? (
-          <div
-            style={{
-              marginTop: 8,
-              padding: "0.85rem 1rem",
-              borderRadius: "0.65rem",
-              border: "1px solid #dbeafe",
-              background: "#eff6ff",
-              display: "grid",
-              gap: 4,
-            }}
-          >
-            <p
-              style={{
-                margin: 0,
-                fontSize: "0.78rem",
-                color: "#1e3a8a",
-                fontWeight: 700,
-                letterSpacing: "0.04em",
-                textTransform: "uppercase",
-              }}
-            >
+          <div className="mt-2 rounded-xl border border-blue-100 bg-blue-50 p-4">
+            <p className="text-xs font-bold uppercase tracking-wide text-blue-900">
               Tracking Number
             </p>
-            <p style={{ margin: 0, fontFamily: "monospace", fontSize: "0.95rem", color: "#1e40af" }}>
+            <p className="mt-1 font-mono text-sm text-blue-700">
               {statusResult.trackingNumber}
             </p>
-            <p
-              style={{
-                margin: "0.35rem 0 0",
-                fontSize: "0.78rem",
-                color: "#1e3a8a",
-                fontWeight: 700,
-                letterSpacing: "0.04em",
-                textTransform: "uppercase",
-              }}
-            >
+            <p className="mt-3 text-xs font-bold uppercase tracking-wide text-blue-900">
               Current Status
             </p>
-            <p style={{ margin: 0, fontSize: "1rem", fontWeight: 700, color: "#0f172a" }}>
+            <p className="mt-1 text-lg font-bold text-slate-900">
               {statusResult.status}
             </p>
           </div>
         ) : null}
 
-        <button
-          type="submit"
-          style={{
-            marginTop: 4,
-            padding: "0.75rem 2rem",
-            background: "var(--accent)",
-            color: "#fff",
-            fontWeight: 600,
-            fontSize: "1rem",
-            border: "none",
-            borderRadius: "0.55rem",
-            cursor: "pointer",
-            transition: "background 0.15s",
-            justifySelf: "start",
-          }}
-          disabled={isSearching}
-          onMouseEnter={(event) => {
-            if (!isSearching) {
-              event.currentTarget.style.background = "var(--accent-hover)";
-            }
-          }}
-          onMouseLeave={(event) => {
-            event.currentTarget.style.background = "var(--accent)";
-          }}
-        >
-          {isSearching ? "Searching..." : "Search"}
-        </button>
+        <div className="flex justify-center">
+          <button
+            type="submit"
+            disabled={isSearching}
+            className="mt-2 rounded-full bg-sky-600 px-7 py-3 text-sm font-semibold text-white transition-colors hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isSearching ? "Searching..." : "Search"}
+          </button>
+        </div>
       </form>
-    </section>
+    </div>
   );
 }

@@ -2,6 +2,12 @@
 import { getServerAuthRoleContext } from "@/lib/auth/server";
 import type { NavbarSessionState } from "@/components/AppNavbar";
 
+function isDynamicServerUsageError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const digest = (error as { digest?: unknown }).digest;
+  return digest === "DYNAMIC_SERVER_USAGE";
+}
+
 function buildAccountLabel(
   firstName: string | null,
   lastName: string | null,
@@ -51,6 +57,10 @@ export async function getNavbarSessionState(): Promise<NavbarSessionState> {
       role: result.status === "authorized" ? result.auth.role : null,
     };
   } catch (error) {
+    if (isDynamicServerUsageError(error)) {
+      return { status: "anonymous" };
+    }
+
     console.error("Navbar auth lookup failed:", error);
     return { status: "anonymous" };
   }
