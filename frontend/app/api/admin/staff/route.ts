@@ -33,23 +33,37 @@ export async function GET() {
         let statsMap: Record<string, { totalResolved: number; avgResolutionTimeHours: number }> = {};
 
         if (staffIds.length > 0) {
-            // Count resolved tickets per staff
-            const { data: resolvedCounts, error: resolvedError } = await supabase
+            // Count resolved tickets per staff and calculate resolution time
+            const { data: resolvedTickets, error: resolvedError } = await supabase
                 .from("tickets")
-                .select("assigned_staff_id")
+                .select("assigned_staff_id, created_at, updated_at")
                 .in("assigned_staff_id", staffIds)
                 .eq("status", "Resolved");
 
-            if (!resolvedError && resolvedCounts) {
-                const countByStaff: Record<string, number> = {};
-                for (const row of resolvedCounts) {
-                    const sid = row.assigned_staff_id as string;
-                    countByStaff[sid] = (countByStaff[sid] || 0) + 1;
+            if (!resolvedError && resolvedTickets) {
+                const statsByStaff: Record<string, { count: number; totalHours: number }> = {};
+
+                for (const ticket of resolvedTickets) {
+                    const sid = ticket.assigned_staff_id as string;
+                    if (!statsByStaff[sid]) {
+                        statsByStaff[sid] = { count: 0, totalHours: 0 };
+                    }
+
+                    statsByStaff[sid].count += 1;
+
+                    // Calculate hours between created and updated (resolved)
+                    if (ticket.created_at && ticket.updated_at) {
+                        const created = new Date(ticket.created_at).getTime();
+                        const updated = new Date(ticket.updated_at).getTime();
+                        const hours = (updated - created) / (1000 * 60 * 60);
+                        statsByStaff[sid].totalHours += hours;
+                    }
                 }
-                for (const [sid, count] of Object.entries(countByStaff)) {
+
+                for (const [sid, data] of Object.entries(statsByStaff)) {
                     statsMap[sid] = {
-                        totalResolved: count,
-                        avgResolutionTimeHours: Math.round(Math.random() * 24 + 8), // Placeholder — real calc needs submitted_at vs resolved_at
+                        totalResolved: data.count,
+                        avgResolutionTimeHours: data.count > 0 ? Math.round(data.totalHours / data.count) : 0,
                     };
                 }
             }

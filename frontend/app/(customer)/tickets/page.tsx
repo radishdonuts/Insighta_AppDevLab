@@ -12,13 +12,12 @@ import TicketCard, {
 import TicketGrid from "@/components/features/customer/tickets/TicketGrid";
 import WorkspaceTopStrip from "@/components/features/customer/tickets/WorkspaceTopStrip";
 import workspaceStyles from "@/components/features/customer/tickets/workspace-ui.module.css";
-import { TicketPriority, TicketStatus } from "@/types/tickets";
+import { TicketStatus } from "@/types/tickets";
 
 type UserTicket = {
   id: string;
   tracking_number: string | null;
   status: TicketStatus;
-  priority: TicketPriority;
   category_name: string;
   description: string;
   submitted_at: string;
@@ -51,13 +50,6 @@ function statusTone(status: string): TicketCardBadgeTone {
   return "accent";
 }
 
-function priorityTone(priority: string): TicketCardBadgeTone {
-  if (priority === "High") return "danger";
-  if (priority === "Medium") return "warning";
-  if (priority === "Low") return "success";
-  return "neutral";
-}
-
 function iconToneForStatus(status: string): "blue" | "mint" | "amber" | "rose" | "lavender" {
   if (status === "Resolved" || status === "Closed") return "mint";
   if (status === "Pending Customer Response") return "lavender";
@@ -65,11 +57,10 @@ function iconToneForStatus(status: string): "blue" | "mint" | "amber" | "rose" |
   return "blue";
 }
 
-async function fetchMyTickets(search: string, status: string, priority: string, page: number): Promise<{ tickets: UserTicket[]; total: number }> {
+async function fetchMyTickets(search: string, status: string, page: number): Promise<{ tickets: UserTicket[]; total: number }> {
   const params = new URLSearchParams();
   if (search) params.set("q", search);
   if (status && status !== "all") params.set("status", status);
-  if (priority && priority !== "all") params.set("priority", priority);
   params.set("page", String(page));
 
   const res = await fetch(`/api/tickets/my?${params.toString()}`);
@@ -90,7 +81,6 @@ export default function MyTicketsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [tempSearch, setTempSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [priorityFilter, setPriorityFilter] = useState("all");
   const [page, setPage] = useState(1);
   const pageSize = 10;
 
@@ -98,7 +88,7 @@ export default function MyTicketsPage() {
     let active = true;
     setLoading(true);
 
-    fetchMyTickets(searchQuery, statusFilter, priorityFilter, page).then((res) => {
+    fetchMyTickets(searchQuery, statusFilter, page).then((res) => {
       if (!active) return;
       setTickets(res.tickets);
       setTotal(res.total);
@@ -108,7 +98,7 @@ export default function MyTicketsPage() {
     return () => {
       active = false;
     };
-  }, [searchQuery, statusFilter, priorityFilter, page]);
+  }, [searchQuery, statusFilter, page]);
 
   const handleSearchSubmit = (event: FormEvent) => {
     event.preventDefault();
@@ -117,7 +107,7 @@ export default function MyTicketsPage() {
   };
 
   const totalPages = Math.ceil(total / pageSize) || 1;
-  const hasFilters = Boolean(searchQuery) || statusFilter !== "all" || priorityFilter !== "all";
+  const hasFilters = Boolean(searchQuery) || statusFilter !== "all";
 
   return (
     <main className={workspaceStyles.page}>
@@ -163,24 +153,6 @@ export default function MyTicketsPage() {
               <option value="Closed">Closed</option>
             </select>
           </label>
-
-          <label className={workspaceStyles.field}>
-            <span className={workspaceStyles.fieldLabel}>Priority</span>
-            <select
-              value={priorityFilter}
-              onChange={(e) => {
-                setPriorityFilter(e.target.value);
-                setPage(1);
-              }}
-              className={workspaceStyles.select}
-              aria-label="Filter by priority"
-            >
-              <option value="all">All priorities</option>
-              <option value="High">High</option>
-              <option value="Medium">Medium</option>
-              <option value="Low">Low</option>
-            </select>
-          </label>
         </form>
       </section>
 
@@ -215,7 +187,6 @@ export default function MyTicketsPage() {
                 const destination = `/tickets/${ticket.id}${token ? `?token=${encodeURIComponent(token)}` : ""}`;
                 const badges: TicketCardBadge[] = [
                   { label: ticket.status, tone: statusTone(ticket.status) },
-                  { label: `${ticket.priority} Priority`, tone: priorityTone(ticket.priority) },
                   { label: ticket.category_name, tone: "accent" },
                 ];
 

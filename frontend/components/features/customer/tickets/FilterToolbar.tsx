@@ -19,18 +19,15 @@ type AssignmentSelection =
 type FilterToolbarProps = {
   searchValue: string;
   status: string;
-  priority: string;
   categoryId: string;
   assignmentSelection: AssignmentSelection;
   statusOptions: Option[];
-  priorityOptions: Option[];
   categoryOptions: Option[];
   staffOptions: StaffOption[];
   selectedStaffName?: string;
   isUpdating: boolean;
   onSearchChange: (value: string) => void;
   onStatusChange: (value: string) => void;
-  onPriorityChange: (value: string) => void;
   onCategoryChange: (value: string) => void;
   onAssignmentChange: (next: AssignmentSelection) => void;
   onReset: () => void;
@@ -43,18 +40,15 @@ function assignmentValue(selection: AssignmentSelection): string {
 export default function FilterToolbar({
   searchValue,
   status,
-  priority,
   categoryId,
   assignmentSelection,
   statusOptions,
-  priorityOptions,
   categoryOptions,
   staffOptions,
   selectedStaffName,
   isUpdating,
   onSearchChange,
   onStatusChange,
-  onPriorityChange,
   onCategoryChange,
   onAssignmentChange,
   onReset,
@@ -99,18 +93,6 @@ export default function FilterToolbar({
           <select className={styles.select} value={status} onChange={(event) => onStatusChange(event.target.value)}>
             <option value="">All</option>
             {statusOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className={styles.field}>
-          <span className={styles.fieldLabel}>Priority</span>
-          <select className={styles.select} value={priority} onChange={(event) => onPriorityChange(event.target.value)}>
-            <option value="">All</option>
-            {priorityOptions.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>

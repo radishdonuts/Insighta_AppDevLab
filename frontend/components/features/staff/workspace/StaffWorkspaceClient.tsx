@@ -139,11 +139,11 @@ export default function StaffWorkspaceClient() {
   const currentCategoryId = searchParams.get("categoryId") ?? "";
   const categoryOptions = useMemo(() => data?.categoryOptions ?? [], [data]);
   const staffOptions = useMemo(() => data?.staffOptions ?? [], [data]);
+  const tabCounts = data?.tabCounts ?? { my: 0, unassigned: 0, all: 0 };
+  const summary = data?.summary ?? { total: 0, unassigned: 0, highPriority: 0 };
   const pagination = data?.pagination ?? null;
   const visibleTickets = data?.data ?? [];
   const visibleCount = visibleTickets.length;
-  const visibleUnassigned = visibleTickets.filter((ticket) => !ticket.assignedStaff).length;
-  const visibleHighPriority = visibleTickets.filter((ticket) => ticket.priority === "High").length;
   const selectedStaffName =
     assignmentSelection.kind === "staff"
       ? staffOptions.find((staff) => staff.id === assignmentSelection.value)?.displayName ?? "Staff member"
@@ -260,11 +260,11 @@ export default function StaffWorkspaceClient() {
   /* ── tab items with badge counts ── */
   const tabItems = useMemo(
     () => [
-      { value: "my" as const, label: "My Tickets", badge: pagination?.total ?? 0 },
-      { value: "unassigned" as const, label: "Unassigned", badge: visibleUnassigned },
-      { value: "all" as const, label: "All", badge: pagination?.total ?? 0 },
+      { value: "my" as const, label: "My Tickets", badge: tabCounts.my },
+      { value: "unassigned" as const, label: "Unassigned", badge: tabCounts.unassigned },
+      { value: "all" as const, label: "All", badge: tabCounts.all },
     ],
-    [pagination, visibleUnassigned]
+    [tabCounts]
   );
 
   /* ── stats data ── */
@@ -272,31 +272,31 @@ export default function StaffWorkspaceClient() {
     () => [
       {
         label: "Visible Tickets",
-        value: loading && !data ? "--" : visibleCount,
-        description: "Count for the current filter set and page.",
+        value: loading && !data ? "--" : summary.total,
+        description: "Total tickets for the current queue scope.",
         negative: false,
         icon: <Ticket className="h-4 w-4" />,
       },
       {
         label: "Unassigned",
-        value: loading && !data ? "--" : visibleUnassigned,
-        description: "Tickets on this page without an owner.",
-        negative: visibleUnassigned > 0,
+        value: loading && !data ? "--" : summary.unassigned,
+        description: "Total unassigned tickets for the current filter set.",
+        negative: summary.unassigned > 0,
         icon: <UserX className="h-4 w-4" />,
       },
       {
         label: "High Priority",
-        value: loading && !data ? "--" : visibleHighPriority,
-        description: "Cases on this page marked high priority.",
-        negative: visibleHighPriority > 0,
+        value: loading && !data ? "--" : summary.highPriority,
+        description: "Total high-priority tickets for the current queue scope.",
+        negative: summary.highPriority > 0,
         icon: <AlertTriangle className="h-4 w-4" />,
       },
     ],
-    [loading, data, visibleCount, visibleUnassigned, visibleHighPriority]
+    [loading, data, summary]
   );
 
   return (
-    <main className="max-w-6xl mx-auto px-4 py-6 space-y-6">
+    <main className="max-w-6xl mx-auto px-4 py-8 space-y-8 bg-gradient-to-br from-[#f0f7ff] to-[#e0f0ff] min-h-[calc(100vh-4rem)] rounded-xl my-4 border border-[#0e62a5]/20 shadow-[0_8px_30px_rgb(14,98,165,0.12)]">
       {/* ── Header ── */}
       <div className="flex items-center gap-3">
         <div className="flex items-center justify-center h-10 w-10 rounded-lg bg-primary/10">
@@ -320,7 +320,7 @@ export default function StaffWorkspaceClient() {
       />
 
       {/* ── Toolbar: Search + Filters ── */}
-      <div className="space-y-3">
+      <div className="space-y-4 bg-white/60 backdrop-blur-md p-5 rounded-xl border border-[#0e62a5]/10 shadow-sm">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 items-end">
           {/* Search — spans 2 cols on lg */}
           <div className="lg:col-span-2">
@@ -437,17 +437,17 @@ export default function StaffWorkspaceClient() {
           {/* Section header */}
           <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
             <div>
-              <h2 className="text-xl font-semibold text-foreground">
+              <h2 className="text-xl font-bold text-[#0e62a5]">
                 Ticket Queue
               </h2>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-muted-foreground mt-1">
                 {pagination
                   ? pagination.total === 0
                     ? "No matching tickets in the current queue scope."
                     : `Showing ${(pagination.page - 1) * pagination.pageSize + 1}–${Math.min(
-                        pagination.page * pagination.pageSize,
-                        pagination.total
-                      )} of ${pagination.total}`
+                      pagination.page * pagination.pageSize,
+                      pagination.total
+                    )} of ${pagination.total}`
                   : "Queue results"}
               </p>
             </div>
@@ -478,9 +478,9 @@ export default function StaffWorkspaceClient() {
                 </div>
               )}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {visibleTickets.map((ticket) => (
-                <TicketCard key={ticket.id} ticket={ticket} />
-              ))}
+                {visibleTickets.map((ticket) => (
+                  <TicketCard key={ticket.id} ticket={ticket} />
+                ))}
               </div>
             </div>
           )}
@@ -492,9 +492,9 @@ export default function StaffWorkspaceClient() {
                 {pagination.total === 0
                   ? "Showing 0 of 0"
                   : `Showing ${(pagination.page - 1) * pagination.pageSize + 1}–${Math.min(
-                      pagination.page * pagination.pageSize,
-                      pagination.total
-                    )} of ${pagination.total}`}
+                    pagination.page * pagination.pageSize,
+                    pagination.total
+                  )} of ${pagination.total}`}
               </p>
               <div className="flex items-center gap-2">
                 <Button

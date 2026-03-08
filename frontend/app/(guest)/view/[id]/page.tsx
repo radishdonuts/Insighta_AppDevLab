@@ -36,7 +36,6 @@ type TicketDetail = {
   ticketType: string;
   title: string;
   status: string;
-  priority: string;
   category: string;
   description: string;
   submittedAt: string;
@@ -57,7 +56,6 @@ function toTicketDetail(input: ApiTicket, fallbackId: string): TicketDetail {
     ticketType: asString(input.ticketType) || asString(input.ticket_type),
     title: asString(input.title),
     status: asString(input.status),
-    priority: asString(input.priority),
     category: asString(input.categoryName) || asString(input.category_name),
     description: asString(input.description),
     submittedAt: asString(input.submittedAt) || asString(input.submitted_at),
@@ -158,12 +156,6 @@ function TicketDetailPageContent({ params }: { params: { id: string } }) {
   const currentStep = deriveStepIndex(ticket?.status ?? "");
   const displayIdentifier = token || ticket?.guestTrackingNumber || ticket?.reference || ticket?.id || params.id;
   const displayLabel = token ? "Tracking" : "Ticket";
-  const priorityColors: Record<string, { bg: string; color: string; border: string }> = {
-    High: { bg: "#fef2f2", color: "#b91c1c", border: "#fecaca" },
-    Medium: { bg: "#fffbeb", color: "#b45309", border: "#fde68a" },
-    Low: { bg: "#f0fdf4", color: "#15803d", border: "#bbf7d0" },
-  };
-  const priorityStyle = priorityColors[ticket?.priority ?? ""] ?? priorityColors.Low;
 
   return (
     <main className="glass-shell">
@@ -237,19 +229,6 @@ function TicketDetailPageContent({ params }: { params: { id: string } }) {
                     }}
                   >
                     {ticket.category || "Uncategorized"}
-                  </span>
-                  <span
-                    style={{
-                      padding: "4px 12px",
-                      borderRadius: 999,
-                      background: priorityStyle.bg,
-                      border: `1px solid ${priorityStyle.border}`,
-                      fontSize: 12,
-                      fontWeight: 600,
-                      color: priorityStyle.color,
-                    }}
-                  >
-                    {(ticket.priority || "Low") + " Priority"}
                   </span>
                 </div>
               </div>

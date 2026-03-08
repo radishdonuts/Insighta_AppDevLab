@@ -32,6 +32,13 @@ function confidenceLabel(value: number | null) {
   return "Please confirm";
 }
 
+function getPriorityPillClass(priority: string | undefined): string {
+  if (priority === "High") return styles.pillPriorityHigh;
+  if (priority === "Medium") return styles.pillPriorityMedium;
+  if (priority === "Low") return styles.pillPriorityLow;
+  return "";
+}
+
 async function readApiError(response: Response) {
   try {
     const payload = (await response.json()) as ApiErrorPayload;
@@ -321,7 +328,9 @@ export default function StaffTicketDetailClient({ ticketId }: { ticketId: string
                 <div className={styles.pillRow}>
                   <span className={styles.pill}>{ticket.ticketType}</span>
                   <span className={styles.pill}>{statusBadge(ticket.status).label}</span>
-                  <span className={styles.pill}>{priorityBadge(ticket.priority).label}</span>
+                  <span className={`${styles.pill} ${getPriorityPillClass(ticket.priority)}`}>
+                    {priorityBadge(ticket.priority).label}
+                  </span>
                 </div>
               </div>
               <div className={styles.metaText}>
