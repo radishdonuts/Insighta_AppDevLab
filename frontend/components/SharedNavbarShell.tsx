@@ -13,9 +13,33 @@ type SharedNavbarShellProps = {
   children: React.ReactNode; // role-specific tabs go here
 };
 
+type AccountMenuItem = {
+  href: string;
+  label: string;
+};
+
 function getRoleBadge(role: UserRole | null): "Staff" | "Admin" | null {
   if (role === "Staff" || role === "Admin") return role;
   return null;
+}
+
+function getAccountMenuItems(role: UserRole | null): AccountMenuItem[] {
+  if (role === "Customer") {
+    return [{ href: "/account/change-password", label: "Change Password" }];
+  }
+
+  if (role === "Staff") {
+    return [{ href: "/staff/account/change-password", label: "Change Password" }];
+  }
+
+  if (role === "Admin") {
+    return [
+      { href: "/admin", label: "Admin Home" },
+      { href: "/admin/overview", label: "Overview" },
+    ];
+  }
+
+  return [];
 }
 
 export default function SharedNavbarShell({
@@ -35,17 +59,10 @@ export default function SharedNavbarShell({
 
   const roleBadge =
     session.status === "authenticated" ? getRoleBadge(session.role) : null;
+  const accountMenuItems =
+    session.status === "authenticated" ? getAccountMenuItems(session.role) : [];
   const canOpenAccountMenu =
-    session.status === "authenticated" &&
-    (session.role === "Customer" || session.role === "Staff");
-  const changePasswordHref =
-    session.status !== "authenticated"
-      ? null
-      : session.role === "Customer"
-      ? "/account/change-password"
-      : session.role === "Staff"
-      ? "/staff/account/change-password"
-      : null;
+    session.status === "authenticated" && accountMenuItems.length > 0;
 
   useEffect(() => {
     if (!isAccountMenuOpen) return;
@@ -94,7 +111,7 @@ export default function SharedNavbarShell({
         {/* Shared auth block (always reused) */}
         {session.status === "authenticated" ? (
           <>
-            {canOpenAccountMenu && changePasswordHref ? (
+            {canOpenAccountMenu ? (
               <div ref={accountMenuRef} className="account-menu-shell">
                 <button
                   type="button"
@@ -130,14 +147,17 @@ export default function SharedNavbarShell({
                 </button>
 
                 <div className={`auth-dropdown ${isAccountMenuOpen ? "auth-dropdown-open" : ""}`} role="menu">
-                  <Link
-                    href={changePasswordHref}
-                    role="menuitem"
-                    className="auth-dropdown-link"
-                    onClick={() => setIsAccountMenuOpen(false)}
-                  >
-                    Change Password
-                  </Link>
+                  {accountMenuItems.map((item) => (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      role="menuitem"
+                      className="auth-dropdown-link"
+                      onClick={() => setIsAccountMenuOpen(false)}
+                    >
+                      {item.label}
+                    </Link>
+                  ))}
 
                   <form action={logoutAction} className="auth-dropdown-form">
                     <button
