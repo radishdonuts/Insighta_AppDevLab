@@ -9,6 +9,8 @@ import type { UserRole } from "@/types/auth";
 type AuthenticatedRoleContext = {
   user: User;
   role: UserRole;
+  firstName: string | null;
+  lastName: string | null;
 };
 
 export type ServerRoleLookupResult =
@@ -53,7 +55,7 @@ export async function getServerAuthRoleContext(): Promise<ServerRoleLookupResult
 
   const { data: profile, error } = await getSupabaseServerClient()
     .from("profiles")
-    .select("role, is_active")
+    .select("role, is_active, first_name, last_name")
     .eq("id", user.id)
     .limit(1)
     .maybeSingle();
@@ -79,6 +81,8 @@ export async function getServerAuthRoleContext(): Promise<ServerRoleLookupResult
     auth: {
       user,
       role: profile.role,
+      firstName: profile.first_name ?? null,
+      lastName: profile.last_name ?? null,
     },
   };
 }

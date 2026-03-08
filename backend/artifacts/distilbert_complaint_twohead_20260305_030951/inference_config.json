@@ -1,0 +1,14 @@
+{
+  "max_length": 320,
+  "model_name": "distilbert-base-uncased",
+  "label_normalization": {
+    "Med": "Medium"
+  },
+  "outputs": [
+    "categoryName",
+    "priority",
+    "confidenceCategory",
+    "confidencePriority",
+    "prioritySource"
+  ]
+}

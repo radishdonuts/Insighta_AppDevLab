@@ -21,10 +21,31 @@
     margin-bottom: 1.5rem;
 }
 
+.categoryList {
+    display: grid;
+    gap: 0.9rem;
+    margin-bottom: 1.5rem;
+}
+
+.categoryRow {
+    display: grid;
+    gap: 0.35rem;
+    padding: 0.6rem 0.7rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.7rem;
+    background: #fafafa;
+}
+
+.categoryLabel {
+    margin: 0;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text);
+}
+
 .starsContainer {
     display: flex;
     gap: 0.25rem;
-    margin-bottom: 1.5rem;
 }
 
 .starBtn {
@@ -190,6 +211,34 @@
     width: 1.5rem;
     height: 1.5rem;
     cursor: default;
+}
+
+.readOnlyList {
+    width: 100%;
+    display: grid;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.readOnlyRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.5rem;
+    padding: 0.45rem 0.65rem;
+    background: #fafafa;
+}
+
+.readOnlyComment {
+    margin: 1rem 0 0;
+    font-style: italic;
+    color: var(--muted);
+    font-size: 0.9rem;
+    max-width: 100%;
+    word-break: break-word;
 }
 
 .errorText {

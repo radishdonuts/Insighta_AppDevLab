@@ -12,15 +12,19 @@ import {
   type StaffStatusUpdateResponse,
   type StaffTicketDetail,
   type StaffTicketDetailResponse,
-  type StaffTicketFeedback,
   type StaffTicketQueueItem,
   type StaffTicketQueueResponse,
   type StaffTicketTab,
   type StaffTicketStatusHistoryItem,
+  type TicketFieldSource,
 } from "@/types/staff-tickets";
 import { TICKET_PRIORITIES, TICKET_STATUSES } from "@/types/tickets";
 import type { ApiRoleGuardSuccess } from "@/lib/auth/api-guards";
 import { requireAnyRole } from "@/lib/auth/api-guards";
+import {
+  CANONICAL_COMPLAINT_CATEGORIES,
+  normalizeCanonicalComplaintCategory,
+} from "@/lib/nlp/taxonomy";
 import { getSupabaseServerClient } from "@/lib/supabase";
 
 type JsonObject = Record<string, unknown>;
@@ -33,13 +37,18 @@ type RawProfile = {
   last_name?: unknown;
 };
 
-type RawCategory = {
-  id?: unknown;
-  category_name?: unknown;
-};
-
 type RawTicketAccessToken = {
   token_hash?: unknown;
+};
+type RawNlpAnalysisRow = {
+  id?: unknown;
+  priority?: unknown;
+  category_name?: unknown;
+  confidence?: unknown;
+  status?: unknown;
+  is_applied?: unknown;
+  raw_output?: unknown;
+  created_at?: unknown;
 };
 
 type MutationNotFound = { ok: false; reason: "not_found" };
@@ -57,7 +66,6 @@ const DEFAULT_PAGE_SIZE = 10;
 const MAX_PAGE_SIZE = 50;
 const STAFF_ATTACHMENT_SIGNED_URL_TTL_SECONDS = 60 * 60;
 const STORAGE_BUCKET = process.env.SUPABASE_STORAGE_BUCKET || "attachments";
-
 export async function requireStaffApiAuth() {
   return requireAnyRole(STAFF_WORKSPACE_ROLES);
 }
@@ -83,8 +91,48 @@ function asNullableTrimmedString(value: unknown): string | null {
   return trimmed || null;
 }
 
-function asNumber(value: unknown): number | null {
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
+function asFiniteNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const parsed = Number.parseFloat(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
+}
+
+function asJsonObject(value: unknown): JsonObject | null {
+  if (!value) return null;
+  if (typeof value === "object" && !Array.isArray(value)) return value as JsonObject;
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        return parsed as JsonObject;
+      }
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+function isMissingColumnError(error: unknown, columnName: string): boolean {
+  const message = asTrimmedString((error as { message?: unknown } | null)?.message).toLowerCase();
+  if (!message.includes("column")) return false;
+  const col = columnName.toLowerCase();
+  return message.includes(col) || message.includes(`tickets.${col}`) || message.includes(`'${col}'`);
+}
+
+function isSourceColumnMissingError(error: unknown): boolean {
+  return isMissingColumnError(error, "category_source") || isMissingColumnError(error, "priority_source");
+}
+
+function mapTicketFieldSource(value: unknown): TicketFieldSource {
+  const raw = asTrimmedString(value);
+  if (raw === "user" || raw === "nlp" || raw === "human_intervention" || raw === "default") {
+    return raw;
+  }
+  return null;
 }
 
 function firstRow<T>(value: T | T[] | null | undefined): T | null {
@@ -132,12 +180,8 @@ function mapPerson(raw: RawProfile | null | undefined): StaffPersonSummary | nul
   };
 }
 
-function mapCategory(raw: RawCategory | null | undefined): StaffCategorySummary | null {
-  if (!raw || typeof raw !== "object") return null;
-  const id = asString(raw.id);
-  const name = asNullableTrimmedString(raw.category_name);
-  if (!id || !name) return null;
-  return { id, name };
+function mapCategoryNameToId(name: string | null): string | null {
+  return normalizeCanonicalComplaintCategory(name);
 }
 
 function safeIso(value: unknown): string {
@@ -170,6 +214,7 @@ function sanitizeSearchTerm(raw: string): string {
 
 function mapQueueItem(row: any): StaffTicketQueueItem {
   const trackingCode = readTrackingCode(row?.ticket_access_tokens);
+  const categoryName = asNullableTrimmedString(row?.category_name);
 
   return {
     id: asString(row?.id) ?? "",
@@ -181,7 +226,9 @@ function mapQueueItem(row: any): StaffTicketQueueItem {
     description: asString(row?.description) ?? "",
     submittedAt: safeIso(row?.submitted_at),
     lastUpdatedAt: safeIso(row?.last_updated_at),
-    category: mapCategory(row?.category),
+    category: categoryName ? { id: categoryName, name: categoryName } : null,
+    categorySource: mapTicketFieldSource(row?.category_source),
+    prioritySource: mapTicketFieldSource(row?.priority_source),
     assignedStaff: mapPerson(row?.assigned_staff),
     submitterType: inferSubmitterType(row?.customer_id, row?.guest_id),
   };
@@ -198,24 +245,31 @@ function mapStatusHistoryItem(row: any): StaffTicketStatusHistoryItem {
   };
 }
 
-function mapFeedback(row: any): StaffTicketFeedback | null {
-  if (!row || typeof row !== "object") return null;
-  const id = asString(row.id);
-  const rating = asNumber(row.rating);
-  if (!id || rating === null) return null;
-
-  const submitterProfile = mapPerson(row.submitted_by_user);
-  const guestEmail = asNullableTrimmedString(row.submitted_by_guest?.email);
-  const submitterType = submitterProfile ? "Customer" : guestEmail ? "Guest" : "Unknown";
+function mapNlpSuggestion(row: RawNlpAnalysisRow | null | undefined) {
+  if (!row) return null;
+  const rawOutput = asJsonObject(row.raw_output);
+  const prioritySourceRaw = asTrimmedString(rawOutput?.prioritySource ?? rawOutput?.priority_source);
+  const prioritySource: "ml" | "rule" | null =
+    prioritySourceRaw === "ml" || prioritySourceRaw === "rule" ? prioritySourceRaw : null;
+  const suggestedCategoryName =
+    asNullableTrimmedString(rawOutput?.suggestedCategoryName ?? rawOutput?.suggested_category_name) ??
+    asNullableTrimmedString(row.category_name);
+  const suggestedPriority =
+    asNullableTrimmedString(rawOutput?.suggestedPriority ?? rawOutput?.suggested_priority) ??
+    asNullableTrimmedString(row.priority);
+  const confidenceCategory = asFiniteNumber(rawOutput?.confidenceCategory ?? rawOutput?.confidence_category ?? row.confidence);
+  const confidencePriority = asFiniteNumber(rawOutput?.confidencePriority ?? rawOutput?.confidence_priority ?? row.confidence);
 
   return {
-    id,
-    rating,
-    comment: asNullableTrimmedString(row.comment),
-    submittedAt: safeIso(row.submitted_at),
-    submitterType,
-    submittedBy: submitterProfile,
-    guestEmail,
+    analysisId: asNullableTrimmedString(row.id),
+    status: asNullableTrimmedString(row.status),
+    isApplied: row.is_applied === true,
+    suggestedCategoryName,
+    suggestedPriority,
+    confidenceCategory,
+    confidencePriority,
+    prioritySource,
+    createdAt: asNullableTrimmedString(row.created_at),
   };
 }
 
@@ -240,8 +294,6 @@ async function createAttachmentSignedUrl(
 
 export function parseStaffQueueFilters(searchParams: URLSearchParams): StaffQueueFilters {
   const tabRaw = asTrimmedString(searchParams.get("tab"));
-  const tab = (STAFF_TAB_SET.has(tabRaw) ? tabRaw : "my") as StaffTicketTab;
-
   const statusRaw = asTrimmedString(searchParams.get("status"));
   const priorityRaw = asTrimmedString(searchParams.get("priority"));
   const categoryId = asTrimmedString(searchParams.get("categoryId")) || undefined;
@@ -250,10 +302,30 @@ export function parseStaffQueueFilters(searchParams: URLSearchParams): StaffQueu
   const pageSize = clamp(parsePositiveInt(searchParams.get("pageSize"), DEFAULT_PAGE_SIZE), 1, MAX_PAGE_SIZE);
 
   const assignmentRaw = asTrimmedString(searchParams.get("assignment"));
-  const derivedAssignment: StaffAssignmentFilter = tab === "unassigned" ? "unassigned" : "mine";
-  const assignment = (
-    STAFF_ASSIGNMENT_FILTER_SET.has(assignmentRaw) ? assignmentRaw : derivedAssignment
-  ) as StaffAssignmentFilter;
+  const assignedToRaw = asTrimmedString(searchParams.get("assignedTo"));
+  const assignedTo = isUuid(assignedToRaw) ? assignedToRaw : undefined;
+
+  // Canonical precedence: assignedTo > assignment > tab > default.
+  let assignment: StaffAssignmentFilter = "mine";
+  let tab: StaffTicketTab = "my";
+
+  if (assignedTo) {
+    assignment = "all";
+    tab = "all";
+  } else if (STAFF_ASSIGNMENT_FILTER_SET.has(assignmentRaw)) {
+    // Keep legacy `assigned` accepted in URLs, but canonicalize it to `all`
+    // so UI state and API semantics stay aligned.
+    assignment = assignmentRaw === "assigned" ? "all" : (assignmentRaw as StaffAssignmentFilter);
+    tab =
+      assignment === "mine"
+        ? "my"
+        : assignment === "unassigned"
+          ? "unassigned"
+          : "all";
+  } else if (STAFF_TAB_SET.has(tabRaw)) {
+    tab = tabRaw as StaffTicketTab;
+    assignment = tab === "my" ? "mine" : tab === "unassigned" ? "unassigned" : "all";
+  }
 
   return {
     tab,
@@ -263,6 +335,7 @@ export function parseStaffQueueFilters(searchParams: URLSearchParams): StaffQueu
     priority: TICKET_PRIORITY_SET.has(priorityRaw) ? (priorityRaw as StaffQueueFilters["priority"]) : undefined,
     categoryId,
     assignment,
+    assignedTo,
     q,
   };
 }
@@ -276,11 +349,13 @@ function applyQueueFilters(query: any, filters: StaffQueueFilters, authUserId: s
     query = query.eq("priority", filters.priority);
   }
 
-  if (filters.categoryId && isUuid(filters.categoryId)) {
-    query = query.eq("category_id", filters.categoryId);
+  if (filters.categoryId) {
+    query = query.eq("category_name", filters.categoryId);
   }
 
-  if (filters.assignment === "mine") {
+  if (filters.assignedTo) {
+    query = query.eq("assigned_staff_id", filters.assignedTo);
+  } else if (filters.assignment === "mine") {
     query = query.eq("assigned_staff_id", authUserId);
   } else if (filters.assignment === "unassigned") {
     query = query.is("assigned_staff_id", null);
@@ -298,18 +373,37 @@ function applyQueueFilters(query: any, filters: StaffQueueFilters, authUserId: s
   return query;
 }
 
-async function listActiveCategories(supabase: SupabaseServerClient): Promise<StaffCategorySummary[]> {
+async function listActiveCategories(_supabase: SupabaseServerClient): Promise<StaffCategorySummary[]> {
+  return CANONICAL_COMPLAINT_CATEGORIES.map((name) => ({ id: name, name }));
+}
+
+async function listAssignableStaff(supabase: SupabaseServerClient): Promise<StaffPersonSummary[]> {
   const { data, error } = await supabase
-    .from("complaint_categories")
-    .select("id, category_name")
-    .eq("is_active", true)
-    .order("category_name", { ascending: true });
+    .from("tickets")
+    .select(
+      `
+        assigned_staff_id,
+        assigned_staff:profiles!tickets_assigned_staff_id_fkey (id, email, first_name, last_name)
+      `
+    )
+    .not("assigned_staff_id", "is", null)
+    .order("last_updated_at", { ascending: false })
+    .limit(5000);
 
   if (error) {
-    throw new Error(`Failed to load categories: ${error.message}`);
+    throw new Error(`Failed to load assignable staff: ${error.message}`);
   }
 
-  return (Array.isArray(data) ? data : []).map(mapCategory).filter(Boolean) as StaffCategorySummary[];
+  const deduped = new Map<string, StaffPersonSummary>();
+  for (const row of Array.isArray(data) ? data : []) {
+    const person = mapPerson(firstRow(row?.assigned_staff) as RawProfile | null);
+    if (!person) continue;
+    if (!deduped.has(person.id)) {
+      deduped.set(person.id, person);
+    }
+  }
+
+  return Array.from(deduped.values()).sort((a, b) => a.displayName.localeCompare(b.displayName));
 }
 
 export async function listStaffTickets(
@@ -320,10 +414,7 @@ export async function listStaffTickets(
   const from = (filters.page - 1) * filters.pageSize;
   const to = from + filters.pageSize - 1;
 
-  let query: any = supabase
-    .from("tickets")
-    .select(
-      `
+  const selectWithSources = `
         id,
         ticket_number,
         ticket_type,
@@ -333,27 +424,60 @@ export async function listStaffTickets(
         description,
         submitted_at,
         last_updated_at,
-        category_id,
+        category_name,
+        category_source,
+        priority_source,
         customer_id,
         guest_id,
         assigned_staff_id,
         ticket_access_tokens!ticket_access_tokens_ticket_id_fkey (token_hash, created_at),
-        category:complaint_categories!tickets_category_id_fkey (id, category_name),
         assigned_staff:profiles!tickets_assigned_staff_id_fkey (id, email, first_name, last_name)
-      `,
-      { count: "exact" }
-    )
-    .order("created_at", { foreignTable: "ticket_access_tokens", ascending: false })
-    .order("last_updated_at", { ascending: false })
-    .order("submitted_at", { ascending: false })
-    .range(from, to);
+      `;
+  const selectLegacy = `
+        id,
+        ticket_number,
+        ticket_type,
+        title,
+        status,
+        priority,
+        description,
+        submitted_at,
+        last_updated_at,
+        category_name,
+        customer_id,
+        guest_id,
+        assigned_staff_id,
+        ticket_access_tokens!ticket_access_tokens_ticket_id_fkey (token_hash, created_at),
+        assigned_staff:profiles!tickets_assigned_staff_id_fkey (id, email, first_name, last_name)
+      `;
 
-  query = applyQueueFilters(query, filters, authUserId);
+  const runQuery = (selectClause: string) => {
+    let query: any = supabase
+      .from("tickets")
+      .select(selectClause, { count: "exact" })
+      .order("created_at", { foreignTable: "ticket_access_tokens", ascending: false })
+      .order("last_updated_at", { ascending: false })
+      .order("submitted_at", { ascending: false })
+      .range(from, to);
+    return applyQueueFilters(query, filters, authUserId);
+  };
 
-  const [{ data, error, count }, categoryOptions] = await Promise.all([
-    query,
+  const [resultWithSources, categoryOptions, staffOptions] = await Promise.all([
+    runQuery(selectWithSources),
     listActiveCategories(supabase),
+    listAssignableStaff(supabase),
   ]);
+
+  let data = resultWithSources.data;
+  let error = resultWithSources.error;
+  let count = resultWithSources.count;
+
+  if (error && isSourceColumnMissingError(error)) {
+    const legacyResult = await runQuery(selectLegacy);
+    data = legacyResult.data;
+    error = legacyResult.error;
+    count = legacyResult.count;
+  }
 
   if (error) {
     throw new Error(`Failed to load staff tickets: ${error.message}`);
@@ -375,6 +499,7 @@ export async function listStaffTickets(
       page: clamp(filters.page, 1, totalPages),
     },
     categoryOptions,
+    staffOptions,
   };
 }
 
@@ -382,10 +507,7 @@ export async function getStaffTicketDetail(
   supabase: SupabaseServerClient,
   ticketId: string
 ): Promise<StaffTicketDetailResponse | null> {
-  const { data: ticket, error: ticketError } = await supabase
-    .from("tickets")
-    .select(
-      `
+  const selectWithSources = `
         id,
         ticket_number,
         ticket_type,
@@ -395,26 +517,52 @@ export async function getStaffTicketDetail(
         description,
         submitted_at,
         last_updated_at,
-        sentiment,
-        detected_intent,
-        detected_intent_id,
-        issue_type,
-        issue_type_id,
-        category_id,
+        category_name,
+        category_source,
+        priority_source,
         customer_id,
         guest_id,
         assigned_staff_id,
         ticket_access_tokens!ticket_access_tokens_ticket_id_fkey (token_hash, created_at),
-        category:complaint_categories!tickets_category_id_fkey (id, category_name),
         submitter_profile:profiles!tickets_customer_id_fkey (id, email, first_name, last_name),
         assigned_staff:profiles!tickets_assigned_staff_id_fkey (id, email, first_name, last_name),
         guest_contact:guest_contacts!tickets_guest_id_fkey (id, email)
-      `
-    )
-    .eq("id", ticketId)
-    .order("created_at", { foreignTable: "ticket_access_tokens", ascending: false })
-    .limit(1)
-    .maybeSingle();
+      `;
+  const selectLegacy = `
+        id,
+        ticket_number,
+        ticket_type,
+        title,
+        status,
+        priority,
+        description,
+        submitted_at,
+        last_updated_at,
+        category_name,
+        customer_id,
+        guest_id,
+        assigned_staff_id,
+        ticket_access_tokens!ticket_access_tokens_ticket_id_fkey (token_hash, created_at),
+        submitter_profile:profiles!tickets_customer_id_fkey (id, email, first_name, last_name),
+        assigned_staff:profiles!tickets_assigned_staff_id_fkey (id, email, first_name, last_name),
+        guest_contact:guest_contacts!tickets_guest_id_fkey (id, email)
+      `;
+
+  const runDetailQuery = (selectClause: string) =>
+    supabase
+      .from("tickets")
+      .select(selectClause)
+      .eq("id", ticketId)
+      .order("created_at", { foreignTable: "ticket_access_tokens", ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+  let { data: ticket, error: ticketError } = await runDetailQuery(selectWithSources);
+  if (ticketError && isSourceColumnMissingError(ticketError)) {
+    const legacyResult = await runDetailQuery(selectLegacy);
+    ticket = legacyResult.data;
+    ticketError = legacyResult.error;
+  }
 
   if (ticketError) {
     throw new Error(`Failed to load ticket detail: ${ticketError.message}`);
@@ -423,8 +571,9 @@ export async function getStaffTicketDetail(
   if (!ticket) {
     return null;
   }
+  const ticketRow: any = ticket;
 
-  const [attachmentsResult, historyResult, feedbackResult] = await Promise.all([
+  const [attachmentsResult, historyResult, nlpAnalysisResult] = await Promise.all([
     supabase
       .from("attachments")
       .select("id, file_name, file_type, file_path, uploaded_at")
@@ -445,18 +594,10 @@ export async function getStaffTicketDetail(
       .eq("ticket_id", ticketId)
       .order("changed_at", { ascending: false }),
     supabase
-      .from("feedback")
-      .select(
-        `
-          id,
-          rating,
-          comment,
-          submitted_at,
-          submitted_by_user:profiles!feedback_submitted_by_user_id_fkey (id, email, first_name, last_name),
-          submitted_by_guest:guest_contacts!feedback_submitted_by_guest_id_fkey (id, email)
-        `
-      )
+      .from("ticket_nlp_analyses")
+      .select("id, priority, category_name, confidence, status, is_applied, raw_output, created_at")
       .eq("ticket_id", ticketId)
+      .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
   ]);
@@ -468,9 +609,8 @@ export async function getStaffTicketDetail(
   if (historyResult.error) {
     throw new Error(`Failed to load status history: ${historyResult.error.message}`);
   }
-
-  if (feedbackResult.error) {
-    throw new Error(`Failed to load feedback: ${feedbackResult.error.message}`);
+  if (nlpAnalysisResult.error) {
+    throw new Error(`Failed to load NLP analysis summary: ${nlpAnalysisResult.error.message}`);
   }
 
   const attachmentRows = Array.isArray(attachmentsResult.data) ? attachmentsResult.data : [];
@@ -488,34 +628,35 @@ export async function getStaffTicketDetail(
     })
   );
 
-  const submitterProfile = mapPerson(firstRow(ticket.submitter_profile));
-  const guestContact = firstRow<{ email?: unknown }>(ticket.guest_contact);
+  const submitterProfile = mapPerson(firstRow(ticketRow.submitter_profile));
+  const guestContact = firstRow<{ email?: unknown }>(ticketRow.guest_contact);
   const guestEmail = asNullableTrimmedString(guestContact?.email);
-  const trackingCode = readTrackingCode(ticket.ticket_access_tokens);
+  const trackingCode = readTrackingCode(ticketRow.ticket_access_tokens);
   const detail: StaffTicketDetail = {
-    id: asString(ticket.id) ?? "",
-    ticketNumber: trackingCode ?? asString(ticket.ticket_number) ?? "",
-    ticketType: asString(ticket.ticket_type) ?? "",
-    title: asNullableTrimmedString(ticket.title),
-    status: asString(ticket.status) ?? "",
-    priority: asString(ticket.priority) ?? "",
-    description: asString(ticket.description) ?? "",
-    submittedAt: safeIso(ticket.submitted_at),
-    lastUpdatedAt: safeIso(ticket.last_updated_at),
-    sentiment: asNullableTrimmedString(ticket.sentiment),
-    detectedIntent: asNullableTrimmedString(ticket.detected_intent),
-    detectedIntentId: asNullableTrimmedString(ticket.detected_intent_id),
-    issueType: asNullableTrimmedString(ticket.issue_type),
-    issueTypeId: asNullableTrimmedString(ticket.issue_type_id),
-    category: mapCategory(firstRow(ticket.category)),
-    categoryId: asNullableTrimmedString(ticket.category_id),
+    id: asString(ticketRow.id) ?? "",
+    ticketNumber: trackingCode ?? asString(ticketRow.ticket_number) ?? "",
+    ticketType: asString(ticketRow.ticket_type) ?? "",
+    title: asNullableTrimmedString(ticketRow.title),
+    status: asString(ticketRow.status) ?? "",
+    priority: asString(ticketRow.priority) ?? "",
+    description: asString(ticketRow.description) ?? "",
+    submittedAt: safeIso(ticketRow.submitted_at),
+    lastUpdatedAt: safeIso(ticketRow.last_updated_at),
+    categoryName: asNullableTrimmedString(ticketRow.category_name),
+    category: (() => {
+      const categoryName = asNullableTrimmedString(ticketRow.category_name);
+      return categoryName ? { id: categoryName, name: categoryName } : null;
+    })(),
+    categoryId: mapCategoryNameToId(asNullableTrimmedString(ticketRow.category_name)),
+    categorySource: mapTicketFieldSource(ticketRow.category_source),
+    prioritySource: mapTicketFieldSource(ticketRow.priority_source),
     submitterType: submitterProfile ? "Customer" : guestEmail ? "Guest" : "Unknown",
     submitter: submitterProfile,
     guestEmail,
-    assignedStaff: mapPerson(firstRow(ticket.assigned_staff)),
+    assignedStaff: mapPerson(firstRow(ticketRow.assigned_staff)),
+    nlpSuggestion: mapNlpSuggestion((nlpAnalysisResult.data as RawNlpAnalysisRow | null | undefined) ?? null),
     attachments,
     statusHistory: (Array.isArray(historyResult.data) ? historyResult.data : []).map(mapStatusHistoryItem),
-    feedback: mapFeedback(feedbackResult.data),
   };
 
   return { ticket: detail };

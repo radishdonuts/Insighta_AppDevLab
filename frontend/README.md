@@ -20,7 +20,18 @@ SUPABASE_URL=...
 SUPABASE_SERVICE_ROLE_KEY=...
 SUPABASE_STORAGE_BUCKET=attachments
 FASTAPI_URL=http://127.0.0.1:8000
+FASTAPI_URL_OPENAI=
+FASTAPI_URL_GEMINI=
+FASTAPI_URL_CLAUDE=
+FASTAPI_URL_LOCAL=
 NLP_REPROCESS_SECRET=change-me
+CRON_SECRET=change-me
+```
+
+Optional NLP artifact env for FastAPI service:
+
+```bash
+NLP_ARTIFACT_DIR=/absolute/path/to/repo/backend/artifacts/distilbert_complaint_twohead_20260305_030951
 ```
 
 ## NLP flow
@@ -38,18 +49,21 @@ It forwards to `$FASTAPI_URL/nlp/generate` and returns:
 
 ```json
 {
-  "sentiment": "Negative | Neutral | Positive | null",
-  "detectedIntent": "string | null",
-  "detectedIntentId": "uuid | null",
-  "issueType": "string | null",
-  "issueTypeId": "uuid | null",
   "priority": "Low | Medium | High | null",
   "categoryName": "string | null",
-  "categoryId": "uuid | null",
   "confidence": "number | null",
+  "confidenceCategory": "number | null",
+  "confidencePriority": "number | null",
+  "prioritySource": "ml | rule | null",
+  "suggestedCategoryName": "string | null",
+  "suggestedPriority": "Low | Medium | High | null",
   "rawOutput": "string | null"
 }
 ```
+
+Runtime note:
+
+- Provider routing reads `app_settings.nlp_provider` and can optionally route to provider-specific base URLs via `FASTAPI_URL_OPENAI`, `FASTAPI_URL_GEMINI`, `FASTAPI_URL_CLAUDE`, or `FASTAPI_URL_LOCAL`.
 
 `POST /api/nlp/reprocess` retries NLP enrichment for tickets with missing NLP fields. Auth is either:
 
@@ -63,4 +77,24 @@ Request body is optional and supports:
   "ticketIds": ["uuid-1", "uuid-2"],
   "limit": 25
 }
+```
+
+`POST /api/nlp/jobs` processes queued NLP jobs (used by `vercel.json` cron). Auth is either:
+
+1. Header `x-nlp-reprocess-secret: $NLP_REPROCESS_SECRET`
+2. Header `Authorization: Bearer $CRON_SECRET`
+3. An authenticated Admin user session
+
+Request body is optional and supports:
+
+```json
+{
+  "limit": 10
+}
+```
+
+Non-mutating local validation loop:
+
+```bash
+npm run validate:nlp:health
 ```

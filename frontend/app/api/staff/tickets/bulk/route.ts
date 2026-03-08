@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { jsonError, jsonServerError, parseJsonRequestBody } from "@/app/api/staff/_utils";
+import { jsonError, jsonServerError, parseJsonRequestBody } from "@/lib/api/staff-utils";
 import {
     getStaffSupabase,
     isUuid,
@@ -149,3 +149,4 @@ export async function POST(request: Request) {
         return jsonServerError(err, "Failed to execute bulk action.");
     }
 }
+

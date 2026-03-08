@@ -1,0 +1,62 @@
+{
+  "run_id": "20260305_030951",
+  "timestamp_utc": "2026-03-05T03:17:46.550249Z",
+  "model_name": "distilbert-base-uncased",
+  "seed": 42,
+  "max_length": 320,
+  "train_size": 1600,
+  "val_size": 200,
+  "test_size": 200,
+  "balance_report": {
+    "categoryName": {
+      "max_min_ratio": 1.0056497175141244,
+      "counts": [
+        177,
+        178,
+        178,
+        178,
+        178,
+        178,
+        178,
+        177,
+        178
+      ]
+    },
+    "priority": {
+      "max_min_ratio": 1.0227272727272727,
+      "counts": [
+        532,
+        528,
+        540
+      ]
+    }
+  },
+  "training_args": {
+    "epochs": 6,
+    "train_batch_size": 16,
+    "eval_batch_size": 32,
+    "learning_rate": 1e-05,
+    "weight_decay": 0.01
+  },
+  "temperature_scaling": {
+    "T_CAT": 0.6623033285140991,
+    "T_PRIO": 0.6881365776062012
+  },
+  "priority_rules": {
+    "ml_priority_conf_threshold": 0.75
+  },
+  "val_metrics": {
+    "category_acc": 0.875,
+    "priority_acc": 0.975,
+    "category_macro_f1": 0.8725140234574197,
+    "priority_macro_f1": 0.9746320873961719,
+    "macro_f1_avg": 0.9235730554267958
+  },
+  "test_metrics": {
+    "category_acc": 0.895,
+    "priority_acc": 0.98,
+    "category_macro_f1": 0.8938845822566752,
+    "priority_macro_f1": 0.9801073426972707,
+    "macro_f1_avg": 0.936995962476973
+  }
+}
