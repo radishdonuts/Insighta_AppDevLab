@@ -31,7 +31,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(result.data, { status: 201 });
   } catch (error) {
-    if (error instanceof Error && /required|valid email|password/i.test(error.message)) {
+    if (error instanceof Error && /required|valid email/i.test(error.message)) {
       return jsonError(400, "Invalid request.", error.message);
     }
 

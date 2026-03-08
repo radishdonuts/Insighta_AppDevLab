@@ -9,6 +9,10 @@ import type {
   AdminStatsOverviewResponse,
   AdminTicketTrendPoint,
   AdminTicketsTrendsResponse,
+  AdminResolutionTrendPoint,
+  AdminResolutionTimeResponse,
+  AdminCreatedResolvedPoint,
+  AdminCreatedResolvedResponse,
 } from "@/types/admin-stats";
 import {
   asString,
@@ -381,5 +385,254 @@ export async function getAdminTicketBreakdowns(
       priority: buildKnownValueBreakdown(TICKET_PRIORITIES, priorityCounts, totalTickets),
       category: buildMapBreakdown(categoryCounts, totalTickets),
     },
+  };
+}
+
+type ResolutionRow = {
+  ticket_id: string;
+  submitted_at: string;
+  resolved_at: string;
+};
+
+const WEEK_LABEL_FORMATTER = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  timeZone: "UTC",
+});
+
+const MONTH_LABEL_FORMATTER = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  year: "numeric",
+  timeZone: "UTC",
+});
+
+function getWeekKey(date: Date): string {
+  const weekStart = startOfUtcIsoWeek(date);
+  return formatDateOnlyUtc(weekStart);
+}
+
+function getMonthKey(date: Date): string {
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+/**
+ * Resolution time trend – calculates average time to resolution by week/month
+ */
+export async function getAdminResolutionTimeTrend(
+  supabase: AdminSupabaseServerClient,
+  range: AdminStatsQueryRange,
+  granularity: "week" | "month" = "week"
+): Promise<AdminResolutionTimeResponse> {
+  // Query tickets that were resolved within the date range
+  // We need to join with ticket_status_history to find when status changed to Resolved/Closed
+  const { data, error } = await supabase
+    .from("ticket_status_history")
+    .select(`
+      ticket_id,
+      new_status,
+      changed_at,
+      tickets!inner (
+        id,
+        submitted_at,
+        status
+      )
+    `)
+    .in("new_status", ["Resolved", "Closed"])
+    .gte("changed_at", range.fromIso)
+    .lt("changed_at", range.toExclusiveIso);
+
+  if (error) {
+    throw new Error(`Failed to load resolution time stats: ${error.message}`);
+  }
+
+  // Group by ticket_id and take the earliest resolution time for each ticket
+  const ticketResolutions = new Map<string, { submitted_at: string; resolved_at: string }>();
+
+  for (const row of data || []) {
+    const ticketId = row.ticket_id;
+    const resolvedAt = row.changed_at;
+    const ticket = row.tickets as unknown as { id: string; submitted_at: string; status: string };
+    const submittedAt = ticket?.submitted_at;
+
+    if (!submittedAt || !resolvedAt) continue;
+
+    const existing = ticketResolutions.get(ticketId);
+    if (!existing || new Date(resolvedAt).getTime() < new Date(existing.resolved_at).getTime()) {
+      ticketResolutions.set(ticketId, { submitted_at: submittedAt, resolved_at: resolvedAt });
+    }
+  }
+
+  // Aggregate by period
+  const periodData = new Map<string, { totalHours: number; count: number }>();
+
+  for (const { submitted_at, resolved_at } of Array.from(ticketResolutions.values())) {
+    const resolvedDate = new Date(resolved_at);
+    const submittedDate = new Date(submitted_at);
+    const hoursToResolve = (resolvedDate.getTime() - submittedDate.getTime()) / (1000 * 60 * 60);
+
+    const periodKey = granularity === "week" ? getWeekKey(resolvedDate) : getMonthKey(resolvedDate);
+    const existing = periodData.get(periodKey) || { totalHours: 0, count: 0 };
+    existing.totalHours += hoursToResolve;
+    existing.count += 1;
+    periodData.set(periodKey, existing);
+  }
+
+  // Generate dense series
+  const series: AdminResolutionTrendPoint[] = [];
+  let cursor = parseDateOnlyUtc(range.from);
+  const end = parseDateOnlyUtc(range.to);
+
+  if (!cursor || !end) {
+    return {
+      dateRange: toPublicDateRange(range),
+      granularity,
+      avgResolutionHours: 0,
+      totalResolvedTickets: 0,
+      series: [],
+    };
+  }
+
+  const seenPeriods = new Set<string>();
+
+  while (cursor.getTime() <= end.getTime()) {
+    const periodKey = granularity === "week" ? getWeekKey(cursor) : getMonthKey(cursor);
+
+    if (!seenPeriods.has(periodKey)) {
+      seenPeriods.add(periodKey);
+      const data = periodData.get(periodKey);
+      const avgHours = data ? Math.round(data.totalHours / data.count) : 0;
+      const label =
+        granularity === "week"
+          ? `Week of ${WEEK_LABEL_FORMATTER.format(cursor)}`
+          : MONTH_LABEL_FORMATTER.format(cursor);
+
+      series.push({
+        period: periodKey,
+        label,
+        avgHours,
+        ticketCount: data?.count || 0,
+      });
+    }
+
+    cursor = granularity === "week" ? addUtcDays(cursor, 7) : addUtcDays(cursor, 30);
+  }
+
+  // Calculate overall average
+  let totalHours = 0;
+  let totalTickets = 0;
+
+  for (const { totalHours: h, count: c } of Array.from(periodData.values())) {
+    totalHours += h;
+    totalTickets += c;
+  }
+
+  return {
+    dateRange: toPublicDateRange(range),
+    granularity,
+    avgResolutionHours: totalTickets > 0 ? Math.round(totalHours / totalTickets) : 0,
+    totalResolvedTickets: totalTickets,
+    series,
+  };
+}
+
+/**
+ * Created vs Resolved comparison – shows tickets created vs resolved by week/month
+ */
+export async function getAdminCreatedVsResolved(
+  supabase: AdminSupabaseServerClient,
+  range: AdminStatsQueryRange,
+  granularity: "week" | "month" = "week"
+): Promise<AdminCreatedResolvedResponse> {
+  // Get created tickets
+  const { data: createdData, error: createdError } = await applySubmittedDateRange(
+    supabase.from("tickets").select("submitted_at"),
+    range
+  );
+
+  if (createdError) {
+    throw new Error(`Failed to load created tickets: ${createdError.message}`);
+  }
+
+  // Get resolved tickets (from status history)
+  const { data: resolvedData, error: resolvedError } = await supabase
+    .from("ticket_status_history")
+    .select("ticket_id, changed_at")
+    .in("new_status", ["Resolved", "Closed"])
+    .gte("changed_at", range.fromIso)
+    .lt("changed_at", range.toExclusiveIso);
+
+  if (resolvedError) {
+    throw new Error(`Failed to load resolved tickets: ${resolvedError.message}`);
+  }
+
+  // Count created by period
+  const createdByPeriod = new Map<string, number>();
+
+  for (const row of createdData || []) {
+    const date = new Date(asString(row.submitted_at) || "");
+    if (Number.isNaN(date.getTime())) continue;
+
+    const periodKey = granularity === "week" ? getWeekKey(date) : getMonthKey(date);
+    createdByPeriod.set(periodKey, (createdByPeriod.get(periodKey) || 0) + 1);
+  }
+
+  // Count resolved by period (deduplicate by ticket_id to count each ticket once)
+  const resolvedTickets = new Map<string, string>(); // ticket_id -> earliest resolved_at
+
+  for (const row of resolvedData || []) {
+    const existing = resolvedTickets.get(row.ticket_id);
+    if (!existing || new Date(row.changed_at).getTime() < new Date(existing).getTime()) {
+      resolvedTickets.set(row.ticket_id, row.changed_at);
+    }
+  }
+
+  const resolvedByPeriod = new Map<string, number>();
+
+  for (const changedAt of Array.from(resolvedTickets.values())) {
+    const date = new Date(changedAt);
+    const periodKey = granularity === "week" ? getWeekKey(date) : getMonthKey(date);
+    resolvedByPeriod.set(periodKey, (resolvedByPeriod.get(periodKey) || 0) + 1);
+  }
+
+  // Generate dense series
+  const series: AdminCreatedResolvedPoint[] = [];
+  let cursor = parseDateOnlyUtc(range.from);
+  const end = parseDateOnlyUtc(range.to);
+
+  if (!cursor || !end) {
+    return {
+      dateRange: toPublicDateRange(range),
+      granularity,
+      series: [],
+    };
+  }
+
+  const seenPeriods = new Set<string>();
+
+  while (cursor.getTime() <= end.getTime()) {
+    const periodKey = granularity === "week" ? getWeekKey(cursor) : getMonthKey(cursor);
+
+    if (!seenPeriods.has(periodKey)) {
+      seenPeriods.add(periodKey);
+      const label =
+        granularity === "week"
+          ? `Week of ${WEEK_LABEL_FORMATTER.format(cursor)}`
+          : MONTH_LABEL_FORMATTER.format(cursor);
+
+      series.push({
+        period: periodKey,
+        label,
+        created: createdByPeriod.get(periodKey) || 0,
+        resolved: resolvedByPeriod.get(periodKey) || 0,
+      });
+    }
+
+    cursor = granularity === "week" ? addUtcDays(cursor, 7) : addUtcDays(cursor, 30);
+  }
+
+  return {
+    dateRange: toPublicDateRange(range),
+    granularity,
+    series,
   };
 }

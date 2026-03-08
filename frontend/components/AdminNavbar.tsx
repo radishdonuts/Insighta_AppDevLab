@@ -14,8 +14,8 @@ export default function AdminNavbar({ session }: AdminNavbarProps) {
       <Link href="/admin" className="nav-link">
         Home
       </Link>
-      <Link href="/admin/overview" className="nav-link">
-        Overview
+      <Link href="/admin/staff-registration" className="nav-link">
+        Staff Registration
       </Link>
       <Link href="/admin/statistics" className="nav-link">
         Statistics

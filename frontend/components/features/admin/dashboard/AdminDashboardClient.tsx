@@ -128,7 +128,6 @@ export default function AdminDashboardClient() {
       email: String(form.get("email") ?? "").trim(),
       firstName: String(form.get("firstName") ?? "").trim(),
       lastName: String(form.get("lastName") ?? "").trim(),
-      temporaryPassword: String(form.get("temporaryPassword") ?? "").trim(),
     };
 
     setCreateSubmitting(true);
@@ -319,6 +318,7 @@ export default function AdminDashboardClient() {
             <h2 className={styles.cardTitle}>Create Staff Account</h2>
             <p className={styles.cardSubtitle}>
               Staff provisioning is handled here by Admins. Public registration remains for customer accounts.
+              New Staff accounts are created with the default password <strong>staff123</strong>.
             </p>
           </div>
 
@@ -345,16 +345,6 @@ export default function AdminDashboardClient() {
               <input name="lastName" type="text" autoComplete="family-name" className={styles.input} />
             </label>
 
-            <label className={styles.field} style={{ gridColumn: "1 / -1" }}>
-              <span className={styles.fieldLabel}>Temporary password (optional)</span>
-              <input
-                name="temporaryPassword"
-                type="text"
-                className={styles.input}
-                placeholder="Leave blank to auto-generate a strong temporary password"
-              />
-            </label>
-
             <div className={styles.formActions} style={{ gridColumn: "1 / -1" }}>
               <button type="submit" className={styles.buttonPrimary} disabled={createSubmitting}>
                 {createSubmitting ? "Creating..." : "Create Staff Account"}
@@ -373,8 +363,6 @@ export default function AdminDashboardClient() {
               <p className={styles.metaText}>
                 Account: {createResult.account.email} ({createResult.account.role})
               </p>
-              <p className={styles.metaText}>Temporary password (displayed once in UI):</p>
-              <pre className={styles.codeValue}>{createResult.account.temporaryPassword}</pre>
             </div>
           ) : null}
         </section>

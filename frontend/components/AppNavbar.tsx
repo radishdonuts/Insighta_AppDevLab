@@ -25,3 +25,4 @@ export default function AppNavbar({ session }: AppNavbarProps) {
   // Guests + Customers use website-facing nav
   return <WebsiteNavbar session={session} />;
 }
+

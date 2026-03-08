@@ -1,9 +1,16 @@
 import { redirect } from "next/navigation";
 import type { UserRole } from "@/types/auth";
 import { hasAnyRole } from "./roles";
-import { getServerAuthRoleContext } from "./server";
+import { getServerAuthRoleContext } from "./server"; 
 
 type Ctx = Awaited<ReturnType<typeof getServerAuthRoleContext>>;
+
+function roleHome(role: UserRole | null) {
+  if (role === "Admin") return "/admin";
+  if (role === "Staff") return "/staff";
+  if (role === "Customer") return "/my_tickets";
+  return "/unauthorized";
+}
 
 export async function requireAnyPageRole(
   allowedRoles: readonly UserRole[],
@@ -39,4 +46,13 @@ export async function blockPageRole(
   if (hasAnyRole(ctx.auth.role, blockedRoles)) redirect(redirectTo);
 
   return ctx;
+}
+
+export async function blockAuthenticatedUsers() {
+  const ctx = await getServerAuthRoleContext();
+
+  if (ctx.status === "authorized") redirect(roleHome(ctx.auth.role));
+  if (ctx.status === "forbidden") redirect("/unauthorized");
+
+  return ctx; // unauthenticated allowed
 }

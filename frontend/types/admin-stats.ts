@@ -49,11 +49,38 @@ export type AdminStatsBreakdownsResponse = {
   };
 };
 
+export type AdminResolutionTrendPoint = {
+  period: string;
+  label: string;
+  avgHours: number;
+  ticketCount: number;
+};
+
+export type AdminResolutionTimeResponse = {
+  dateRange: AdminStatsDateRange;
+  granularity: "week" | "month";
+  avgResolutionHours: number;
+  totalResolvedTickets: number;
+  series: AdminResolutionTrendPoint[];
+};
+
+export type AdminCreatedResolvedPoint = {
+  period: string;
+  label: string;
+  created: number;
+  resolved: number;
+};
+
+export type AdminCreatedResolvedResponse = {
+  dateRange: AdminStatsDateRange;
+  granularity: "week" | "month";
+  series: AdminCreatedResolvedPoint[];
+};
+
 export type AdminCreateStaffAccountRequest = {
   email: string;
-  firstName?: string;
-  lastName?: string;
-  temporaryPassword?: string;
+  firstName: string;
+  lastName: string;
 };
 
 export type AdminCreateStaffAccountResponse = {
@@ -61,10 +88,9 @@ export type AdminCreateStaffAccountResponse = {
   account: {
     id: string;
     email: string;
-    firstName: string | null;
-    lastName: string | null;
+    firstName: string;
+    lastName: string;
     role: "Staff";
     isActive: boolean;
-    temporaryPassword: string;
   };
 };
