@@ -5,13 +5,11 @@ import { motion } from "framer-motion";
 import {
   ArrowRight,
   ClipboardCheck,
-  FileSearch,
-  LineChart,
-  ShieldCheck,
   UserRoundSearch,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { FeatureSteps } from "@/components/ui/feature-section";
 
 const fadeIn = {
   hidden: { opacity: 0, y: 20 },
@@ -42,21 +40,27 @@ const viewportSettings = {
   amount: 0.25,
 };
 
-const cards = [
+const capabilityFeatures = [
   {
-    icon: FileSearch,
-    title: "Guided Complaint Intake",
-    body: "Collect complaint details, policy context, attachments, and supporting evidence in one structured flow.",
+    step: "Step 01",
+    title: "Guided complaint intake",
+    content:
+      "Capture policy details, issue context, uploaded evidence, and contact information in one structured submission flow before review even starts.",
+    image: "/assets/images/landing/feature-intake.jpg",
   },
   {
-    icon: ShieldCheck,
-    title: "AI-Assisted Triage",
-    body: "Support faster review with category, urgency, and prioritization signals for incoming complaint cases.",
+    step: "Step 02",
+    title: "AI-assisted triage and routing",
+    content:
+      "Surface category, urgency, and handling signals early so staff can separate routine complaints from escalation-ready cases and keep the queue actionable.",
+    image: "/assets/images/landing/feature-triage.jpg",
   },
   {
-    icon: LineChart,
-    title: "Complaint Tracking and Structured Feedback",
-    body: "Keep complaint progress visible while capturing customer feedback through star ratings and preset categories.",
+    step: "Step 03",
+    title: "Visible follow-through with structured feedback",
+    content:
+      "Keep complaint progress easy to track while collecting customer ratings and feedback categories in a format teams can review consistently.",
+    image: "/assets/images/landing/feature-tracking.jpg",
   },
 ];
 
@@ -91,7 +95,7 @@ export function InsightaLandingPage() {
   return (
     <div className="flex min-h-screen flex-col bg-[radial-gradient(circle_at_top_left,_rgba(15,23,42,0.08),_transparent_28%),radial-gradient(circle_at_top_right,_rgba(14,165,233,0.18),_transparent_24%),linear-gradient(180deg,_#f8fbff_0%,_#eef5ff_42%,_#ffffff_100%)] text-slate-950">
       <main className="flex-1">
-        <section className="px-4 pb-14 pt-20 sm:px-6 lg:px-8 lg:pb-20 lg:pt-24">
+        <section className="px-4 pb-6 pt-4 sm:px-6 lg:px-8 lg:pb-8 lg:pt-6">
           <div className="mx-auto grid max-w-7xl gap-8 rounded-[2rem] border border-white/70 bg-white/75 p-6 shadow-[0_30px_80px_rgba(15,23,42,0.08)] backdrop-blur xl:grid-cols-[1.08fr_0.92fr] xl:p-10">
             <motion.div
               initial="hidden"
@@ -240,7 +244,7 @@ export function InsightaLandingPage() {
           </div>
         </section>
 
-        <section id="capabilities" className="px-4 py-14 sm:px-6 lg:px-8 lg:py-20">
+        <section id="capabilities" className="px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
           <motion.div
             initial="hidden"
             whileInView="visible"
@@ -252,33 +256,19 @@ export function InsightaLandingPage() {
               <div className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-sm font-medium text-slate-700">
                 Capabilities
               </div>
-              <h2 className="mt-4 text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
-                Built for complaint-heavy insurance operations.
-              </h2>
             </motion.div>
-            <motion.div variants={staggerContainer} className="mt-10 grid gap-4 lg:grid-cols-3">
-              {cards.map((card) => {
-                const Icon = card.icon;
-                return (
-                  <motion.article
-                    key={card.title}
-                    variants={itemFadeIn}
-                    whileHover={{ y: -6 }}
-                    className="rounded-[1.75rem] border border-slate-200 bg-[linear-gradient(180deg,_#ffffff_0%,_#f8fbff_100%)] p-6 shadow-sm"
-                  >
-                    <div className="flex size-14 items-center justify-center rounded-[1.25rem] bg-slate-950 text-white">
-                      <Icon className="size-6" />
-                    </div>
-                    <h3 className="mt-5 text-xl font-semibold text-slate-950">{card.title}</h3>
-                    <p className="mt-3 text-sm leading-7 text-slate-600">{card.body}</p>
-                  </motion.article>
-                );
-              })}
-            </motion.div>
+            <div className="mt-8">
+              <FeatureSteps
+                features={capabilityFeatures}
+                title="Built for complaint-heavy insurance operations."
+                autoPlayInterval={4000}
+                imageHeight="h-[320px] sm:h-[420px] lg:h-[520px]"
+              />
+            </div>
           </motion.div>
         </section>
 
-        <section id="workflow" className="px-4 py-14 sm:px-6 lg:px-8 lg:py-20">
+        <section id="workflow" className="px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
           <motion.div
             initial="hidden"
             whileInView="visible"
@@ -315,7 +305,7 @@ export function InsightaLandingPage() {
           </motion.div>
         </section>
 
-        <section id="contact" className="px-4 py-14 sm:px-6 lg:px-8 lg:py-20">
+        <section id="contact" className="px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
           <motion.div
             initial="hidden"
             whileInView="visible"
