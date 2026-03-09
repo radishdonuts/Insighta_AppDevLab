@@ -23,6 +23,21 @@ import {
 import styles from "./detail.module.css";
 
 type ApiErrorPayload = { error?: string; message?: string };
+type WorkspaceMode = "staff" | "admin";
+type AdminStaffMember = {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  isActive: boolean;
+};
+
+type StaffTicketDetailClientProps = {
+  ticketId: string;
+  mode?: WorkspaceMode;
+  apiBasePath?: string;
+  backHref?: string;
+};
 
 function confidenceLabel(value: number | null) {
   if (value === null) return "No confidence";
@@ -77,7 +92,22 @@ function DetailSkeleton() {
   );
 }
 
-export default function StaffTicketDetailClient({ ticketId }: { ticketId: string }) {
+function SummaryItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div className={styles.summaryItem}>
+      <span className={styles.summaryLabel}>{label}</span>
+      <span className={styles.summaryValue}>{value}</span>
+    </div>
+  );
+}
+
+export default function StaffTicketDetailClient({
+  ticketId,
+  mode = "staff",
+  apiBasePath = mode === "admin" ? "/api/admin/tickets" : "/api/staff/tickets",
+  backHref = mode === "admin" ? "/admin/work-tickets" : "/staff",
+}: StaffTicketDetailClientProps) {
+  const showStaffOnlySections = mode === "staff";
   const [nlpOptions, setNlpOptions] = useState<StaffNlpReviewOptionsResponse["options"] | null>(null);
   const [nlpOptionsLoading, setNlpOptionsLoading] = useState(false);
   const [reviewSaving, setReviewSaving] = useState(false);
@@ -109,17 +139,20 @@ export default function StaffTicketDetailClient({ ticketId }: { ticketId: string
   const [messageSaving, setMessageSaving] = useState(false);
   const [messageStatus, setMessageStatus] = useState<string | null>(null);
   const [messageSubmitError, setMessageSubmitError] = useState<string | null>(null);
+  const [assignableStaff, setAssignableStaff] = useState<AdminStaffMember[]>([]);
+  const [assignableStaffLoading, setAssignableStaffLoading] = useState(false);
+  const [assignedStaffId, setAssignedStaffId] = useState("__unassigned");
 
   async function loadDetail() {
     setLoading(true);
     setError(null);
-
     try {
-      const response = await fetch(`/api/staff/tickets/${ticketId}`, { method: "GET", cache: "no-store" });
+      const response = await fetch(`${apiBasePath}/${ticketId}`, { method: "GET", cache: "no-store" });
       if (!response.ok) throw new Error(await readApiError(response));
       const payload = (await response.json()) as StaffTicketDetailResponse;
       setData(payload);
       setStatusDraft(payload.ticket.status);
+      setAssignedStaffId(payload.ticket.assignedStaff?.id ?? "__unassigned");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load ticket.");
     } finally {
@@ -128,10 +161,11 @@ export default function StaffTicketDetailClient({ ticketId }: { ticketId: string
   }
 
   async function loadNlpReviewOptions() {
+    if (!showStaffOnlySections) return;
     setNlpOptionsLoading(true);
     setReviewError(null);
     try {
-      const response = await fetch(`/api/staff/tickets/${ticketId}/nlp-review`, { method: "GET", cache: "no-store" });
+      const response = await fetch(`${apiBasePath}/${ticketId}/nlp-review`, { method: "GET", cache: "no-store" });
       if (!response.ok) throw new Error(await readApiError(response));
       const payload = (await response.json()) as StaffNlpReviewOptionsResponse;
       setNlpOptions(payload.options);
@@ -146,10 +180,11 @@ export default function StaffTicketDetailClient({ ticketId }: { ticketId: string
   }
 
   async function loadNotes() {
+    if (!showStaffOnlySections) return;
     setNotesLoading(true);
     setNotesError(null);
     try {
-      const response = await fetch(`/api/staff/tickets/${ticketId}/notes`, { method: "GET", cache: "no-store" });
+      const response = await fetch(`${apiBasePath}/${ticketId}/notes`, { method: "GET", cache: "no-store" });
       if (!response.ok) throw new Error(await readApiError(response));
       const payload = (await response.json()) as StaffTicketNotesResponse;
       setNotes(payload.notes);
@@ -161,10 +196,11 @@ export default function StaffTicketDetailClient({ ticketId }: { ticketId: string
   }
 
   async function loadMessages() {
+    if (!showStaffOnlySections) return;
     setMessagesLoading(true);
     setMessagesError(null);
     try {
-      const response = await fetch(`/api/staff/tickets/${ticketId}/messages`, { method: "GET", cache: "no-store" });
+      const response = await fetch(`${apiBasePath}/${ticketId}/messages`, { method: "GET", cache: "no-store" });
       if (!response.ok) throw new Error(await readApiError(response));
       const payload = (await response.json()) as StaffTicketMessagesResponse;
       setMessages(payload.messages);
@@ -175,32 +211,46 @@ export default function StaffTicketDetailClient({ ticketId }: { ticketId: string
     }
   }
 
+  async function loadAssignableStaff() {
+    if (mode !== "admin") return;
+    setAssignableStaffLoading(true);
+    try {
+      const response = await fetch("/api/admin/staff", { cache: "no-store" });
+      if (!response.ok) throw new Error(await readApiError(response));
+      const payload = (await response.json()) as { staff?: AdminStaffMember[] };
+      setAssignableStaff((payload.staff ?? []).filter((member) => member.role === "Staff" && member.isActive));
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to load assignable staff.");
+    } finally {
+      setAssignableStaffLoading(false);
+    }
+  }
+
   useEffect(() => {
     void loadDetail();
     void loadNlpReviewOptions();
     void loadNotes();
     void loadMessages();
-  }, [ticketId]);
+    void loadAssignableStaff();
+  }, [ticketId, apiBasePath, mode]);
 
   async function handleNlpReviewSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setReviewSaving(true);
     setReviewMessage(null);
     setReviewError(null);
-
     try {
       const payload: Record<string, string> = {};
       if (reviewPriority) payload.correctedPriority = reviewPriority;
       if (reviewCategoryName) payload.correctedCategoryName = reviewCategoryName;
       if (reviewNotes.trim()) payload.notes = reviewNotes.trim();
 
-      const response = await fetch(`/api/staff/tickets/${ticketId}/nlp-review`, {
+      const response = await fetch(`${apiBasePath}/${ticketId}/nlp-review`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
       if (!response.ok) throw new Error(await readApiError(response));
-
       const result = (await response.json()) as StaffNlpReviewResponse;
       setReviewMessage(result.message ?? "NLP review saved.");
       await loadDetail();
@@ -217,7 +267,7 @@ export default function StaffTicketDetailClient({ ticketId }: { ticketId: string
     setActionMessage(null);
     setActionError(null);
     try {
-      const response = await fetch(`/api/staff/tickets/${ticketId}/assign`, {
+      const response = await fetch(`${apiBasePath}/${ticketId}/assign`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "self_assign" }),
@@ -233,13 +283,35 @@ export default function StaffTicketDetailClient({ ticketId }: { ticketId: string
     }
   }
 
+  async function handleAdminAssign(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setAssigning(true);
+    setActionMessage(null);
+    setActionError(null);
+    try {
+      const response = await fetch(`${apiBasePath}/${ticketId}/assign`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assignedStaffId: assignedStaffId === "__unassigned" ? null : assignedStaffId }),
+      });
+      if (!response.ok) throw new Error(await readApiError(response));
+      const payload = (await response.json()) as { message?: string };
+      setActionMessage(payload.message ?? "Ticket assignment updated.");
+      await loadDetail();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to update ticket assignment.");
+    } finally {
+      setAssigning(false);
+    }
+  }
+
   async function handleStatusSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSaving(true);
     setActionMessage(null);
     setActionError(null);
     try {
-      const response = await fetch(`/api/staff/tickets/${ticketId}/status`, {
+      const response = await fetch(`${apiBasePath}/${ticketId}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: statusDraft, remarks: remarks.trim() || undefined }),
@@ -262,7 +334,7 @@ export default function StaffTicketDetailClient({ ticketId }: { ticketId: string
     setNoteMessage(null);
     setNoteSubmitError(null);
     try {
-      const response = await fetch(`/api/staff/tickets/${ticketId}/notes`, {
+      const response = await fetch(`${apiBasePath}/${ticketId}/notes`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content: noteDraft.trim() }),
@@ -285,7 +357,7 @@ export default function StaffTicketDetailClient({ ticketId }: { ticketId: string
     setMessageStatus(null);
     setMessageSubmitError(null);
     try {
-      const response = await fetch(`/api/staff/tickets/${ticketId}/messages`, {
+      const response = await fetch(`${apiBasePath}/${ticketId}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content: messageDraft.trim() }),
@@ -320,11 +392,13 @@ export default function StaffTicketDetailClient({ ticketId }: { ticketId: string
           <section className={styles.hero}>
             <div className={styles.heroTop}>
               <div>
-                <Link href="/staff" className={styles.linkButton}>
+                <Link href={backHref} className={styles.linkButton}>
                   Back to queue
                 </Link>
                 <h1 className={styles.title}>{ticket.ticketNumber}</h1>
-                <p className={styles.subtitle}>{ticket.title ?? "Staff case workbench for this ticket."}</p>
+                <p className={styles.subtitle}>
+                  {ticket.title ?? (mode === "admin" ? "Admin ticket management view." : "Staff case workbench for this ticket.")}
+                </p>
                 <div className={styles.pillRow}>
                   <span className={styles.pill}>{ticket.ticketType}</span>
                   <span className={styles.pill}>{statusBadge(ticket.status).label}</span>
@@ -418,127 +492,129 @@ export default function StaffTicketDetailClient({ ticketId }: { ticketId: string
                   </div>
                 )}
               </section>
-
-              <section className={styles.section}>
-                <h2 className={styles.sectionTitle}>Internal Notes</h2>
-                <p className={styles.subtitle}>Tests `GET` and `POST /api/staff/tickets/[ticketId]/notes`.</p>
-
-                {notesError ? <div className={`${styles.notice} ${styles.error}`}>{notesError}</div> : null}
-                {noteMessage ? <div className={`${styles.notice} ${styles.success}`}>{noteMessage}</div> : null}
-                {noteSubmitError ? <div className={`${styles.notice} ${styles.error}`}>{noteSubmitError}</div> : null}
-
-                <form className={styles.form} onSubmit={handleNoteSubmit}>
-                  <label className={styles.field}>
-                    <span className={styles.label}>Add internal note</span>
-                    <textarea
-                      className={styles.textarea}
-                      value={noteDraft}
-                      onChange={(event) => setNoteDraft(event.target.value)}
-                      placeholder="Write an internal note for staff only"
-                    />
-                  </label>
-                  <div className={styles.formActions}>
-                    <button type="submit" className={styles.button} disabled={noteSaving}>
-                      {noteSaving ? "Saving..." : "Save note"}
-                    </button>
-                  </div>
-                </form>
-
-                <div className={styles.divider} />
-
-                {notesLoading ? (
-                  <div className={styles.loadingBlock}>Loading notes...</div>
-                ) : notes.length === 0 ? (
-                  <div className={styles.empty}>No internal notes yet.</div>
-                ) : (
-                  <div className={styles.list}>
-                    {notes.map((note) => (
-                      <div key={note.id} className={styles.listItem}>
-                        <div className={styles.listItemTop}>
-                          <strong>{note.author?.displayName ?? "Unknown"}</strong>
-                          <div className={styles.metaText}>{formatDateTime(note.createdAt)}</div>
-                        </div>
-                        <p className={styles.textBlock}>{note.content}</p>
+              {showStaffOnlySections ? (
+                <>
+                  <section className={styles.section}>
+                    <h2 className={styles.sectionTitle}>Internal Notes</h2>
+                    <p className={styles.subtitle}>Private notes visible only inside the workspace.</p>
+                    {notesError ? <div className={`${styles.notice} ${styles.error}`}>{notesError}</div> : null}
+                    {noteMessage ? <div className={`${styles.notice} ${styles.success}`}>{noteMessage}</div> : null}
+                    {noteSubmitError ? <div className={`${styles.notice} ${styles.error}`}>{noteSubmitError}</div> : null}
+                    <form className={styles.form} onSubmit={handleNoteSubmit}>
+                      <label className={styles.field}>
+                        <span className={styles.label}>Add internal note</span>
+                        <textarea className={styles.textarea} value={noteDraft} onChange={(event) => setNoteDraft(event.target.value)} placeholder="Write an internal note for staff only" />
+                      </label>
+                      <div className={styles.formActions}>
+                        <button type="submit" className={styles.button} disabled={noteSaving}>
+                          {noteSaving ? "Saving..." : "Save note"}
+                        </button>
                       </div>
-                    ))}
-                  </div>
-                )}
-              </section>
-
-              <section className={styles.section}>
-                <h2 className={styles.sectionTitle}>Messages</h2>
-                <p className={styles.subtitle}>Tests `GET` and `POST /api/staff/tickets/[ticketId]/messages`.</p>
-
-                {messagesError ? <div className={`${styles.notice} ${styles.error}`}>{messagesError}</div> : null}
-                {messageStatus ? <div className={`${styles.notice} ${styles.success}`}>{messageStatus}</div> : null}
-                {messageSubmitError ? <div className={`${styles.notice} ${styles.error}`}>{messageSubmitError}</div> : null}
-
-                <form className={styles.form} onSubmit={handleMessageSubmit}>
-                  <label className={styles.field}>
-                    <span className={styles.label}>Send message to submitter</span>
-                    <textarea
-                      className={styles.textarea}
-                      value={messageDraft}
-                      onChange={(event) => setMessageDraft(event.target.value)}
-                      placeholder="Write a message for the ticket submitter"
-                    />
-                  </label>
-                  <div className={styles.formActions}>
-                    <button type="submit" className={styles.button} disabled={messageSaving}>
-                      {messageSaving ? "Sending..." : "Send message"}
-                    </button>
-                  </div>
-                </form>
-
-                <div className={styles.divider} />
-
-                {messagesLoading ? (
-                  <div className={styles.loadingBlock}>Loading messages...</div>
-                ) : messages.length === 0 ? (
-                  <div className={styles.empty}>No messages yet.</div>
-                ) : (
-                  <div className={styles.list}>
-                    {messages.map((message) => (
-                      <div key={message.id} className={styles.listItem}>
-                        <div className={styles.listItemTop}>
-                          <div>
-                            <strong>{message.sender?.displayName ?? "Unknown"}</strong>
-                            <div className={styles.metaText}>{message.senderType}</div>
+                    </form>
+                    <div className={styles.divider} />
+                    {notesLoading ? (
+                      <div className={styles.loadingBlock}>Loading notes...</div>
+                    ) : notes.length === 0 ? (
+                      <div className={styles.empty}>No internal notes yet.</div>
+                    ) : (
+                      <div className={styles.list}>
+                        {notes.map((note) => (
+                          <div key={note.id} className={styles.listItem}>
+                            <div className={styles.listItemTop}>
+                              <strong>{note.author?.displayName ?? "Unknown"}</strong>
+                              <div className={styles.metaText}>{formatDateTime(note.createdAt)}</div>
+                            </div>
+                            <p className={styles.textBlock}>{note.content}</p>
                           </div>
-                          <div className={styles.metaText}>{formatDateTime(message.createdAt)}</div>
-                        </div>
-                        <p className={styles.textBlock}>{message.content}</p>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                )}
-              </section>
+                    )}
+                  </section>
+                  <section className={styles.section}>
+                    <h2 className={styles.sectionTitle}>Messages</h2>
+                    <p className={styles.subtitle}>Messages to the submitter from the workspace.</p>
+                    {messagesError ? <div className={`${styles.notice} ${styles.error}`}>{messagesError}</div> : null}
+                    {messageStatus ? <div className={`${styles.notice} ${styles.success}`}>{messageStatus}</div> : null}
+                    {messageSubmitError ? <div className={`${styles.notice} ${styles.error}`}>{messageSubmitError}</div> : null}
+                    <form className={styles.form} onSubmit={handleMessageSubmit}>
+                      <label className={styles.field}>
+                        <span className={styles.label}>Send message to submitter</span>
+                        <textarea className={styles.textarea} value={messageDraft} onChange={(event) => setMessageDraft(event.target.value)} placeholder="Write a message for the ticket submitter" />
+                      </label>
+                      <div className={styles.formActions}>
+                        <button type="submit" className={styles.button} disabled={messageSaving}>
+                          {messageSaving ? "Sending..." : "Send message"}
+                        </button>
+                      </div>
+                    </form>
+                    <div className={styles.divider} />
+                    {messagesLoading ? (
+                      <div className={styles.loadingBlock}>Loading messages...</div>
+                    ) : messages.length === 0 ? (
+                      <div className={styles.empty}>No messages yet.</div>
+                    ) : (
+                      <div className={styles.list}>
+                        {messages.map((message) => (
+                          <div key={message.id} className={styles.listItem}>
+                            <div className={styles.listItemTop}>
+                              <div>
+                                <strong>{message.sender?.displayName ?? "Unknown"}</strong>
+                                <div className={styles.metaText}>{message.senderType}</div>
+                              </div>
+                              <div className={styles.metaText}>{formatDateTime(message.createdAt)}</div>
+                            </div>
+                            <p className={styles.textBlock}>{message.content}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </section>
+                </>
+              ) : null}
             </div>
-
             <div className={styles.column}>
               {(actionMessage || actionError) ? (
                 <section className={`${styles.notice} ${actionError ? styles.error : styles.success}`}>
                   {actionError ?? actionMessage}
                 </section>
               ) : null}
-
               <section className={styles.section}>
                 <h2 className={styles.sectionTitle}>Assignment</h2>
-                <p className={styles.subtitle}>Current owner and self-assign action.</p>
+                <p className={styles.subtitle}>{mode === "admin" ? "Assign or reassign this ticket to any active staff member." : "Current owner and self-assign action."}</p>
                 <div className={styles.summaryGrid}>
                   <SummaryItem label="Assigned Staff" value={ticket.assignedStaff?.displayName ?? "Unassigned"} />
                   <SummaryItem label="Staff Email" value={ticket.assignedStaff?.email ?? "No current owner"} />
                 </div>
-                <div className={styles.formActions} style={{ marginTop: 12 }}>
-                  <button type="button" className={styles.button} onClick={handleSelfAssign} disabled={assigning}>
-                    {assigning ? "Assigning..." : "Assign to me"}
-                  </button>
-                </div>
+                {mode === "admin" ? (
+                  <form className={styles.form} onSubmit={handleAdminAssign}>
+                    <label className={styles.field}>
+                      <span className={styles.label}>Assign to staff</span>
+                      <select className={styles.select} value={assignedStaffId} onChange={(event) => setAssignedStaffId(event.target.value)} disabled={assignableStaffLoading || assigning}>
+                        <option value="__unassigned">Unassigned</option>
+                        {assignableStaff.map((member) => (
+                          <option key={member.id} value={member.id}>
+                            {member.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <div className={styles.formActions}>
+                      <button type="submit" className={styles.button} disabled={assigning}>
+                        {assigning ? "Saving..." : "Save assignment"}
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  <div className={styles.formActions} style={{ marginTop: 12 }}>
+                    <button type="button" className={styles.button} onClick={handleSelfAssign} disabled={assigning}>
+                      {assigning ? "Assigning..." : "Assign to me"}
+                    </button>
+                  </div>
+                )}
               </section>
-
               <section className={styles.section}>
                 <h2 className={styles.sectionTitle}>Update Status</h2>
-                <p className={styles.subtitle}>Tests `PATCH /api/staff/tickets/[ticketId]/status`.</p>
+                <p className={styles.subtitle}>Update the ticket status and add optional remarks.</p>
                 <form className={styles.form} onSubmit={handleStatusSubmit}>
                   <label className={styles.field}>
                     <span className={styles.label}>Status</span>
@@ -552,13 +628,7 @@ export default function StaffTicketDetailClient({ ticketId }: { ticketId: string
                   </label>
                   <label className={styles.field}>
                     <span className={styles.label}>Remarks</span>
-                    <textarea
-                      className={styles.textarea}
-                      rows={4}
-                      value={remarks}
-                      placeholder="Optional status update remarks"
-                      onChange={(event) => setRemarks(event.target.value)}
-                    />
+                    <textarea className={styles.textarea} rows={4} value={remarks} placeholder="Optional status update remarks" onChange={(event) => setRemarks(event.target.value)} />
                   </label>
                   <div className={styles.formActions}>
                     <button type="submit" className={styles.button} disabled={saving}>
@@ -567,7 +637,6 @@ export default function StaffTicketDetailClient({ ticketId }: { ticketId: string
                   </div>
                 </form>
               </section>
-
               <section className={styles.section}>
                 <h2 className={styles.sectionTitle}>Current Classification</h2>
                 <div className={styles.summaryGrid}>
@@ -579,112 +648,65 @@ export default function StaffTicketDetailClient({ ticketId }: { ticketId: string
                   <span className={styles.pill}>{sourceBadge(ticket.prioritySource)}</span>
                 </div>
               </section>
-
-              <section className={styles.section}>
-                <h2 className={styles.sectionTitle}>NLP Suggestion and Review</h2>
-                <p className={styles.subtitle}>Tests `GET` and `PATCH /api/staff/tickets/[ticketId]/nlp-review`.</p>
-
-                {ticket.nlpSuggestion ? (
-                  <div className={styles.listItem}>
-                    <SummaryItem label="Suggested Category" value={ticket.nlpSuggestion.suggestedCategoryName ?? "-"} />
-                    <SummaryItem label="Suggested Priority" value={ticket.nlpSuggestion.suggestedPriority ?? "-"} />
-                    <SummaryItem
-                      label="Suggestion Source"
-                      value={ticket.nlpSuggestion.prioritySource?.toUpperCase() ?? "-"}
-                    />
-                    <SummaryItem
-                      label="Decision Status"
-                      value={ticket.nlpSuggestion.isApplied ? "Auto-applied" : "Suggestion only"}
-                    />
-                    <div className={styles.pillRow}>
-                      <span className={styles.pill}>
-                        Category: {confidenceLabel(ticket.nlpSuggestion.confidenceCategory)}
-                        {ticket.nlpSuggestion.confidenceCategory !== null
-                          ? ` (${ticket.nlpSuggestion.confidenceCategory.toFixed(2)})`
-                          : ""}
-                      </span>
-                      <span className={styles.pill}>
-                        Priority: {confidenceLabel(ticket.nlpSuggestion.confidencePriority)}
-                        {ticket.nlpSuggestion.confidencePriority !== null
-                          ? ` (${ticket.nlpSuggestion.confidencePriority.toFixed(2)})`
-                          : ""}
-                      </span>
+              {showStaffOnlySections ? (
+                <section className={styles.section}>
+                  <h2 className={styles.sectionTitle}>NLP Suggestion and Review</h2>
+                  <p className={styles.subtitle}>Inspect and correct the latest NLP suggestion.</p>
+                  {ticket.nlpSuggestion ? (
+                    <div className={styles.listItem}>
+                      <SummaryItem label="Suggested Category" value={ticket.nlpSuggestion.suggestedCategoryName ?? "-"} />
+                      <SummaryItem label="Suggested Priority" value={ticket.nlpSuggestion.suggestedPriority ?? "-"} />
+                      <SummaryItem label="Suggestion Source" value={ticket.nlpSuggestion.prioritySource?.toUpperCase() ?? "-"} />
+                      <SummaryItem label="Decision Status" value={ticket.nlpSuggestion.isApplied ? "Auto-applied" : "Suggestion only"} />
+                      <div className={styles.pillRow}>
+                        <span className={styles.pill}>Category: {confidenceLabel(ticket.nlpSuggestion.confidenceCategory)}{ticket.nlpSuggestion.confidenceCategory !== null ? ` (${ticket.nlpSuggestion.confidenceCategory.toFixed(2)})` : ""}</span>
+                        <span className={styles.pill}>Priority: {confidenceLabel(ticket.nlpSuggestion.confidencePriority)}{ticket.nlpSuggestion.confidencePriority !== null ? ` (${ticket.nlpSuggestion.confidencePriority.toFixed(2)})` : ""}</span>
+                      </div>
                     </div>
-                  </div>
-                ) : (
-                  <div className={styles.empty}>No NLP suggestion available.</div>
-                )}
-
-                {reviewMessage ? <div className={`${styles.notice} ${styles.success}`}>{reviewMessage}</div> : null}
-                {reviewError ? <div className={`${styles.notice} ${styles.error}`}>{reviewError}</div> : null}
-
-                <form className={styles.form} onSubmit={handleNlpReviewSubmit}>
-                  <label className={styles.field}>
-                    <span className={styles.label}>Corrected Priority</span>
-                    <select
-                      className={styles.select}
-                      value={reviewPriority || "__unspecified"}
-                      onChange={(event) => setReviewPriority(event.target.value === "__unspecified" ? "" : event.target.value)}
-                      disabled={nlpOptionsLoading || reviewSaving}
-                    >
-                      <option value="__unspecified">Unspecified</option>
-                      {(nlpOptions?.priorities ?? []).map((item) => (
-                        <option key={item} value={item}>
-                          {item}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <label className={styles.field}>
-                    <span className={styles.label}>Corrected Category</span>
-                    <select
-                      className={styles.select}
-                      value={reviewCategoryName || "__unspecified"}
-                      onChange={(event) => setReviewCategoryName(event.target.value === "__unspecified" ? "" : event.target.value)}
-                      disabled={nlpOptionsLoading || reviewSaving}
-                    >
-                      <option value="__unspecified">Unspecified</option>
-                      {(nlpOptions?.categories ?? []).map((item) => (
-                        <option key={item.id} value={item.name}>
-                          {item.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <label className={styles.field}>
-                    <span className={styles.label}>Review Notes</span>
-                    <textarea
-                      className={styles.textarea}
-                      rows={4}
-                      value={reviewNotes}
-                      placeholder="Optional reviewer notes"
-                      disabled={reviewSaving}
-                      onChange={(event) => setReviewNotes(event.target.value)}
-                    />
-                  </label>
-
-                  <div className={styles.formActions}>
-                    <button type="submit" className={styles.button} disabled={nlpOptionsLoading || reviewSaving}>
-                      {reviewSaving ? "Saving..." : "Save NLP review"}
-                    </button>
-                  </div>
-                </form>
-              </section>
+                  ) : (
+                    <div className={styles.empty}>No NLP suggestion available.</div>
+                  )}
+                  {reviewMessage ? <div className={`${styles.notice} ${styles.success}`}>{reviewMessage}</div> : null}
+                  {reviewError ? <div className={`${styles.notice} ${styles.error}`}>{reviewError}</div> : null}
+                  <form className={styles.form} onSubmit={handleNlpReviewSubmit}>
+                    <label className={styles.field}>
+                      <span className={styles.label}>Corrected Priority</span>
+                      <select className={styles.select} value={reviewPriority || "__unspecified"} onChange={(event) => setReviewPriority(event.target.value === "__unspecified" ? "" : event.target.value)} disabled={nlpOptionsLoading || reviewSaving}>
+                        <option value="__unspecified">Unspecified</option>
+                        {(nlpOptions?.priorities ?? []).map((item) => (
+                          <option key={item} value={item}>
+                            {item}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className={styles.field}>
+                      <span className={styles.label}>Corrected Category</span>
+                      <select className={styles.select} value={reviewCategoryName || "__unspecified"} onChange={(event) => setReviewCategoryName(event.target.value === "__unspecified" ? "" : event.target.value)} disabled={nlpOptionsLoading || reviewSaving}>
+                        <option value="__unspecified">Unspecified</option>
+                        {(nlpOptions?.categories ?? []).map((item) => (
+                          <option key={item.id} value={item.name}>
+                            {item.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className={styles.field}>
+                      <span className={styles.label}>Review Notes</span>
+                      <textarea className={styles.textarea} rows={4} value={reviewNotes} placeholder="Optional reviewer notes" disabled={reviewSaving} onChange={(event) => setReviewNotes(event.target.value)} />
+                    </label>
+                    <div className={styles.formActions}>
+                      <button type="submit" className={styles.button} disabled={nlpOptionsLoading || reviewSaving}>
+                        {reviewSaving ? "Saving..." : "Save NLP review"}
+                      </button>
+                    </div>
+                  </form>
+                </section>
+              ) : null}
             </div>
           </div>
         </div>
       ) : null}
     </main>
-  );
-}
-
-function SummaryItem({ label, value }: { label: string; value: string }) {
-  return (
-    <div className={styles.summaryItem}>
-      <span className={styles.summaryLabel}>{label}</span>
-      <span className={styles.summaryValue}>{value}</span>
-    </div>
   );
 }

@@ -20,6 +20,9 @@ export default function AdminNavbar({ session }: AdminNavbarProps) {
       <Link href="/admin/statistics" className="nav-link">
         Statistics
       </Link>
+      <Link href="/admin/work-tickets" className="nav-link">
+        Work Tickets
+      </Link>
       <Link href="/admin/categories" className="nav-link">
         Categories
       </Link>

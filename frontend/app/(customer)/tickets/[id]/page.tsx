@@ -1,5 +1,5 @@
-import TicketDetailPage from "@/app/(guest)/view/[id]/page";
+import CustomerTicketDetailClient from "@/components/features/customer/tickets/CustomerTicketDetailClient";
 
 export default function CustomerTicketDetailPage({ params }: { params: { id: string } }) {
-  return <TicketDetailPage params={params} />;
+  return <CustomerTicketDetailClient ticketId={params.id} />;
 }

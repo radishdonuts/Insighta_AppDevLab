@@ -5,7 +5,7 @@ import {
   getStaffSupabase,
   getStaffTicketDetail,
   isUuid,
-  requireStaffApiAuth,
+  requireAdminApiAuth,
 } from "@/lib/staff/ticket-workspace";
 
 export const runtime = "nodejs";
@@ -14,7 +14,7 @@ export async function GET(
   _request: Request,
   context: { params: { ticketId: string } }
 ) {
-  const authResult = await requireStaffApiAuth();
+  const authResult = await requireAdminApiAuth();
   if (!authResult.ok) {
     return authResult.response;
   }
@@ -32,7 +32,6 @@ export async function GET(
 
     return NextResponse.json(detail);
   } catch (error) {
-    return jsonServerError(error, "Failed to load ticket detail.");
+    return jsonServerError(error, "Failed to load admin ticket detail.");
   }
 }
-

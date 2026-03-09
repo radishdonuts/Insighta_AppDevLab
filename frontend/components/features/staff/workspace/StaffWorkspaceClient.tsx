@@ -2,7 +2,18 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Search, AlertCircle, Loader2, LayoutDashboard, ChevronLeft, ChevronRight, Inbox, X, Ticket, UserX, AlertTriangle } from "lucide-react";
+import {
+  AlertCircle,
+  AlertTriangle,
+  ChevronLeft,
+  ChevronRight,
+  Inbox,
+  LayoutDashboard,
+  Loader2,
+  Search,
+  Ticket,
+  UserX,
+} from "lucide-react";
 
 import type {
   StaffCategorySummary,
@@ -11,86 +22,77 @@ import type {
   StaffTicketTab,
 } from "@/types/staff-tickets";
 import { TICKET_PRIORITIES, TICKET_STATUSES } from "@/types/tickets";
-
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import BadgeTabs from "@/components/ui/badge-tabs";
+import { Button } from "@/components/ui/button";
 import FilterDropdown from "@/components/ui/filter-dropdown";
 import type { FilterOption, FilterOptionGroup } from "@/components/ui/filter-dropdown";
+import { Input } from "@/components/ui/input";
 
-import { QueueSkeleton } from "./queue-states";
 import QueueStats from "./QueueStats";
+import { QueueSkeleton } from "./queue-states";
 import TicketCard from "./TicketCard";
-import { assignmentValue, type AssignmentSelection } from "./queue-ui";
 
+type WorkspaceMode = "staff" | "admin";
 type ApiErrorPayload = { error?: string; message?: string };
-type AssignmentPreset = "all" | "mine" | "unassigned";
+type AssignmentPreset = "all" | "mine" | "unassigned" | "assigned";
 
-function assignmentToTab(assignment: AssignmentPreset): StaffTicketTab {
-  if (assignment === "mine") return "my";
-  if (assignment === "unassigned") return "unassigned";
-  return "all";
-}
-
-function tabToAssignment(tab: StaffTicketTab): AssignmentPreset {
-  if (tab === "my") return "mine";
-  if (tab === "unassigned") return "unassigned";
-  return "all";
-}
+type StaffWorkspaceClientProps = {
+  mode?: WorkspaceMode;
+};
 
 function isUuid(value: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
-function resolveUiState(searchParams: URLSearchParams) {
-  const assignedToRaw = (searchParams.get("assignedTo") ?? "").trim();
-  const assignedTo = isUuid(assignedToRaw) ? assignedToRaw : "";
-
-  if (assignedTo) {
-    return {
-      activeTab: "all" as StaffTicketTab,
-      assignmentSelection: { kind: "staff", value: assignedTo } as AssignmentSelection,
-    };
-  }
-
-  const assignmentRaw = (searchParams.get("assignment") ?? "").trim();
-  if (
-    assignmentRaw === "mine" ||
-    assignmentRaw === "unassigned" ||
-    assignmentRaw === "all" ||
-    assignmentRaw === "assigned"
-  ) {
-    const assignmentPreset = assignmentRaw === "assigned" ? "all" : (assignmentRaw as AssignmentPreset);
-    return {
-      activeTab: assignmentToTab(assignmentPreset),
-      assignmentSelection: { kind: "preset", value: assignmentPreset } as AssignmentSelection,
-    };
-  }
-
-  const tabRaw = (searchParams.get("tab") ?? "").trim();
-  const mappedAssignment = tabRaw === "unassigned" ? "unassigned" : tabRaw === "all" ? "all" : "mine";
-
-  return {
-    activeTab: assignmentToTab(mappedAssignment),
-    assignmentSelection: { kind: "preset", value: mappedAssignment } as AssignmentSelection,
-  };
+function readApiErrorPayload(payload: ApiErrorPayload, fallbackStatus: number) {
+  return payload.message || payload.error || `Request failed (${fallbackStatus})`;
 }
 
 async function readApiError(response: Response) {
   try {
-    const payload = (await response.json()) as ApiErrorPayload;
-    return payload.message || payload.error || `Request failed (${response.status})`;
+    return readApiErrorPayload((await response.json()) as ApiErrorPayload, response.status);
   } catch {
     return `Request failed (${response.status})`;
   }
 }
 
-export default function StaffWorkspaceClient() {
+function resolveUiState(searchParams: URLSearchParams, mode: WorkspaceMode) {
+  const assignedToRaw = (searchParams.get("assignedTo") ?? "").trim();
+  const assignedTo = isUuid(assignedToRaw) ? assignedToRaw : "";
+
+  if (mode === "admin" && assignedTo) {
+    return { activeTab: "all" as StaffTicketTab };
+  }
+
+  const assignmentRaw = (searchParams.get("assignment") ?? "").trim() as AssignmentPreset | "";
+  if (mode === "admin") {
+    if (assignmentRaw === "assigned") return { activeTab: "my" as StaffTicketTab };
+    if (assignmentRaw === "unassigned") return { activeTab: "unassigned" as StaffTicketTab };
+    return { activeTab: "all" as StaffTicketTab };
+  }
+
+  if (assignmentRaw === "mine") return { activeTab: "my" as StaffTicketTab };
+  if (assignmentRaw === "unassigned") return { activeTab: "unassigned" as StaffTicketTab };
+  return { activeTab: "all" as StaffTicketTab };
+}
+
+export default function StaffWorkspaceClient({
+  mode = "staff",
+}: StaffWorkspaceClientProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const searchKey = searchParams.toString();
+
+  const apiBasePath = mode === "admin" ? "/api/admin/tickets" : "/api/staff/tickets";
+  const detailHrefBase = mode === "admin" ? "/admin/work-tickets" : "/staff/tickets";
+  const supportsAssignmentFilter = mode === "admin";
+  const headerTitle = mode === "admin" ? "Admin Ticket Workspace" : "Staff Ticket Workspace";
+  const headerSubtitle =
+    mode === "admin"
+      ? "View all tickets, assign them to staff, and manage queue operations."
+      : "Work only the tickets assigned to you or currently unassigned.";
 
   const [data, setData] = useState<StaffTicketQueueResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -110,7 +112,7 @@ export default function StaffWorkspaceClient() {
 
       try {
         const qs = searchParams.toString();
-        const response = await fetch(`/api/staff/tickets${qs ? `?${qs}` : ""}`, {
+        const response = await fetch(`${apiBasePath}${qs ? `?${qs}` : ""}`, {
           cache: "no-store",
           signal: controller.signal,
         });
@@ -127,28 +129,27 @@ export default function StaffWorkspaceClient() {
 
     void load();
     return () => controller.abort();
-  }, [searchKey, searchParams]);
+  }, [apiBasePath, searchKey, searchParams]);
 
-  const { activeTab, assignmentSelection } = useMemo(
-    () => resolveUiState(new URLSearchParams(searchParams.toString())),
-    [searchKey, searchParams]
+  const { activeTab } = useMemo(
+    () => resolveUiState(new URLSearchParams(searchParams.toString()), mode),
+    [mode, searchKey, searchParams]
   );
 
   const currentStatus = searchParams.get("status") ?? "";
   const currentPriority = searchParams.get("priority") ?? "";
   const currentCategoryId = searchParams.get("categoryId") ?? "";
+  const currentAssignedTo = searchParams.get("assignedTo") ?? "";
   const categoryOptions = useMemo(() => data?.categoryOptions ?? [], [data]);
   const staffOptions = useMemo(() => data?.staffOptions ?? [], [data]);
   const tabCounts = data?.tabCounts ?? { my: 0, unassigned: 0, all: 0 };
   const summary = data?.summary ?? { total: 0, unassigned: 0, highPriority: 0 };
   const pagination = data?.pagination ?? null;
   const visibleTickets = data?.data ?? [];
-  const visibleCount = visibleTickets.length;
-  const selectedStaffName =
-    assignmentSelection.kind === "staff"
-      ? staffOptions.find((staff) => staff.id === assignmentSelection.value)?.displayName ?? "Staff member"
-      : null;
   const isUpdating = loading && data !== null;
+  const selectedStaffName = currentAssignedTo
+    ? staffOptions.find((staff) => staff.id === currentAssignedTo)?.displayName ?? "Staff member"
+    : null;
 
   function updateQuery(updates: Record<string, string | null>) {
     const params = new URLSearchParams(searchParams.toString());
@@ -168,29 +169,14 @@ export default function StaffWorkspaceClient() {
   }
 
   function setTab(tab: StaffTicketTab) {
-    updateQuery({
-      assignment: tabToAssignment(tab),
-      tab,
-      assignedTo: null,
-      page: "1",
-    });
-  }
-
-  function handleAssignmentChange(value: string) {
-    if (value.startsWith("staff:")) {
-      updateQuery({ assignedTo: value.slice("staff:".length), assignment: "all", tab: "all", page: "1" });
+    if (mode === "admin") {
+      const assignment = tab === "my" ? "assigned" : tab === "unassigned" ? "unassigned" : "all";
+      updateQuery({ assignment, tab, assignedTo: null, page: "1" });
       return;
     }
 
-    const preset = value.replace("preset:", "");
-    if (preset === "mine" || preset === "unassigned" || preset === "all") {
-      updateQuery({
-        assignedTo: null,
-        assignment: preset,
-        tab: assignmentToTab(preset),
-        page: "1",
-      });
-    }
+    const assignment = tab === "my" ? "mine" : tab === "unassigned" ? "unassigned" : "all";
+    updateQuery({ assignment, tab, assignedTo: null, page: "1" });
   }
 
   function handleReset() {
@@ -200,140 +186,140 @@ export default function StaffWorkspaceClient() {
       priority: null,
       categoryId: null,
       assignedTo: null,
-      assignment: "mine",
-      tab: "my",
+      assignment: mode === "admin" ? "all" : "mine",
+      tab: mode === "admin" ? "all" : "my",
       page: "1",
     });
   }
 
-  /* ── derived filter options for FilterDropdown ── */
   const statusOptions: FilterOption[] = useMemo(
-    () => [
-      { value: "__all", label: "All statuses" },
-      ...TICKET_STATUSES.map((s) => ({ value: s, label: s })),
-    ],
+    () => [{ value: "__all", label: "All statuses" }, ...TICKET_STATUSES.map((s) => ({ value: s, label: s }))],
     []
   );
 
   const priorityOptions: FilterOption[] = useMemo(
-    () => [
-      { value: "__all", label: "All priorities" },
-      ...TICKET_PRIORITIES.map((p) => ({ value: p, label: p })),
-    ],
+    () => [{ value: "__all", label: "All priorities" }, ...TICKET_PRIORITIES.map((p) => ({ value: p, label: p }))],
     []
   );
 
   const categoryFilterOptions: FilterOption[] = useMemo(
-    () => [
-      { value: "__all", label: "All categories" },
-      ...categoryOptions.map((c: StaffCategorySummary) => ({
-        value: c.id,
-        label: c.name,
-      })),
-    ],
+    () => [{ value: "__all", label: "All categories" }, ...categoryOptions.map((c: StaffCategorySummary) => ({ value: c.id, label: c.name }))],
     [categoryOptions]
   );
 
   const assignmentGroups: FilterOptionGroup[] = useMemo(() => {
+    if (!supportsAssignmentFilter) return [];
+
     const groups: FilterOptionGroup[] = [
       {
-        label: "Presets",
+        label: "Queue scopes",
         options: [
-          { value: "preset:mine", label: "Mine" },
+          { value: "preset:assigned", label: "Assigned" },
           { value: "preset:unassigned", label: "Unassigned" },
           { value: "preset:all", label: "All" },
         ],
       },
     ];
+
     if (staffOptions.length > 0) {
       groups.push({
         label: "Staff members",
-        options: staffOptions.map((s: StaffPersonSummary) => ({
-          value: `staff:${s.id}`,
-          label: s.displayName,
+        options: staffOptions.map((staff: StaffPersonSummary) => ({
+          value: `staff:${staff.id}`,
+          label: staff.displayName,
         })),
       });
     }
-    return groups;
-  }, [staffOptions]);
 
-  /* ── tab items with badge counts ── */
+    return groups;
+  }, [staffOptions, supportsAssignmentFilter]);
+
+  function handleAssignmentChange(value: string) {
+    if (!supportsAssignmentFilter) return;
+
+    if (value.startsWith("staff:")) {
+      updateQuery({ assignedTo: value.slice("staff:".length), assignment: "all", tab: "all", page: "1" });
+      return;
+    }
+
+    const preset = value.replace("preset:", "");
+    if (preset === "assigned") {
+      updateQuery({ assignedTo: null, assignment: "assigned", tab: "my", page: "1" });
+      return;
+    }
+    if (preset === "unassigned" || preset === "all") {
+      updateQuery({ assignedTo: null, assignment: preset, tab: preset === "unassigned" ? "unassigned" : "all", page: "1" });
+    }
+  }
+
   const tabItems = useMemo(
     () => [
-      { value: "my" as const, label: "My Tickets", badge: tabCounts.my },
+      { value: "my" as const, label: mode === "admin" ? "Assigned" : "My Tickets", badge: tabCounts.my },
       { value: "unassigned" as const, label: "Unassigned", badge: tabCounts.unassigned },
-      { value: "all" as const, label: "All", badge: tabCounts.all },
+      { value: "all" as const, label: mode === "admin" ? "All" : "Available", badge: tabCounts.all },
     ],
-    [tabCounts]
+    [mode, tabCounts]
   );
 
-  /* ── stats data ── */
   const statsData = useMemo(
     () => [
       {
-        label: "Visible Tickets",
+        label: mode === "admin" ? "Visible Tickets" : "Available Tickets",
         value: loading && !data ? "--" : summary.total,
-        description: "Total tickets for the current queue scope.",
+        description:
+          mode === "admin"
+            ? "All tickets matching the current admin queue scope."
+            : "Tickets assigned to you or waiting to be claimed.",
         negative: false,
         icon: <Ticket className="h-4 w-4" />,
       },
       {
         label: "Unassigned",
         value: loading && !data ? "--" : summary.unassigned,
-        description: "Total unassigned tickets for the current filter set.",
+        description: "Tickets not yet owned by any staff member.",
         negative: summary.unassigned > 0,
         icon: <UserX className="h-4 w-4" />,
       },
       {
         label: "High Priority",
         value: loading && !data ? "--" : summary.highPriority,
-        description: "Total high-priority tickets for the current queue scope.",
+        description: "High-priority tickets in the current queue scope.",
         negative: summary.highPriority > 0,
         icon: <AlertTriangle className="h-4 w-4" />,
       },
     ],
-    [loading, data, summary]
+    [mode, loading, data, summary]
   );
 
   return (
-    <main className="max-w-6xl mx-auto px-4 py-8 space-y-8 bg-gradient-to-br from-[#f0f7ff] to-[#e0f0ff] min-h-[calc(100vh-4rem)] rounded-xl my-4 border border-[#0e62a5]/20 shadow-[0_8px_30px_rgb(14,98,165,0.12)]">
-      {/* ── Header ── */}
+    <main className="mx-auto my-4 min-h-[calc(100vh-4rem)] max-w-6xl space-y-8 rounded-xl border border-[#0e62a5]/20 bg-gradient-to-br from-[#f0f7ff] to-[#e0f0ff] px-4 py-8 shadow-[0_8px_30px_rgb(14,98,165,0.12)]">
       <div className="flex items-center gap-3">
-        <div className="flex items-center justify-center h-10 w-10 rounded-lg bg-primary/10">
+        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
           <LayoutDashboard className="h-5 w-5 text-primary" />
         </div>
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">
-            Staff Ticket Workspace
-          </h1>
-          <p className="text-muted-foreground mt-0.5">
-            Manage and triage incoming tickets.
-          </p>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">{headerTitle}</h1>
+          <p className="mt-0.5 text-muted-foreground">{headerSubtitle}</p>
         </div>
       </div>
 
-      {/* ── Badge Tabs ── */}
-      <BadgeTabs
-        items={tabItems}
-        value={activeTab}
-        onValueChange={(v) => setTab(v as StaffTicketTab)}
-      />
+      <BadgeTabs items={tabItems} value={activeTab} onValueChange={(value) => setTab(value as StaffTicketTab)} />
 
-      {/* ── Toolbar: Search + Filters ── */}
-      <div className="space-y-4 bg-white/60 backdrop-blur-md p-5 rounded-xl border border-[#0e62a5]/10 shadow-sm">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 items-end">
-          {/* Search — spans 2 cols on lg */}
+      <div className="relative z-20 space-y-4 rounded-xl border border-[#0e62a5]/10 bg-white/60 p-5 shadow-sm backdrop-blur-md">
+        <div className={`grid grid-cols-1 items-end gap-3 sm:grid-cols-2 ${supportsAssignmentFilter ? "lg:grid-cols-6" : "lg:grid-cols-5"}`}>
           <div className="lg:col-span-2">
-            <span className="block text-sm font-medium text-foreground mb-1.5">
-              Search
-            </span>
+            <span className="mb-1.5 block text-sm font-medium text-foreground">Search</span>
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 type="search"
                 value={searchInput}
                 placeholder="Ticket number or description"
-                onChange={(e) => setSearchInput(e.target.value)}
+                onChange={(e) => {
+                  const nextValue = e.target.value;
+                  setSearchInput(nextValue);
+                  setFilter("q", nextValue.trim());
+                }}
                 className="pl-9"
               />
             </div>
@@ -343,68 +329,63 @@ export default function StaffWorkspaceClient() {
             label="Status"
             options={statusOptions}
             value={currentStatus || "__all"}
-            onChange={(v) => setFilter("status", v === "__all" ? "" : v)}
+            onChange={(value) => setFilter("status", value === "__all" ? "" : value)}
           />
 
           <FilterDropdown
             label="Priority"
             options={priorityOptions}
             value={currentPriority || "__all"}
-            onChange={(v) => setFilter("priority", v === "__all" ? "" : v)}
+            onChange={(value) => setFilter("priority", value === "__all" ? "" : value)}
           />
 
           <FilterDropdown
             label="Category"
             options={categoryFilterOptions}
             value={currentCategoryId || "__all"}
-            onChange={(v) => setFilter("categoryId", v === "__all" ? "" : v)}
+            onChange={(value) => setFilter("categoryId", value === "__all" ? "" : value)}
           />
 
-          <FilterDropdown
-            label="Assignment"
-            groups={assignmentGroups}
-            value={assignmentValue(assignmentSelection)}
-            onChange={handleAssignmentChange}
-          />
+          {supportsAssignmentFilter ? (
+            <FilterDropdown
+              label="Assignment"
+              groups={assignmentGroups}
+              value={currentAssignedTo ? `staff:${currentAssignedTo}` : `preset:${activeTab === "my" ? "assigned" : activeTab}`}
+              onChange={handleAssignmentChange}
+            />
+          ) : null}
         </div>
 
-        <div className="flex justify-between items-center">
-          <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2">
             <p className="text-sm text-muted-foreground">
               {selectedStaffName
-                ? `Assigned to ${selectedStaffName}.`
-                : "Filters stay synced to the URL."}
-              {isUpdating && (
+                ? `Filtering tickets assigned to ${selectedStaffName}.`
+                : mode === "admin"
+                  ? "Admin view includes every ticket in the system."
+                  : "Staff view is limited to your tickets and unassigned work."}
+              {isUpdating ? (
                 <span className="ml-2 inline-flex items-center gap-1">
                   <Loader2 className="h-3 w-3 animate-spin" />
-                  Refreshing…
+                  Refreshing...
                 </span>
-              )}
+              ) : null}
             </p>
-            {/* Active filter chips */}
-            {currentStatus && (
-              <Badge variant="secondary" className="gap-1 pl-2 pr-1 cursor-pointer" onClick={() => setFilter("status", "")}>
+            {currentStatus ? (
+              <Badge variant="secondary" className="gap-1 pl-2 pr-1">
                 Status: {currentStatus}
-                <X className="h-3 w-3" />
               </Badge>
-            )}
-            {currentPriority && (
-              <Badge variant="secondary" className="gap-1 pl-2 pr-1 cursor-pointer" onClick={() => setFilter("priority", "")}>
+            ) : null}
+            {currentPriority ? (
+              <Badge variant="secondary" className="gap-1 pl-2 pr-1">
                 Priority: {currentPriority}
-                <X className="h-3 w-3" />
               </Badge>
-            )}
-            {currentCategoryId && (
-              <Badge variant="secondary" className="gap-1 pl-2 pr-1 cursor-pointer" onClick={() => setFilter("categoryId", "")}>
-                Category: {categoryOptions.find((c) => c.id === currentCategoryId)?.name ?? "Selected"}
-                <X className="h-3 w-3" />
+            ) : null}
+            {currentCategoryId ? (
+              <Badge variant="secondary" className="gap-1 pl-2 pr-1">
+                Category: {categoryOptions.find((category) => category.id === currentCategoryId)?.name ?? "Selected"}
               </Badge>
-            )}
-            {[currentStatus, currentPriority, currentCategoryId].filter(Boolean).length >= 2 && (
-              <Button variant="ghost" size="sm" className="h-6 text-xs text-muted-foreground px-2" onClick={handleReset}>
-                Clear all
-              </Button>
-            )}
+            ) : null}
           </div>
           <Button variant="outline" size="sm" onClick={handleReset}>
             Reset Filters
@@ -412,89 +393,69 @@ export default function StaffWorkspaceClient() {
         </div>
       </div>
 
-      {/* ── Queue Stats ── */}
       <QueueStats stats={statsData} loading={loading && !data} />
 
-      {/* ── Loading skeleton (first load only) ── */}
       {loading && !data ? <QueueSkeleton /> : null}
 
-      {/* ── Error ── */}
       {!loading && error ? (
         <div className="flex items-start gap-3 rounded-lg border border-destructive/50 bg-destructive/5 p-4">
-          <AlertCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+          <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />
           <div>
-            <p className="font-semibold text-destructive">
-              Queue request failed.
-            </p>
-            <p className="text-sm text-muted-foreground mt-1">{error}</p>
+            <p className="font-semibold text-destructive">Queue request failed.</p>
+            <p className="mt-1 text-sm text-muted-foreground">{error}</p>
           </div>
         </div>
       ) : null}
 
-      {/* ── Ticket Queue ── */}
       {!loading && !error && data ? (
         <div className="space-y-4">
-          {/* Section header */}
-          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-xl font-bold text-[#0e62a5]">
-                Ticket Queue
-              </h2>
-              <p className="text-sm text-muted-foreground mt-1">
+              <h2 className="text-xl font-bold text-[#0e62a5]">Ticket Queue</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
                 {pagination
                   ? pagination.total === 0
                     ? "No matching tickets in the current queue scope."
-                    : `Showing ${(pagination.page - 1) * pagination.pageSize + 1}–${Math.min(
-                      pagination.page * pagination.pageSize,
-                      pagination.total
-                    )} of ${pagination.total}`
+                    : `Showing ${(pagination.page - 1) * pagination.pageSize + 1}-${Math.min(pagination.page * pagination.pageSize, pagination.total)} of ${pagination.total}`
                   : "Queue results"}
               </p>
             </div>
             {pagination ? (
               <p className="text-sm text-muted-foreground">
-                {pagination.total.toLocaleString()} total &middot; page{" "}
-                {pagination.page} of {pagination.totalPages}
+                {pagination.total.toLocaleString()} total · page {pagination.page} of {pagination.totalPages}
               </p>
             ) : null}
           </div>
 
-          {/* Ticket cards */}
           {visibleTickets.length === 0 ? (
-            <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-16 gap-3">
+            <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed py-16">
               <Inbox className="h-10 w-10 text-muted-foreground/50" />
-              <p className="text-muted-foreground font-medium">
-                No tickets match this view.
-              </p>
+              <p className="font-medium text-muted-foreground">No tickets match this view.</p>
               <Button variant="outline" size="sm" onClick={handleReset}>
                 Reset Filters
               </Button>
             </div>
           ) : (
             <div className="relative">
-              {isUpdating && (
+              {isUpdating ? (
                 <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-background/60 backdrop-blur-sm">
                   <Loader2 className="h-6 w-6 animate-spin text-primary" />
                 </div>
-              )}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              ) : null}
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 {visibleTickets.map((ticket) => (
-                  <TicketCard key={ticket.id} ticket={ticket} />
+                  <TicketCard key={ticket.id} ticket={ticket} detailHrefBase={detailHrefBase} />
                 ))}
               </div>
             </div>
           )}
 
-          {/* Pagination */}
           {pagination ? (
-            <div className="flex flex-col sm:flex-row justify-between items-center gap-3 pt-2">
+            <div className="flex flex-col items-center justify-between gap-3 pt-2 sm:flex-row">
               <p className="text-sm text-muted-foreground">
                 {pagination.total === 0
                   ? "Showing 0 of 0"
-                  : `Showing ${(pagination.page - 1) * pagination.pageSize + 1}–${Math.min(
-                    pagination.page * pagination.pageSize,
-                    pagination.total
-                  )} of ${pagination.total}`}
+                  : `Showing ${(pagination.page - 1) * pagination.pageSize + 1}-${Math.min(pagination.page * pagination.pageSize, pagination.total)} of ${pagination.total}`}
               </p>
               <div className="flex items-center gap-2">
                 <Button
@@ -506,7 +467,7 @@ export default function StaffWorkspaceClient() {
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
-                <span className="text-sm text-muted-foreground tabular-nums min-w-[4rem] text-center">
+                <span className="min-w-[4rem] text-center text-sm tabular-nums text-muted-foreground">
                   {pagination.page} / {pagination.totalPages}
                 </span>
                 <Button

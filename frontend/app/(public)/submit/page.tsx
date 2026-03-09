@@ -78,7 +78,7 @@ export default function SubmitPage() {
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   // Success State
-  const [successData, setSuccessData] = useState<{ trackingNumber: string } | null>(null);
+  const [successData, setSuccessData] = useState<{ trackingNumber: string; ticketId: string | null; isGuestToken: boolean } | null>(null);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -208,17 +208,16 @@ export default function SubmitPage() {
       }
 
       // For authenticated users, no access token is returned — redirect to tickets
-      if (authUserId && !token) {
-        router.push("/tickets");
-        return;
+      const trackingNumber = token || data.ticket?.reference;
+      if (!trackingNumber) {
+        throw new Error("No tracking reference received. Please contact support.");
       }
 
-      // For guest users, show the success screen with token
-      if (!token) {
-        throw new Error("No access token received. Please contact support.");
-      }
-
-      setSuccessData({ trackingNumber: token });
+      setSuccessData({
+        trackingNumber,
+        ticketId,
+        isGuestToken: !!token,
+      });
       setStep(5); // Success step
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : "Failed to submit complaint.");
@@ -245,7 +244,7 @@ export default function SubmitPage() {
 
     return (
       <div className={styles.stepper} aria-label="Progress">
-        <div className={styles.stepperProgress} style={{ width: `${((step - 1) / 3) * 100}%` }} />
+        <div className={styles.stepperProgress} style={{ width: `${((step - 1) / 3) * 75}%` }} />
         {steps.map(s => (
           <div key={s.num} className={`${styles.step} ${step === s.num ? styles.stepActive : ''} ${step > s.num ? styles.stepCompleted : ''}`}>
             <div className={styles.stepCircle}>{step > s.num ? "✓" : s.num}</div>
@@ -468,16 +467,34 @@ export default function SubmitPage() {
             </div>
 
             <p style={{ fontSize: "0.85rem", color: "var(--muted)", marginBottom: "2rem" }}>
-              Please save this tracking number. You will need it to track your ticket status at <Link href="/track" style={{ color: "var(--accent)" }}>/track</Link>.
+              {successData.isGuestToken ? (
+                <>
+                  Please save this tracking number. You will need it to track your ticket status at <Link href="/track" style={{ color: "var(--accent)" }}>/track</Link>.
+                </>
+              ) : (
+                <>
+                  Your complaint has been submitted successfully. You can review it anytime in <Link href="/tickets" style={{ color: "var(--accent)" }}>/tickets</Link>.
+                </>
+              )}
             </p>
 
             <div className={styles.buttonGroup}>
               <button onClick={() => { setStep(authUserId ? 2 : 1); setTitle(""); setDescription(""); setFiles([]); setGuestEmail(""); setCategoryId(NOT_SURE_CATEGORY); setSuccessData(null); }} className={styles.btnSecondary}>
                 Submit Another
               </button>
-              <Link href={`/track?token=${successData.trackingNumber}`} className={styles.btnPrimary} style={{ textDecoration: 'none' }}>
-                Track Ticket
-              </Link>
+              {successData.isGuestToken ? (
+                <Link href={`/track?token=${successData.trackingNumber}`} className={styles.btnPrimary} style={{ textDecoration: 'none' }}>
+                  Track Ticket
+                </Link>
+              ) : successData.ticketId ? (
+                <Link href={`/tickets/${successData.ticketId}`} className={styles.btnPrimary} style={{ textDecoration: 'none' }}>
+                  View Ticket
+                </Link>
+              ) : (
+                <Link href="/tickets" className={styles.btnPrimary} style={{ textDecoration: 'none' }}>
+                  My Tickets
+                </Link>
+              )}
             </div>
           </div>
         )}

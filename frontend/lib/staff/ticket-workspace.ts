@@ -1,4 +1,4 @@
-import { STAFF_WORKSPACE_ROLES } from "@/types/auth";
+import { ADMIN_WORKSPACE_ROLES, STAFF_WORKSPACE_ROLES } from "@/types/auth";
 import {
   STAFF_ASSIGNMENT_FILTERS,
   STAFF_TICKET_TABS,
@@ -68,6 +68,10 @@ const STAFF_ATTACHMENT_SIGNED_URL_TTL_SECONDS = 60 * 60;
 const STORAGE_BUCKET = process.env.SUPABASE_STORAGE_BUCKET || "attachments";
 export async function requireStaffApiAuth() {
   return requireAnyRole(STAFF_WORKSPACE_ROLES);
+}
+
+export async function requireAdminApiAuth() {
+  return requireAnyRole(ADMIN_WORKSPACE_ROLES);
 }
 
 export function getStaffSupabase() {
@@ -159,6 +163,10 @@ function splitForwardedFor(value: string | null): string | null {
 function formatDisplayName(firstName: string | null, lastName: string | null, email: string | null): string {
   const full = [firstName, lastName].filter(Boolean).join(" ").trim();
   return full || email || "Unknown User";
+}
+
+function isAdminActor(actor: ApiRoleGuardSuccess) {
+  return actor.role === "Admin";
 }
 
 function mapPerson(raw: RawProfile | null | undefined): StaffPersonSummary | null {
@@ -292,7 +300,10 @@ async function createAttachmentSignedUrl(
   return data.signedUrl;
 }
 
-export function parseStaffQueueFilters(searchParams: URLSearchParams): StaffQueueFilters {
+export function parseStaffQueueFilters(
+  searchParams: URLSearchParams,
+  defaults?: Partial<Pick<StaffQueueFilters, "tab" | "assignment">>
+): StaffQueueFilters {
   const tabRaw = asTrimmedString(searchParams.get("tab"));
   const statusRaw = asTrimmedString(searchParams.get("status"));
   const priorityRaw = asTrimmedString(searchParams.get("priority"));
@@ -306,25 +317,30 @@ export function parseStaffQueueFilters(searchParams: URLSearchParams): StaffQueu
   const assignedTo = isUuid(assignedToRaw) ? assignedToRaw : undefined;
 
   // Canonical precedence: assignedTo > assignment > tab > default.
-  let assignment: StaffAssignmentFilter = "mine";
-  let tab: StaffTicketTab = "my";
+  let assignment: StaffAssignmentFilter = defaults?.assignment ?? "mine";
+  let tab: StaffTicketTab = defaults?.tab ?? "my";
 
   if (assignedTo) {
     assignment = "all";
     tab = "all";
   } else if (STAFF_ASSIGNMENT_FILTER_SET.has(assignmentRaw)) {
-    // Keep legacy `assigned` accepted in URLs, but canonicalize it to `all`
-    // so UI state and API semantics stay aligned.
-    assignment = assignmentRaw === "assigned" ? "all" : (assignmentRaw as StaffAssignmentFilter);
+    assignment = assignmentRaw as StaffAssignmentFilter;
     tab =
       assignment === "mine"
         ? "my"
         : assignment === "unassigned"
           ? "unassigned"
+          : assignment === "assigned"
+            ? "my"
           : "all";
   } else if (STAFF_TAB_SET.has(tabRaw)) {
     tab = tabRaw as StaffTicketTab;
-    assignment = tab === "my" ? "mine" : tab === "unassigned" ? "unassigned" : "all";
+    assignment =
+      tab === "my"
+        ? (defaults?.assignment === "assigned" ? "assigned" : "mine")
+        : tab === "unassigned"
+          ? "unassigned"
+          : "all";
   }
 
   return {
@@ -340,7 +356,7 @@ export function parseStaffQueueFilters(searchParams: URLSearchParams): StaffQueu
   };
 }
 
-function applyQueueFilters(query: any, filters: StaffQueueFilters, authUserId: string) {
+function applyQueueFilters(query: any, filters: StaffQueueFilters, actor: ApiRoleGuardSuccess) {
   if (filters.status) {
     query = query.eq("status", filters.status);
   }
@@ -353,14 +369,16 @@ function applyQueueFilters(query: any, filters: StaffQueueFilters, authUserId: s
     query = query.eq("category_name", filters.categoryId);
   }
 
-  if (filters.assignedTo) {
+  if (isAdminActor(actor) && filters.assignedTo) {
     query = query.eq("assigned_staff_id", filters.assignedTo);
   } else if (filters.assignment === "mine") {
-    query = query.eq("assigned_staff_id", authUserId);
+    query = query.eq("assigned_staff_id", actor.userId);
   } else if (filters.assignment === "unassigned") {
     query = query.is("assigned_staff_id", null);
-  } else if (filters.assignment === "assigned") {
+  } else if (isAdminActor(actor) && filters.assignment === "assigned") {
     query = query.not("assigned_staff_id", "is", null);
+  } else if (!isAdminActor(actor)) {
+    query = query.or(`assigned_staff_id.eq.${actor.userId},assigned_staff_id.is.null`);
   }
 
   if (filters.q) {
@@ -376,10 +394,10 @@ function applyQueueFilters(query: any, filters: StaffQueueFilters, authUserId: s
 async function countStaffTickets(
   supabase: SupabaseServerClient,
   filters: StaffQueueFilters,
-  authUserId: string
+  actor: ApiRoleGuardSuccess
 ): Promise<number> {
   let query: any = supabase.from("tickets").select("id", { count: "exact", head: true });
-  query = applyQueueFilters(query, filters, authUserId);
+  query = applyQueueFilters(query, filters, actor);
   const { count, error } = await query;
 
   if (error) {
@@ -395,16 +413,12 @@ async function listActiveCategories(_supabase: SupabaseServerClient): Promise<St
 
 async function listAssignableStaff(supabase: SupabaseServerClient): Promise<StaffPersonSummary[]> {
   const { data, error } = await supabase
-    .from("tickets")
-    .select(
-      `
-        assigned_staff_id,
-        assigned_staff:profiles!tickets_assigned_staff_id_fkey (id, email, first_name, last_name)
-      `
-    )
-    .not("assigned_staff_id", "is", null)
-    .order("last_updated_at", { ascending: false })
-    .limit(5000);
+    .from("profiles")
+    .select("id, email, first_name, last_name")
+    .eq("role", "Staff")
+    .eq("is_active", true)
+    .order("first_name", { ascending: true })
+    .order("last_name", { ascending: true });
 
   if (error) {
     throw new Error(`Failed to load assignable staff: ${error.message}`);
@@ -412,7 +426,7 @@ async function listAssignableStaff(supabase: SupabaseServerClient): Promise<Staf
 
   const deduped = new Map<string, StaffPersonSummary>();
   for (const row of Array.isArray(data) ? data : []) {
-    const person = mapPerson(firstRow(row?.assigned_staff) as RawProfile | null);
+    const person = mapPerson(row as RawProfile | null);
     if (!person) continue;
     if (!deduped.has(person.id)) {
       deduped.set(person.id, person);
@@ -425,7 +439,7 @@ async function listAssignableStaff(supabase: SupabaseServerClient): Promise<Staf
 export async function listStaffTickets(
   supabase: SupabaseServerClient,
   filters: StaffQueueFilters,
-  authUserId: string
+  actor: ApiRoleGuardSuccess
 ): Promise<StaffTicketQueueResponse> {
   const from = (filters.page - 1) * filters.pageSize;
   const to = from + filters.pageSize - 1;
@@ -475,13 +489,13 @@ export async function listStaffTickets(
       .order("last_updated_at", { ascending: false })
       .order("submitted_at", { ascending: false })
       .range(from, to);
-    return applyQueueFilters(query, filters, authUserId);
+    return applyQueueFilters(query, filters, actor);
   };
 
   const myCountFilters: StaffQueueFilters = {
     ...filters,
     tab: "my",
-    assignment: "mine",
+    assignment: isAdminActor(actor) ? "assigned" : "mine",
     assignedTo: undefined,
   };
   const unassignedCountFilters: StaffQueueFilters = {
@@ -505,10 +519,10 @@ export async function listStaffTickets(
     runQuery(selectWithSources),
     listActiveCategories(supabase),
     listAssignableStaff(supabase),
-    countStaffTickets(supabase, myCountFilters, authUserId),
-    countStaffTickets(supabase, unassignedCountFilters, authUserId),
-    countStaffTickets(supabase, allCountFilters, authUserId),
-    countStaffTickets(supabase, highPriorityCountFilters, authUserId),
+    countStaffTickets(supabase, myCountFilters, actor),
+    countStaffTickets(supabase, unassignedCountFilters, actor),
+    countStaffTickets(supabase, allCountFilters, actor),
+    countStaffTickets(supabase, highPriorityCountFilters, actor),
   ]);
 
   let data = resultWithSources.data;
@@ -558,7 +572,8 @@ export async function listStaffTickets(
 
 export async function getStaffTicketDetail(
   supabase: SupabaseServerClient,
-  ticketId: string
+  ticketId: string,
+  actor: ApiRoleGuardSuccess
 ): Promise<StaffTicketDetailResponse | null> {
   const selectWithSources = `
         id,
@@ -625,6 +640,10 @@ export async function getStaffTicketDetail(
     return null;
   }
   const ticketRow: any = ticket;
+  const assignedStaffId = asString(ticketRow.assigned_staff_id);
+  if (!isAdminActor(actor) && assignedStaffId && assignedStaffId !== actor.userId) {
+    return null;
+  }
 
   const [attachmentsResult, historyResult, nlpAnalysisResult] = await Promise.all([
     supabase
@@ -777,6 +796,34 @@ export function parseAssignRequest(body: JsonObject): StaffAssignRequest {
   return { action: "self_assign" };
 }
 
+export async function canAccessWorkspaceTicket(
+  supabase: SupabaseServerClient,
+  ticketId: string,
+  actor: ApiRoleGuardSuccess
+): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("tickets")
+    .select("id, assigned_staff_id")
+    .eq("id", ticketId)
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to validate ticket access: ${error.message}`);
+  }
+
+  if (!data?.id) {
+    return false;
+  }
+
+  const assignedStaffId = asString(data.assigned_staff_id);
+  if (isAdminActor(actor)) {
+    return true;
+  }
+
+  return !assignedStaffId || assignedStaffId === actor.userId;
+}
+
 export async function updateStaffTicketStatus(
   supabase: SupabaseServerClient,
   ticketId: string,
@@ -796,6 +843,10 @@ export async function updateStaffTicketStatus(
   }
 
   if (!existing?.id) {
+    return { ok: false, reason: "not_found" };
+  }
+
+  if (!(await canAccessWorkspaceTicket(supabase, ticketId, actor))) {
     return { ok: false, reason: "not_found" };
   }
 
@@ -881,6 +932,10 @@ export async function selfAssignStaffTicket(
     return { ok: false, reason: "not_found" };
   }
 
+  if (!(await canAccessWorkspaceTicket(supabase, ticketId, actor))) {
+    return { ok: false, reason: "not_found" };
+  }
+
   const assignedStaffId = asString(existing.assigned_staff_id);
 
   if (assignedStaffId && assignedStaffId !== actor.userId) {
@@ -947,6 +1002,86 @@ export async function selfAssignStaffTicket(
           lastName: null,
           displayName: formatDisplayName(null, null, actor.email),
         },
+      },
+    },
+  };
+}
+
+export async function assignTicketToStaff(
+  supabase: SupabaseServerClient,
+  ticketId: string,
+  actor: ApiRoleGuardSuccess,
+  assignedStaffId: string | null,
+  ipAddress?: string | null
+): Promise<StaffMutationResult<StaffAssignResponse>> {
+  if (!isAdminActor(actor)) {
+    return { ok: false, reason: "not_found" };
+  }
+
+  const { data: existing, error: existingError } = await supabase
+    .from("tickets")
+    .select("id, ticket_number, last_updated_at")
+    .eq("id", ticketId)
+    .limit(1)
+    .maybeSingle();
+
+  if (existingError) {
+    throw new Error(`Failed to load ticket: ${existingError.message}`);
+  }
+
+  if (!existing?.id) {
+    return { ok: false, reason: "not_found" };
+  }
+
+  let assignedStaff: StaffPersonSummary | null = null;
+  if (assignedStaffId) {
+    const { data: staffProfile, error: staffError } = await supabase
+      .from("profiles")
+      .select("id, email, first_name, last_name")
+      .eq("id", assignedStaffId)
+      .eq("role", "Staff")
+      .eq("is_active", true)
+      .limit(1)
+      .maybeSingle();
+
+    if (staffError) {
+      throw new Error(`Failed to validate assignee: ${staffError.message}`);
+    }
+
+    assignedStaff = mapPerson(staffProfile as RawProfile | null);
+    if (!assignedStaff) {
+      return { ok: false, reason: "conflict", message: "Selected staff member is invalid or inactive." };
+    }
+  }
+
+  const { data: updated, error: updateError } = await supabase
+    .from("tickets")
+    .update({ assigned_staff_id: assignedStaffId })
+    .eq("id", ticketId)
+    .select("id, ticket_number, last_updated_at")
+    .single();
+
+  if (updateError || !updated?.id) {
+    throw new Error(updateError?.message ?? "Failed to update ticket assignment.");
+  }
+
+  await logSystemActivity(supabase, {
+    userId: actor.userId,
+    action: assignedStaffId ? "admin_ticket_assigned" : "admin_ticket_unassigned",
+    entityType: "ticket",
+    entityId: ticketId,
+    ipAddress,
+  });
+
+  return {
+    ok: true,
+    data: {
+      message: assignedStaffId ? "Ticket assigned successfully." : "Ticket unassigned successfully.",
+      ticket: {
+        id: String(updated.id),
+        ticketNumber: asString(updated.ticket_number) ?? "",
+        lastUpdatedAt: safeIso(updated.last_updated_at),
+        assignedStaff,
       },
     },
   };

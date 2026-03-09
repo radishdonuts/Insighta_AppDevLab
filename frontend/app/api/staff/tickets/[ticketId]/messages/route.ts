@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { jsonError, jsonServerError, parseJsonRequestBody } from "@/lib/api/staff-utils";
 import {
+    canAccessWorkspaceTicket,
     getStaffSupabase,
     isUuid,
     requireStaffApiAuth,
@@ -25,6 +26,9 @@ export async function GET(_request: Request, context: RouteContext) {
 
     try {
         const supabase = getStaffSupabase();
+        if (!(await canAccessWorkspaceTicket(supabase, ticketId, authResult.auth))) {
+            return jsonError(404, "Ticket not found.");
+        }
 
         const { data, error } = await supabase
             .from("ticket_messages")
@@ -90,6 +94,9 @@ export async function POST(request: Request, context: RouteContext) {
 
     try {
         const supabase = getStaffSupabase();
+        if (!(await canAccessWorkspaceTicket(supabase, ticketId, authResult.auth))) {
+            return jsonError(404, "Ticket not found.");
+        }
 
         const { data, error } = await supabase
             .from("ticket_messages")

@@ -7,6 +7,7 @@ export const runtime = "nodejs";
 
 const DEFAULT_PAGE_SIZE = 10;
 const MAX_PAGE_SIZE = 50;
+const RESOLVED_STATUSES = new Set(["Resolved", "Closed"]);
 
 function clampPage(raw: string | null): number {
     const n = Number(raw);
@@ -55,6 +56,10 @@ export async function GET(request: Request) {
 
     try {
         const supabase = getSupabaseServerClient();
+        const summaryQuery = supabase
+            .from("tickets")
+            .select("status")
+            .eq("customer_id", userId);
 
         // Build query for tickets belonging to this customer
         let query = supabase
@@ -78,7 +83,7 @@ export async function GET(request: Request) {
         }
         if (search) {
             query = query.or(
-                `description.ilike.%${search}%`
+                `description.ilike.%${search}%,ticket_number.ilike.%${search}%`
             );
         }
 
@@ -87,12 +92,23 @@ export async function GET(request: Request) {
         const to = from + pageSize - 1;
         query = query.range(from, to);
 
-        const { data, error, count } = await query;
+        const [{ data, error, count }, { data: summaryRows, error: summaryError }] = await Promise.all([
+            query,
+            summaryQuery,
+        ]);
 
         if (error) {
             console.error("[tickets/my] Query failed:", error.message);
             return NextResponse.json(
                 { error: "Failed to fetch tickets." },
+                { status: 500 }
+            );
+        }
+
+        if (summaryError) {
+            console.error("[tickets/my] Summary query failed:", summaryError.message);
+            return NextResponse.json(
+                { error: "Failed to fetch tickets summary." },
                 { status: 500 }
             );
         }
@@ -113,7 +129,23 @@ export async function GET(request: Request) {
             };
         });
 
-        return NextResponse.json({ tickets, total: count ?? 0 });
+        const totalTickets = summaryRows?.length ?? 0;
+        const resolvedTickets =
+            summaryRows?.reduce((sum, row) => {
+                const statusValue = typeof row.status === "string" ? row.status : "";
+                return RESOLVED_STATUSES.has(statusValue) ? sum + 1 : sum;
+            }, 0) ?? 0;
+        const openTickets = Math.max(totalTickets - resolvedTickets, 0);
+
+        return NextResponse.json({
+            tickets,
+            total: count ?? 0,
+            summary: {
+                totalTickets,
+                openTickets,
+                resolvedTickets,
+            },
+        });
     } catch (err) {
         console.error("[tickets/my] Unexpected error:", err);
         return NextResponse.json(

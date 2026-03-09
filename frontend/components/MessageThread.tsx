@@ -29,6 +29,7 @@ export interface MessageThreadProps {
     currentUserRole: UserRole;
     onSendMessage: (content: string, attachments?: File[]) => Promise<void>;
     disabled?: boolean;
+    allowAttachments?: boolean;
 }
 
 // Icons
@@ -90,6 +91,7 @@ export function MessageThread({
     currentUserRole,
     onSendMessage,
     disabled = false,
+    allowAttachments = true,
 }: MessageThreadProps) {
     const [inputText, setInputText] = useState("");
     const [stagedFiles, setStagedFiles] = useState<File[]>([]);
@@ -206,7 +208,7 @@ export function MessageThread({
             </div>
 
             <div className={styles.inputArea}>
-                {stagedFiles.length > 0 && (
+                {allowAttachments && stagedFiles.length > 0 && (
                     <div className={styles.stagedFiles}>
                         {stagedFiles.map((f, idx) => (
                             <div key={idx} className={styles.stagedFileLabel}>
@@ -229,16 +231,18 @@ export function MessageThread({
                         style={{ display: "none" }}
                         aria-hidden="true"
                     />
-                    <button
-                        type="button"
-                        className={`${styles.btnAttach} ${stagedFiles.length > 0 ? styles.btnAttachActive : ''}`}
-                        onClick={() => fileInputRef.current?.click()}
-                        disabled={disabled || isSubmitting || stagedFiles.length >= 5}
-                        title="Attach files (max 5)"
-                        aria-label="Attach files"
-                    >
-                        <PaperclipIcon />
-                    </button>
+                    {allowAttachments ? (
+                        <button
+                            type="button"
+                            className={`${styles.btnAttach} ${stagedFiles.length > 0 ? styles.btnAttachActive : ''}`}
+                            onClick={() => fileInputRef.current?.click()}
+                            disabled={disabled || isSubmitting || stagedFiles.length >= 5}
+                            title="Attach files (max 5)"
+                            aria-label="Attach files"
+                        >
+                            <PaperclipIcon />
+                        </button>
+                    ) : null}
 
                     <textarea
                         className={styles.textarea}

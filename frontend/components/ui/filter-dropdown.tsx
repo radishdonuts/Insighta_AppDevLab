@@ -114,7 +114,7 @@ export default function FilterDropdown({
   const hasActiveFilter = Boolean(value) && value !== "__all" && value !== "preset:mine";
 
   return (
-    <div className={cn("relative", className)} ref={containerRef}>
+    <div className={cn("relative", isOpen && "z-[90]", className)} ref={containerRef}>
       <span className="block text-sm font-medium text-foreground mb-1.5">
         {label}
       </span>
@@ -155,7 +155,7 @@ export default function FilterDropdown({
             exit={{ opacity: 0, y: -6, scale: 0.97 }}
             transition={{ duration: 0.15 }}
             className={cn(
-              "absolute z-[70] w-full mt-1.5 rounded-lg border overflow-hidden shadow-lg",
+              "absolute z-[100] w-full mt-1.5 rounded-lg border overflow-hidden shadow-lg",
               "bg-popover text-popover-foreground",
               "max-h-64 overflow-y-auto"
             )}

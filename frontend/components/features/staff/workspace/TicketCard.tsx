@@ -52,8 +52,10 @@ function InfoItem({
 /* ── ticket card ── */
 export default function TicketCard({
   ticket,
+  detailHrefBase = "/staff/tickets",
 }: {
   ticket: StaffTicketQueueItem;
+  detailHrefBase?: string;
 }) {
   const status = statusBadge(ticket.status);
   const priority = priorityBadge(ticket.priority);
@@ -163,7 +165,7 @@ export default function TicketCard({
         {/* Footer — open ticket link */}
         <CardFooter className="bg-muted/30 p-6">
           <Button asChild className="group h-11 w-full rounded-xl border-input/80 bg-background/90 shadow-none hover:bg-background" variant="outline">
-            <Link href={`/staff/tickets/${ticket.id}`}>
+            <Link href={`${detailHrefBase}/${ticket.id}`}>
               Open Ticket
               <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-0.5" />
             </Link>

@@ -3,8 +3,8 @@ import { createHash, randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
 
 import { isEmailConfigured, sendTicketCreatedEmail } from "@/lib/email";
-import { normalizeCanonicalComplaintCategory } from "@/lib/nlp/taxonomy";
-import { buildNlpInputText, resolveUncategorizedCategoryId } from "@/lib/nlp/ticket-enrichment";
+import { CANONICAL_COMPLAINT_CATEGORIES, normalizeCanonicalComplaintCategory } from "@/lib/nlp/taxonomy";
+import { buildNlpInputText } from "@/lib/nlp/ticket-enrichment";
 import { getSupabaseServerClient } from "@/lib/supabase";
 import { createClient } from "@/utils/supabase/server";
 
@@ -248,84 +248,148 @@ async function resolveGuestId(supabase: SupabaseServerClient, email: string): Pr
   return String(inserted.id);
 }
 
-async function resolveCategorySelection(
-  supabase: SupabaseServerClient,
-  categoryInput?: string
-): Promise<{ categoryId: string; usedFallbackCategory: boolean; userProvided: boolean }> {
-  if (categoryInput) {
-    const normalizedCategoryName = normalizeCanonicalComplaintCategory(categoryInput);
-    if (normalizedCategoryName) {
-      const { data, error } = await supabase
-        .from("complaint_categories")
-        .select("id")
-        .eq("category_name", normalizedCategoryName)
-        .eq("is_active", true)
-        .limit(1)
-        .maybeSingle();
+const DEFAULT_CATEGORY_NAME = "Other / Uncategorized";
+const CANONICAL_CATEGORY_SET = new Set<string>(CANONICAL_COMPLAINT_CATEGORIES);
 
-      if (error) {
-        throw new Error(`Failed to resolve category: ${error.message}`);
-      }
+type ComplaintCategoryRow = {
+  id?: unknown;
+  category_name?: unknown;
+};
 
-      if (!data?.id) {
-        return {
-          categoryId: await resolveUncategorizedCategoryId(supabase),
-          usedFallbackCategory: true,
-          userProvided: false,
-        };
-      }
+function mapResolvedCategoryRow(
+  row: ComplaintCategoryRow | null,
+  options?: { userProvided?: boolean; usedFallbackCategory?: boolean }
+) {
+  const categoryId = asTrimmedString(row?.id);
+  const categoryName = asTrimmedString(row?.category_name);
 
-      return {
-        categoryId: String(data.id),
-        usedFallbackCategory: false,
-        userProvided: true,
-      };
-    }
-
-    const { data, error } = await supabase
-      .from("complaint_categories")
-      .select("id")
-      .eq("id", categoryInput)
-      .limit(1)
-      .maybeSingle();
-
-    if (error) {
-      throw new Error(`Failed to resolve category: ${error.message}`);
-    }
-
-    if (!data?.id) {
-      throw new ApiError(400, "Category not found.");
-    }
-
-    return {
-      categoryId: String(data.id),
-      usedFallbackCategory: false,
-      userProvided: true,
-    };
+  if (!categoryId || !categoryName || !CANONICAL_CATEGORY_SET.has(categoryName)) {
+    return null;
   }
 
   return {
-    categoryId: await resolveUncategorizedCategoryId(supabase),
-    usedFallbackCategory: true,
-    userProvided: false,
+    categoryId,
+    categoryName,
+    userProvided: options?.userProvided ?? true,
+    usedFallbackCategory: options?.usedFallbackCategory ?? false,
   };
+}
+
+async function findComplaintCategoryById(
+  supabase: SupabaseServerClient,
+  categoryId: string
+) {
+  const { data, error } = await supabase
+    .from("complaint_categories")
+    .select("id, category_name")
+    .eq("id", categoryId)
+    .eq("is_active", true)
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to resolve category: ${error.message}`);
+  }
+
+  return mapResolvedCategoryRow(data as ComplaintCategoryRow | null);
+}
+
+async function findComplaintCategoryByName(
+  supabase: SupabaseServerClient,
+  categoryName: string
+) {
+  const { data, error } = await supabase
+    .from("complaint_categories")
+    .select("id, category_name")
+    .eq("category_name", categoryName)
+    .eq("is_active", true)
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to resolve category: ${error.message}`);
+  }
+
+  return mapResolvedCategoryRow(data as ComplaintCategoryRow | null);
+}
+
+async function resolveFallbackCategory(
+  supabase: SupabaseServerClient
+) {
+  const fallback = await findComplaintCategoryByName(supabase, DEFAULT_CATEGORY_NAME);
+  if (!fallback) {
+    throw new Error(`Failed to resolve fallback category "${DEFAULT_CATEGORY_NAME}".`);
+  }
+
+  return {
+    ...fallback,
+    userProvided: false,
+    usedFallbackCategory: true,
+  };
+}
+
+async function resolveCategorySelection(
+  supabase: SupabaseServerClient,
+  categoryInput?: string
+): Promise<{
+  categoryId: string;
+  categoryName: string;
+  usedFallbackCategory: boolean;
+  userProvided: boolean;
+}> {
+  if (categoryInput) {
+    if (isUuid(categoryInput)) {
+      const categoryById = await findComplaintCategoryById(supabase, categoryInput);
+      if (!categoryById) {
+        throw new ApiError(400, "Category not found.");
+      }
+      return categoryById;
+    }
+
+    const normalizedCategoryName = normalizeCanonicalComplaintCategory(categoryInput);
+    if (normalizedCategoryName) {
+      const categoryByName = await findComplaintCategoryByName(supabase, normalizedCategoryName);
+      if (categoryByName) {
+        return categoryByName;
+      }
+    }
+
+    const categoryByRawName = await findComplaintCategoryByName(supabase, categoryInput);
+    if (categoryByRawName) {
+      return categoryByRawName;
+    }
+
+    throw new ApiError(400, "Category not found.");
+  }
+
+  return resolveFallbackCategory(supabase);
 }
 
 async function getNextTicketNumber(supabase: SupabaseServerClient): Promise<string> {
   const { data, error } = await supabase
     .from("tickets")
     .select("ticket_number")
-    .order("submitted_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .like("ticket_number", "TKT-%")
+    .order("ticket_number", { ascending: false })
+    .limit(20);
 
   if (error) {
     throw new Error(`Failed to generate ticket number: ${error.message}`);
   }
 
-  const current = asTrimmedString(data?.ticket_number);
-  const match = /^TKT-(\d+)$/.exec(current);
-  const nextNumber = match ? Number.parseInt(match[1], 10) + 1 : 1;
+  const rows = Array.isArray(data) ? data : [];
+  let highestNumber = 0;
+
+  for (const row of rows) {
+    const current = asTrimmedString((row as { ticket_number?: unknown }).ticket_number);
+    const match = /^TKT-(\d+)$/.exec(current);
+    const parsed = match ? Number.parseInt(match[1], 10) : 0;
+    if (parsed > highestNumber) {
+      highestNumber = parsed;
+    }
+  }
+
+  const nextNumber = highestNumber + 1;
   return `TKT-${String(nextNumber).padStart(5, "0")}`;
 }
 
@@ -611,6 +675,7 @@ export async function POST(request: Request) {
       description: input.description,
       nlp_input_text: input.nlpText,
       category_id: category.categoryId,
+      category_name: category.categoryName,
       category_source: category.userProvided ? "user" : "default",
       priority_source: "default",
       customer_id: input.customerId,

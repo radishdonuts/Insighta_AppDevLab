@@ -7,6 +7,7 @@ import {
   normalizeCanonicalComplaintCategory,
 } from "@/lib/nlp/taxonomy";
 import {
+  canAccessWorkspaceTicket,
   getRequestIpAddress,
   getStaffSupabase,
   isUuid,
@@ -75,6 +76,9 @@ export async function GET(
 
   try {
     const supabase = getStaffSupabase();
+    if (!(await canAccessWorkspaceTicket(supabase, ticketId, authResult.auth))) {
+      return jsonError(404, "Ticket not found.");
+    }
 
     const [ticketResult, categoriesResult] = await Promise.all([
       supabase
@@ -173,6 +177,9 @@ export async function PATCH(
     }
 
     const supabase = getStaffSupabase();
+    if (!(await canAccessWorkspaceTicket(supabase, ticketId, authResult.auth))) {
+      return jsonError(404, "Ticket not found.");
+    }
     const { data: ticketExists, error: ticketCheckError } = await supabase
       .from("tickets")
       .select("id")
