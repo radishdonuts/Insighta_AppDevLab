@@ -23,6 +23,12 @@ function getRoleBadge(role: UserRole | null): "Staff" | "Admin" | null {
   return null;
 }
 
+function getBrandHref(role: UserRole | null): string {
+  if (role === "Admin") return "/admin";
+  if (role === "Staff") return "/staff";
+  return "/";
+}
+
 function getAccountMenuItems(role: UserRole | null): AccountMenuItem[] {
   if (role === "Customer") {
     return [{ href: "/account/change-password", label: "Change Password" }];
@@ -33,10 +39,7 @@ function getAccountMenuItems(role: UserRole | null): AccountMenuItem[] {
   }
 
   if (role === "Admin") {
-    return [
-      { href: "/admin", label: "Admin Home" },
-      { href: "/admin/overview", label: "Overview" },
-    ];
+    return [{ href: "/admin/account/change-password", label: "Change Password" }];
   }
 
   return [];
@@ -59,6 +62,8 @@ export default function SharedNavbarShell({
 
   const roleBadge =
     session.status === "authenticated" ? getRoleBadge(session.role) : null;
+  const brandHref =
+    session.status === "authenticated" ? getBrandHref(session.role) : "/";
   const accountMenuItems =
     session.status === "authenticated" ? getAccountMenuItems(session.role) : [];
   const canOpenAccountMenu =
@@ -93,7 +98,7 @@ export default function SharedNavbarShell({
 
   return (
     <nav className={`navbar ${isScrolled ? "navbar-scrolled" : ""}`}>
-      <Link href="/" className="navbar-brand">
+      <Link href={brandHref} className="navbar-brand">
         <Image
           src="/assets/images/blue_logo.png"
           alt="Insighta logo"
