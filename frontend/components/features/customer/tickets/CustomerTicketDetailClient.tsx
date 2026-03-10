@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 
 import {
   MessageThread,
@@ -47,7 +47,6 @@ type TicketDetail = {
   ticketType: string;
   title: string;
   status: string;
-  priority: string;
   category: string;
   description: string;
   submittedAt: string;
@@ -67,7 +66,6 @@ function toTicketDetail(input: ApiTicket, fallbackId: string): TicketDetail {
     ticketType: asString(input.ticketType),
     title: asString(input.title),
     status: asString(input.status),
-    priority: asString(input.priority),
     category: asString(input.categoryName),
     description: asString(input.description),
     submittedAt: asString(input.submittedAt),
@@ -101,6 +99,12 @@ async function readApiError(response: Response) {
   } catch {
     return `Request failed (${response.status})`;
   }
+}
+
+function capitalizeFirstLetter(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  return `${trimmed.charAt(0).toUpperCase()}${trimmed.slice(1)}`;
 }
 
 function mapThreadMessage(message: TicketMessagesResponse["messages"][number]): ThreadMessage {
@@ -192,23 +196,21 @@ export default function CustomerTicketDetailClient({ ticketId }: { ticketId: str
   }
 
   const currentStep = deriveStepIndex(ticket?.status ?? "");
-  const priorityColors: Record<string, { bg: string; color: string; border: string }> = {
-    High: { bg: "#fef2f2", color: "#b91c1c", border: "#fecaca" },
-    Medium: { bg: "#fffbeb", color: "#b45309", border: "#fde68a" },
-    Low: { bg: "#f0fdf4", color: "#15803d", border: "#bbf7d0" },
-  };
-  const priorityStyle = priorityColors[ticket?.priority ?? ""] ?? priorityColors.Low;
+  const brandBlueVars = {
+    "--accent": "#179fe5",
+    "--accent-hover": "#138dc9",
+  } as CSSProperties;
 
   return (
-    <main className="glass-shell">
-      <div className="glass-shell-word" aria-hidden="true">
-        INSIGHTA
-      </div>
-      <section className="glass-shell-panel glass-shell-panel--narrow">
-        <div style={{ maxWidth: 860, margin: "0 auto" }}>
+    <main className="mx-auto my-4 min-h-[calc(100vh-4rem)] max-w-6xl px-4 py-8" style={brandBlueVars}>
+      <section className="mx-auto w-full max-w-5xl rounded-xl border bg-white p-6 md:p-8">
+        <div>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "center", marginBottom: "1.5rem" }}>
             <div>
-              <Link href="/tickets" style={{ color: "var(--accent)", textDecoration: "none", fontWeight: 600 }}>
+              <Link
+                href="/tickets"
+                className="inline-flex items-center justify-center rounded-full border border-[#179fe5] bg-[#179fe5] px-5 py-2.5 text-sm font-bold text-[#f8fafc] no-underline transition-[background-color,border-color,transform] duration-150 hover:border-[#138dc9] hover:bg-[#138dc9] active:translate-y-px"
+              >
                 Back to tickets
               </Link>
               <h1
@@ -219,21 +221,12 @@ export default function CustomerTicketDetailClient({ ticketId }: { ticketId: str
                   color: "var(--text)",
                 }}
               >
-                Ticket: {ticket?.reference || ticketId}
+                {capitalizeFirstLetter(ticket?.title || "Untitled complaint")}
               </h1>
             </div>
           </div>
 
-          <section
-            style={{
-              background: "rgba(255, 255, 255, 0.84)",
-              border: "1px solid #e5e7eb",
-              borderRadius: "1rem",
-              padding: "2rem",
-              display: "grid",
-              gap: "1.5rem",
-            }}
-          >
+          <section style={{ display: "grid", gap: "1.5rem" }}>
             {loading ? <p style={{ margin: 0, color: "var(--muted)" }}>Loading ticket details...</p> : null}
 
             {error ? (
@@ -255,9 +248,9 @@ export default function CustomerTicketDetailClient({ ticketId }: { ticketId: str
                   >
                     {`${ticket.ticketType || "Ticket"} details`}
                   </h3>
-                  {ticket.title ? (
+                  {ticket.reference || ticketId ? (
                     <p style={{ color: "var(--text)", fontSize: "0.95rem", fontWeight: 600, margin: "0 0 0.75rem" }}>
-                      {ticket.title}
+                      Ticket ID: {ticket.reference || ticketId}
                     </p>
                   ) : null}
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -273,19 +266,6 @@ export default function CustomerTicketDetailClient({ ticketId }: { ticketId: str
                       }}
                     >
                       {ticket.category || "Uncategorized"}
-                    </span>
-                    <span
-                      style={{
-                        padding: "4px 12px",
-                        borderRadius: 999,
-                        background: priorityStyle.bg,
-                        border: `1px solid ${priorityStyle.border}`,
-                        fontSize: 12,
-                        fontWeight: 600,
-                        color: priorityStyle.color,
-                      }}
-                    >
-                      {(ticket.priority || "Low") + " Priority"}
                     </span>
                   </div>
                 </div>

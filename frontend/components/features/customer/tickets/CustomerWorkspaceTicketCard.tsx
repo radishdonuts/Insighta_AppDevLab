@@ -2,69 +2,60 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { ArrowRight, Clock3, Ticket } from "lucide-react";
+import { ArrowRight, Check, Ticket } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
 
 type CustomerWorkspaceTicketCardProps = {
   id: string;
   destination: string;
   trackingNumber: string;
+  complaintTitle?: string | null;
   categoryName: string;
   status: string;
-  priority?: string | null;
   description: string;
-  submittedLabel: string;
-  submittedDateLabel: string;
 };
 
-function badgeClasses(kind: "status" | "priority", value: string) {
-  if (kind === "status") {
-    switch (value) {
-      case "Resolved":
-      case "Closed":
-        return "bg-emerald-100 text-emerald-800 border-emerald-200";
-      case "In Progress":
-        return "bg-amber-100 text-amber-800 border-amber-200";
-      case "Pending Customer Response":
-        return "bg-violet-100 text-violet-800 border-violet-200";
-      case "Under Review":
-        return "bg-blue-100 text-blue-800 border-blue-200";
-      default:
-        return "bg-slate-100 text-slate-800 border-slate-200";
-    }
-  }
+const STEP_LABELS = ["Received", "In Review", "In Progress", "Resolved"] as const;
 
-  switch (value) {
-    case "High":
-      return "bg-rose-100 text-rose-800 border-rose-200";
-    case "Medium":
-      return "bg-orange-100 text-orange-800 border-orange-200";
-    case "Low":
-      return "bg-cyan-100 text-cyan-800 border-cyan-200";
-    default:
-      return "bg-slate-100 text-slate-700 border-slate-200";
-  }
+function deriveStepIndex(status: string): number {
+  const normalized = status.trim().toLowerCase();
+  if (!normalized) return 0;
+  if (normalized.includes("resolved") || normalized.includes("closed")) return 3;
+  if (normalized.includes("progress")) return 2;
+  if (normalized.includes("review") || normalized.includes("pending customer")) return 1;
+  return 0;
+}
+
+function displayStatus(status: string): string {
+  const stepIndex = deriveStepIndex(status);
+  return STEP_LABELS[stepIndex];
 }
 
 function truncate(text: string, max = 156) {
   return text.length <= max ? text : `${text.slice(0, max - 1)}...`;
 }
 
+function withCapitalizedFirstLetter(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  return `${trimmed.charAt(0).toUpperCase()}${trimmed.slice(1)}`;
+}
+
 export default function CustomerWorkspaceTicketCard({
   id,
   destination,
   trackingNumber,
+  complaintTitle,
   categoryName,
   status,
-  priority,
   description,
-  submittedLabel,
-  submittedDateLabel,
 }: CustomerWorkspaceTicketCardProps) {
+  const currentStep = deriveStepIndex(status);
+  const title = withCapitalizedFirstLetter(complaintTitle ?? "") || withCapitalizedFirstLetter(categoryName) || `Ticket ${id}`;
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 14 }}
@@ -72,61 +63,70 @@ export default function CustomerWorkspaceTicketCard({
       transition={{ duration: 0.35 }}
       whileHover={{ y: -2, transition: { duration: 0.15 } }}
     >
-      <Card className="w-full overflow-hidden rounded-2xl border-primary/10 shadow-lg">
-        <CardHeader className="bg-muted/30 p-6">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex min-w-0 items-center gap-3">
-              <div className="flex size-14 shrink-0 items-center justify-center rounded-2xl border border-primary/10 bg-background/90 text-primary shadow-sm">
+      <Card className="w-full overflow-hidden rounded-2xl border-border bg-white shadow-sm">
+        <CardHeader className="p-6 pb-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-3.5">
+              <div className="flex size-14 shrink-0 items-center justify-center rounded-2xl border border-[#179fe5]/20 bg-[#e8f6ff] text-[#179fe5] shadow-sm">
                 <Ticket />
               </div>
               <div className="min-w-0">
                 <p className="truncate font-mono text-sm font-bold text-foreground">{trackingNumber}</p>
-                <p className="truncate text-xs text-muted-foreground">{categoryName}</p>
+                <p className="truncate text-xs text-muted-foreground">Ticket #{id}</p>
               </div>
-            </div>
-
-            <div className="shrink-0 text-right">
-              <p className="text-xs font-medium text-muted-foreground">Submitted</p>
-              <p className="text-sm font-semibold text-foreground">{submittedLabel}</p>
             </div>
           </div>
         </CardHeader>
 
-        <CardContent className="space-y-6 p-6">
+        <CardContent className="space-y-5 p-6 pt-0">
+          <div className="space-y-3">
+            <p className="text-2xl font-bold leading-tight text-foreground">{displayStatus(status)}</p>
+            <div className="flex items-center gap-2.5" aria-hidden="true">
+              {STEP_LABELS.map((_, index) => {
+                const complete = index < currentStep;
+                const active = index === currentStep;
+
+                return (
+                  <div key={index} className="flex min-w-0 flex-1 items-center gap-2.5">
+                    <div
+                      className={[
+                        "flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2",
+                        complete
+                          ? "border-[#179fe5] bg-[#179fe5] text-white"
+                          : active
+                            ? "border-[#179fe5] bg-[#e8f6ff] text-[#179fe5]"
+                            : "border-slate-300 bg-white text-slate-300",
+                      ].join(" ")}
+                    >
+                      {complete ? <Check className="h-4 w-4" /> : <span className="h-2.5 w-2.5 rounded-full bg-current" />}
+                    </div>
+                    {index < STEP_LABELS.length - 1 ? (
+                      <span className={complete ? "h-1 w-full rounded-full bg-[#179fe5]" : "h-1 w-full rounded-full bg-slate-200"} />
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
           <div className="flex flex-wrap gap-2">
-            <Badge variant="outline" className={cn("border", badgeClasses("status", status))}>
-              {status}
-            </Badge>
-            {priority ? (
-              <Badge variant="outline" className={cn("border", badgeClasses("priority", priority))}>
-                {priority} Priority
-              </Badge>
-            ) : null}
             <Badge variant="secondary">{categoryName}</Badge>
           </div>
 
-          <div className="grid grid-cols-2 gap-x-4 gap-y-3">
-            <div className="flex min-w-0 flex-col">
-              <span className="text-xs text-muted-foreground">Ticket ID</span>
-              <span className="truncate text-sm font-semibold text-card-foreground">{trackingNumber}</span>
-            </div>
-            <div className="flex min-w-0 flex-col">
-              <span className="text-xs text-muted-foreground">Visibility</span>
-              <span className="truncate text-sm font-semibold text-card-foreground">Customer Workspace</span>
-            </div>
-            <div className="col-span-2 flex items-center gap-1.5 text-xs text-muted-foreground">
-              <Clock3 className="h-3.5 w-3.5" />
-              <span title={submittedDateLabel}>Created {submittedLabel}</span>
-            </div>
-          </div>
+          <h3 className="line-clamp-2 text-xl font-bold leading-tight text-foreground" title={title}>
+            {title}
+          </h3>
 
           <p className="line-clamp-3 text-sm text-muted-foreground">
             {truncate(description || `Open ticket ${id}`)}
           </p>
         </CardContent>
 
-        <CardFooter className="bg-muted/30 p-6">
-          <Button asChild className="group h-11 w-full rounded-xl border-input/80 bg-background/90 shadow-none hover:bg-background" variant="outline">
+        <CardFooter className="p-6 pt-4">
+          <Button
+            asChild
+            className="group h-11 w-full rounded-full border border-[#179fe5] bg-[#179fe5] text-[#f8fafc] shadow-none transition-[background-color,border-color,transform] duration-150 hover:border-[#138dc9] hover:bg-[#138dc9] active:translate-y-px"
+          >
             <Link href={destination}>
               View Ticket
               <ArrowRight className="transition-transform group-hover:translate-x-0.5" />

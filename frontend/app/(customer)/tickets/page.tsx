@@ -2,7 +2,7 @@
 
 import type { FormEvent } from "react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import {
   AlertCircle,
   CheckCircle2,
@@ -26,10 +26,9 @@ type UserTicket = {
   id: string;
   tracking_number: string | null;
   status: TicketStatus;
-  priority: string | null;
+  title: string | null;
   category_name: string;
   description: string;
-  submitted_at: string;
 };
 
 type TicketSummary = {
@@ -43,26 +42,6 @@ type MyTicketsResponse = {
   total: number;
   summary: TicketSummary;
 };
-
-function getRelativeDate(isoString: string) {
-  const date = new Date(isoString);
-  const diffInDays = Math.floor((new Date().getTime() - date.getTime()) / (1000 * 3600 * 24));
-
-  if (diffInDays === 0) return "Today";
-  if (diffInDays === 1) return "Yesterday";
-  if (diffInDays < 30) return `${diffInDays} days ago`;
-  return date.toLocaleDateString();
-}
-
-function getAbsoluteDate(isoString: string) {
-  const date = new Date(isoString);
-  if (Number.isNaN(date.getTime())) return isoString;
-
-  return new Intl.DateTimeFormat("en-US", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(date);
-}
 
 function toTrackToken(value: string | null): string | null {
   if (typeof value !== "string") return null;
@@ -172,13 +151,17 @@ export default function MyTicketsPage() {
       icon: <CheckCircle2 className="h-4 w-4" />,
     },
   ];
+  const brandBlueVars = {
+    "--accent": "#179fe5",
+    "--accent-hover": "#138dc9",
+  } as CSSProperties;
 
   return (
-    <main className="mx-auto my-4 min-h-[calc(100vh-4rem)] max-w-6xl rounded-xl border border-[#0e62a5]/20 bg-gradient-to-br from-[#f0f7ff] to-[#e0f0ff] px-4 py-8 shadow-[0_8px_30px_rgb(14,98,165,0.12)]">
+    <main className="mx-auto my-4 min-h-[calc(100vh-4rem)] max-w-6xl rounded-xl border bg-white px-4 py-8" style={brandBlueVars}>
       <div className="flex flex-col gap-8">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-            <Ticket className="h-5 w-5 text-primary" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#e8f6ff]">
+            <Ticket className="h-5 w-5 text-[#179fe5]" />
           </div>
           <div>
             <h1 className="text-3xl font-bold tracking-tight text-foreground">My Tickets</h1>
@@ -190,7 +173,7 @@ export default function MyTicketsPage() {
 
         <QueueStats stats={statsData} loading={loading && !hasLoadedData && !error} />
 
-        <div className="relative z-20 space-y-4 rounded-xl border border-[#0e62a5]/10 bg-white/60 p-5 shadow-sm backdrop-blur-md">
+        <div className="relative z-20 space-y-4 rounded-xl border bg-white p-5">
           <form className="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 lg:grid-cols-6" onSubmit={handleSearchSubmit}>
             <div className="lg:col-span-4">
               <span className="mb-1.5 block text-sm font-medium text-foreground">Search</span>
@@ -205,7 +188,12 @@ export default function MyTicketsPage() {
                     className="pl-9"
                   />
                 </div>
-                <Button type="submit">Apply</Button>
+                <Button
+                  type="submit"
+                  className="border border-[#179fe5] bg-[#179fe5] text-[#f8fafc] hover:border-[#138dc9] hover:bg-[#138dc9]"
+                >
+                  Apply
+                </Button>
               </div>
             </div>
 
@@ -237,9 +225,6 @@ export default function MyTicketsPage() {
           </form>
 
           <div className="flex flex-wrap items-center gap-2">
-            <p className="text-sm text-muted-foreground">
-              Customer view only. Use this page to follow updates on your submitted tickets.
-            </p>
             {loading && hasLoadedData ? (
               <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
                 <Loader2 className="h-3 w-3 animate-spin" />
@@ -272,7 +257,7 @@ export default function MyTicketsPage() {
         <div className="space-y-4">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-xl font-bold text-[#0e62a5]">Ticket Queue</h2>
+              <h2 className="text-xl font-bold text-[#179fe5]">Ticket Queue</h2>
               <p className="mt-1 text-sm text-muted-foreground">
                 {total === 0
                   ? hasFilters
@@ -333,12 +318,10 @@ export default function MyTicketsPage() {
                       id={ticket.id}
                       destination={destination}
                       trackingNumber={ticket.tracking_number ?? "Pending Tracking Number"}
+                      complaintTitle={ticket.title}
                       categoryName={ticket.category_name}
                       status={ticket.status}
-                      priority={ticket.priority}
                       description={ticket.description}
-                      submittedLabel={getRelativeDate(ticket.submitted_at)}
-                      submittedDateLabel={getAbsoluteDate(ticket.submitted_at)}
                     />
                   );
                 })}

@@ -65,7 +65,7 @@ export async function GET(request: Request) {
         let query = supabase
             .from("tickets")
             .select(
-                `id, ticket_number, status, priority, description, submitted_at,
+                `id, ticket_number, title, status, priority, description, submitted_at,
          complaint_categories ( category_name ),
          ticket_access_tokens!ticket_access_tokens_ticket_id_fkey ( token_hash, created_at )`,
                 { count: "exact" }
@@ -123,6 +123,7 @@ export async function GET(request: Request) {
                 tracking_number: trackingNumber ?? (typeof row.ticket_number === "string" ? row.ticket_number : null),
                 status: row.status,
                 priority: row.priority,
+                title: row.title,
                 description: row.description,
                 submitted_at: row.submitted_at,
                 category_name: cat?.category_name ?? "Uncategorized",
