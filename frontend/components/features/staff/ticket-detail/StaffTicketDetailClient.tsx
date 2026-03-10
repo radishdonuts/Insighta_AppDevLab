@@ -20,6 +20,8 @@ import {
   sourceBadge,
   statusBadge,
 } from "../workspace/queue-ui";
+import { MessageThread, type ThreadMessage } from "@/components/MessageThread";
+import { NotesTimeline, type InternalNote } from "@/components/NotesTimeline";
 import styles from "./detail.module.css";
 
 type ApiErrorPayload = { error?: string; message?: string };
@@ -101,6 +103,41 @@ function SummaryItem({ label, value }: { label: string; value: string }) {
   );
 }
 
+function toThreadRole(senderType: string | null | undefined): "Customer" | "Staff" | "Admin" {
+  if (senderType === "Admin") return "Admin";
+  if (senderType === "Staff" || senderType === "staff") return "Staff";
+  return "Customer";
+}
+
+function mapMessageToThreadMessage(
+  message: StaffTicketMessagesResponse["messages"][number]
+): ThreadMessage {
+  const role = toThreadRole(message.senderType);
+
+  return {
+    id: message.id,
+    content: message.content,
+    created_at: message.createdAt,
+    author: {
+      name:
+        message.sender?.displayName ??
+        (role === "Customer" ? "Customer" : role === "Admin" ? "Admin" : "Staff"),
+      role,
+    },
+  };
+}
+
+function mapNoteToInternalNote(note: StaffTicketNotesResponse["notes"][number]): InternalNote {
+  return {
+    id: note.id,
+    content: note.content,
+    created_at: note.createdAt,
+    author: {
+      name: note.author?.displayName ?? "Unknown",
+    },
+  };
+}
+
 export default function StaffTicketDetailClient({
   ticketId,
   mode = "staff",
@@ -128,14 +165,12 @@ export default function StaffTicketDetailClient({
   const [notes, setNotes] = useState<StaffTicketNotesResponse["notes"]>([]);
   const [notesLoading, setNotesLoading] = useState(true);
   const [notesError, setNotesError] = useState<string | null>(null);
-  const [noteDraft, setNoteDraft] = useState("");
   const [noteSaving, setNoteSaving] = useState(false);
   const [noteMessage, setNoteMessage] = useState<string | null>(null);
   const [noteSubmitError, setNoteSubmitError] = useState<string | null>(null);
   const [messages, setMessages] = useState<StaffTicketMessagesResponse["messages"]>([]);
   const [messagesLoading, setMessagesLoading] = useState(true);
   const [messagesError, setMessagesError] = useState<string | null>(null);
-  const [messageDraft, setMessageDraft] = useState("");
   const [messageSaving, setMessageSaving] = useState(false);
   const [messageStatus, setMessageStatus] = useState<string | null>(null);
   const [messageSubmitError, setMessageSubmitError] = useState<string | null>(null);
@@ -328,31 +363,7 @@ export default function StaffTicketDetailClient({
     }
   }
 
-  async function handleNoteSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setNoteSaving(true);
-    setNoteMessage(null);
-    setNoteSubmitError(null);
-    try {
-      const response = await fetch(`${apiBasePath}/${ticketId}/notes`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: noteDraft.trim() }),
-      });
-      if (!response.ok) throw new Error(await readApiError(response));
-      const payload = (await response.json()) as StaffTicketNoteCreateResponse;
-      setNoteDraft("");
-      setNoteMessage(payload.message ?? "Note added.");
-      await loadNotes();
-    } catch (err) {
-      setNoteSubmitError(err instanceof Error ? err.message : "Failed to create note.");
-    } finally {
-      setNoteSaving(false);
-    }
-  }
-
-  async function handleMessageSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function handleChatSend(content: string) {
     setMessageSaving(true);
     setMessageStatus(null);
     setMessageSubmitError(null);
@@ -360,21 +371,45 @@ export default function StaffTicketDetailClient({
       const response = await fetch(`${apiBasePath}/${ticketId}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: messageDraft.trim() }),
+        body: JSON.stringify({ content: content.trim() }),
       });
       if (!response.ok) throw new Error(await readApiError(response));
       const payload = (await response.json()) as StaffTicketMessageCreateResponse;
-      setMessageDraft("");
       setMessageStatus(payload.message ?? "Message sent.");
       await loadMessages();
     } catch (err) {
       setMessageSubmitError(err instanceof Error ? err.message : "Failed to send message.");
+      throw err;
     } finally {
       setMessageSaving(false);
     }
   }
 
+  async function handleAddInternalNote(content: string) {
+    setNoteSaving(true);
+    setNoteMessage(null);
+    setNoteSubmitError(null);
+    try {
+      const response = await fetch(`${apiBasePath}/${ticketId}/notes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: content.trim() }),
+      });
+      if (!response.ok) throw new Error(await readApiError(response));
+      const payload = (await response.json()) as StaffTicketNoteCreateResponse;
+      setNoteMessage(payload.message ?? "Note added.");
+      await loadNotes();
+    } catch (err) {
+      setNoteSubmitError(err instanceof Error ? err.message : "Failed to create note.");
+      throw err;
+    } finally {
+      setNoteSaving(false);
+    }
+  }
+
   const ticket = data?.ticket;
+  const threadMessages = messages.map(mapMessageToThreadMessage);
+  const internalNotes = notes.map(mapNoteToInternalNote);
 
   return (
     <main className={styles.page}>
@@ -500,33 +535,15 @@ export default function StaffTicketDetailClient({
                     {notesError ? <div className={`${styles.notice} ${styles.error}`}>{notesError}</div> : null}
                     {noteMessage ? <div className={`${styles.notice} ${styles.success}`}>{noteMessage}</div> : null}
                     {noteSubmitError ? <div className={`${styles.notice} ${styles.error}`}>{noteSubmitError}</div> : null}
-                    <form className={styles.form} onSubmit={handleNoteSubmit}>
-                      <label className={styles.field}>
-                        <span className={styles.label}>Add internal note</span>
-                        <textarea className={styles.textarea} value={noteDraft} onChange={(event) => setNoteDraft(event.target.value)} placeholder="Write an internal note for staff only" />
-                      </label>
-                      <div className={styles.formActions}>
-                        <button type="submit" className={styles.button} disabled={noteSaving}>
-                          {noteSaving ? "Saving..." : "Save note"}
-                        </button>
-                      </div>
-                    </form>
-                    <div className={styles.divider} />
                     {notesLoading ? (
                       <div className={styles.loadingBlock}>Loading notes...</div>
-                    ) : notes.length === 0 ? (
-                      <div className={styles.empty}>No internal notes yet.</div>
                     ) : (
-                      <div className={styles.list}>
-                        {notes.map((note) => (
-                          <div key={note.id} className={styles.listItem}>
-                            <div className={styles.listItemTop}>
-                              <strong>{note.author?.displayName ?? "Unknown"}</strong>
-                              <div className={styles.metaText}>{formatDateTime(note.createdAt)}</div>
-                            </div>
-                            <p className={styles.textBlock}>{note.content}</p>
-                          </div>
-                        ))}
+                      <div className={styles.notesPanel}>
+                        <NotesTimeline
+                          notes={internalNotes}
+                          onAddNote={handleAddInternalNote}
+                          disabled={noteSaving}
+                        />
                       </div>
                     )}
                   </section>
@@ -536,36 +553,18 @@ export default function StaffTicketDetailClient({
                     {messagesError ? <div className={`${styles.notice} ${styles.error}`}>{messagesError}</div> : null}
                     {messageStatus ? <div className={`${styles.notice} ${styles.success}`}>{messageStatus}</div> : null}
                     {messageSubmitError ? <div className={`${styles.notice} ${styles.error}`}>{messageSubmitError}</div> : null}
-                    <form className={styles.form} onSubmit={handleMessageSubmit}>
-                      <label className={styles.field}>
-                        <span className={styles.label}>Send message to submitter</span>
-                        <textarea className={styles.textarea} value={messageDraft} onChange={(event) => setMessageDraft(event.target.value)} placeholder="Write a message for the ticket submitter" />
-                      </label>
-                      <div className={styles.formActions}>
-                        <button type="submit" className={styles.button} disabled={messageSaving}>
-                          {messageSaving ? "Sending..." : "Send message"}
-                        </button>
-                      </div>
-                    </form>
-                    <div className={styles.divider} />
                     {messagesLoading ? (
                       <div className={styles.loadingBlock}>Loading messages...</div>
-                    ) : messages.length === 0 ? (
-                      <div className={styles.empty}>No messages yet.</div>
                     ) : (
-                      <div className={styles.list}>
-                        {messages.map((message) => (
-                          <div key={message.id} className={styles.listItem}>
-                            <div className={styles.listItemTop}>
-                              <div>
-                                <strong>{message.sender?.displayName ?? "Unknown"}</strong>
-                                <div className={styles.metaText}>{message.senderType}</div>
-                              </div>
-                              <div className={styles.metaText}>{formatDateTime(message.createdAt)}</div>
-                            </div>
-                            <p className={styles.textBlock}>{message.content}</p>
-                          </div>
-                        ))}
+                      <div className={styles.chatPanel}>
+                        <MessageThread
+                          messages={threadMessages}
+                          currentUserId=""
+                          currentUserRole="Staff"
+                          onSendMessage={handleChatSend}
+                          allowAttachments={false}
+                          disabled={messageSaving}
+                        />
                       </div>
                     )}
                   </section>

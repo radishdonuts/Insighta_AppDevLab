@@ -151,11 +151,11 @@ export function MessageThread({
                     </div>
                 ) : (
                     messages.map((msg) => {
-                        const isCustomer = msg.author.role === "Customer";
-                        const rowClass = isCustomer ? styles.messageRowCustomer : styles.messageRowStaff;
-                        const bubbleClass = isCustomer ? styles.bubbleCustomer : styles.bubbleStaff;
-                        const avatarClass = isCustomer ? styles.avatarCustomer : styles.avatarStaff;
-                        const pillClass = isCustomer ? styles.attachmentPillCustomer : styles.attachmentPillStaff;
+                        const isOwnMessage = msg.author.role === currentUserRole;
+                        const rowClass = isOwnMessage ? styles.messageRowCustomer : styles.messageRowStaff;
+                        const bubbleClass = isOwnMessage ? styles.bubbleCustomer : styles.bubbleStaff;
+                        const avatarClass = isOwnMessage ? styles.avatarCustomer : styles.avatarStaff;
+                        const pillClass = isOwnMessage ? styles.attachmentPillCustomer : styles.attachmentPillStaff;
 
                         return (
                             <div key={msg.id} className={`${styles.messageRow} ${rowClass}`}>

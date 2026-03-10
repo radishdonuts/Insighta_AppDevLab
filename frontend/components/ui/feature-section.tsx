@@ -29,28 +29,18 @@ export function FeatureSteps({
   imageHeight = "h-[360px] sm:h-[420px] lg:h-[520px]",
 }: FeatureStepsProps) {
   const [currentFeature, setCurrentFeature] = useState(0);
-  const [progress, setProgress] = useState(0);
 
   useEffect(() => {
     if (features.length <= 1) {
       return;
     }
 
-    const timer = window.setInterval(() => {
-      setProgress((prev) => {
-        const next = prev + 100 / (autoPlayInterval / 100);
+    const timer = window.setTimeout(() => {
+      setCurrentFeature((current) => (current + 1) % features.length);
+    }, autoPlayInterval);
 
-        if (next >= 100) {
-          setCurrentFeature((current) => (current + 1) % features.length);
-          return 0;
-        }
-
-        return next;
-      });
-    }, 100);
-
-    return () => window.clearInterval(timer);
-  }, [autoPlayInterval, features.length]);
+    return () => window.clearTimeout(timer);
+  }, [autoPlayInterval, currentFeature, features.length]);
 
   if (features.length === 0) {
     return null;
@@ -73,7 +63,6 @@ export function FeatureSteps({
           <div className="flex flex-col gap-4">
             {features.map((feature, index) => {
               const isActive = index === currentFeature;
-              const isCompleted = index < currentFeature;
 
               return (
                 <motion.button
@@ -81,7 +70,6 @@ export function FeatureSteps({
                   type="button"
                   onClick={() => {
                     setCurrentFeature(index);
-                    setProgress(0);
                   }}
                   initial={{ opacity: 0, y: 16 }}
                   whileInView={{ opacity: 1, y: 0 }}
@@ -100,12 +88,10 @@ export function FeatureSteps({
                         "flex size-11 shrink-0 items-center justify-center rounded-full border text-sm font-semibold transition-all",
                         isActive
                           ? "border-sky-500 bg-sky-500 text-white"
-                          : isCompleted
-                            ? "border-slate-950 bg-slate-950 text-white"
-                            : "border-slate-300 bg-slate-100 text-slate-700",
+                          : "border-slate-300 bg-slate-100 text-slate-700",
                       )}
                     >
-                      {isCompleted ? "OK" : index + 1}
+                      {index + 1}
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-xs font-semibold uppercase tracking-[0.24em] text-sky-700">
@@ -118,16 +104,17 @@ export function FeatureSteps({
                         {feature.content}
                       </p>
                       <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-slate-200">
-                        <motion.div
-                          className={cn(
-                            "h-full rounded-full",
-                            isActive ? "bg-sky-500" : "bg-slate-300",
-                          )}
-                          animate={{
-                            width: isActive ? `${progress}%` : isCompleted ? "100%" : "0%",
-                          }}
-                          transition={{ duration: 0.2, ease: "linear" }}
-                        />
+                        {isActive ? (
+                          <motion.div
+                            key={`progress-${currentFeature}`}
+                            className="h-full rounded-full bg-sky-500"
+                            initial={{ width: "0%" }}
+                            animate={{ width: "100%" }}
+                            transition={{ duration: autoPlayInterval / 1000, ease: "linear" }}
+                          />
+                        ) : (
+                          <div className="h-full w-0 rounded-full bg-slate-300/70" />
+                        )}
                       </div>
                     </div>
                   </div>

@@ -82,7 +82,11 @@ export function priorityBadge(priority: string): BadgeInfo {
 }
 
 export function categoryBadge(label: string): BadgeInfo {
-  return { label, variant: "secondary" };
+  return {
+    label,
+    variant: "outline",
+    className: "border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-900/50 dark:bg-sky-950/30 dark:text-sky-300",
+  };
 }
 
 export function assignmentValue(selection: AssignmentSelection): string {

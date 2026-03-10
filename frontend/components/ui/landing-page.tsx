@@ -5,7 +5,13 @@ import { motion } from "framer-motion";
 import {
   ArrowRight,
   ClipboardCheck,
-  UserRoundSearch,
+  Circle,
+  Github,
+  Instagram,
+  Linkedin,
+  Search,
+  SlidersHorizontal,
+  Twitter,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -91,12 +97,47 @@ const outcomeCards = [
   },
 ];
 
+const queuePreviewTickets = [
+  {
+    id: "preview-urgent",
+    ticketNumber: "TKT-2048",
+    title: "Delayed reimbursement for emergency admission",
+    status: "Escalated",
+    priority: "High",
+    category: "Claims",
+    assignee: "Maria Dela Cruz",
+    updated: "5m ago",
+  },
+  {
+    id: "preview-followup",
+    ticketNumber: "TKT-2054",
+    title: "Policy cancellation refund follow-up",
+    status: "In Progress",
+    priority: "Medium",
+    category: "Billing",
+    assignee: "Queue review",
+    updated: "18m ago",
+  },
+];
+
+function previewBadgeClass(kind: "status" | "priority", value: string) {
+  if (kind === "status") {
+    if (value === "Escalated") return "border-rose-200 bg-rose-50 text-rose-700";
+    if (value === "In Progress") return "border-blue-200 bg-blue-50 text-blue-700";
+    return "border-slate-200 bg-slate-100 text-slate-700";
+  }
+
+  if (value === "High") return "border-amber-200 bg-amber-50 text-amber-700";
+  if (value === "Medium") return "border-orange-200 bg-orange-50 text-orange-700";
+  return "border-slate-200 bg-slate-100 text-slate-700";
+}
+
 export function InsightaLandingPage() {
   return (
-    <div className="flex min-h-screen flex-col bg-[radial-gradient(circle_at_top_left,_rgba(15,23,42,0.08),_transparent_28%),radial-gradient(circle_at_top_right,_rgba(14,165,233,0.18),_transparent_24%),linear-gradient(180deg,_#f8fbff_0%,_#eef5ff_42%,_#ffffff_100%)] text-slate-950">
+    <div className="flex min-h-screen flex-col bg-[#ffffff] text-[#0A111F]">
       <main className="flex-1">
         <section className="px-4 pb-6 pt-4 sm:px-6 lg:px-8 lg:pb-8 lg:pt-6">
-          <div className="mx-auto grid max-w-7xl gap-8 rounded-[2rem] border border-white/70 bg-white/75 p-6 shadow-[0_30px_80px_rgba(15,23,42,0.08)] backdrop-blur xl:grid-cols-[1.08fr_0.92fr] xl:p-10">
+          <div className="mx-auto grid max-w-7xl gap-8 rounded-[2rem] border border-[#D9E1E8] bg-[#EBEDF0] p-6 shadow-[0_30px_80px_rgba(10,17,31,0.12)] xl:grid-cols-[1.08fr_0.92fr] xl:p-10">
             <motion.div
               initial="hidden"
               whileInView="visible"
@@ -107,24 +148,24 @@ export function InsightaLandingPage() {
               <motion.div variants={fadeIn} className="space-y-4">
                 <motion.div
                   variants={itemFadeIn}
-                  className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-sm font-medium text-sky-900"
+                  className="inline-flex items-center gap-2 rounded-full border border-[#AFC3D5] bg-[#D9E4EE] px-3 py-1 text-sm font-medium text-[#1E5D88]"
                 >
                   <ClipboardCheck className="size-4" />
                   AI-assisted complaint and feedback management
                 </motion.div>
                 <motion.h1
                   variants={itemFadeIn}
-                  className="max-w-3xl text-4xl font-bold tracking-tight sm:text-5xl xl:text-6xl xl:leading-[1.05]"
+                  className="max-w-3xl text-4xl font-bold tracking-tight text-[#0A111F] sm:text-5xl xl:text-6xl xl:leading-[1.05]"
                 >
                   Manage insurance complaints and feedback with 
-                  <span className="bg-gradient-to-r from-slate-950 via-sky-700 to-cyan-500 bg-clip-text text-transparent">
+                  <span className="bg-gradient-to-r from-[#0A111F] via-[#005D9F] to-[#19B5D8] bg-clip-text text-transparent">
                     {" "}speed, clarity, and accountability.
                   </span>
                 </motion.h1>
               </motion.div>
 
               <motion.div variants={itemFadeIn} className="flex flex-col gap-3 sm:flex-row">
-                <Button asChild size="lg" className="rounded-full bg-slate-950 px-7 hover:bg-slate-800">
+                <Button asChild size="lg" className="rounded-full bg-[#005D9F] px-7 text-white hover:bg-[#004C81]">
                   <Link href="/submit">
                     Submit a Complaint
                     <ArrowRight className="ml-2 size-4" />
@@ -142,61 +183,119 @@ export function InsightaLandingPage() {
               viewport={viewportSettings}
               variants={slideInRight}
             >
-              <div className="overflow-hidden rounded-[2rem] bg-[linear-gradient(160deg,_rgba(15,23,42,0.96),_rgba(14,116,144,0.82))] p-6 text-white shadow-[0_20px_80px_rgba(8,47,73,0.32)]">
-                <div className="flex items-center justify-between">
+              <div className="overflow-hidden rounded-[2rem] border border-[#D9E1E8] bg-[#F3F5F7] p-5 text-[#0A111F] shadow-[0_24px_64px_rgba(10,17,31,0.1)] xl:p-5">
+                <div className="flex items-center justify-between gap-4">
                   <div>
-                    <p className="text-sm font-semibold uppercase tracking-[0.25em] text-sky-100/80">
+                    <p className="text-sm font-semibold uppercase tracking-[0.25em] text-[#6A7D90]">
                       Queue preview
                     </p>
-                    <h2 className="mt-3 max-w-sm text-2xl font-semibold leading-tight">
-                      Priority-first complaint triage for insurance operations.
+                    <h2 className="mt-2 max-w-sm text-xl font-semibold leading-tight text-[#0A111F]">
+                      Ticket workspace for fast queue review.
                     </h2>
                   </div>
-                  <div className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold">
-                    Escalation-ready routing for urgent cases
+                  <div className="rounded-full border border-[#AFC3D5] bg-[#D9E4EE] px-3 py-1 text-xs font-semibold text-[#1E5D88]">
+                    Staff workflow
                   </div>
                 </div>
 
-                <div className="mt-6 grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
-                  <div className="rounded-[1.5rem] border border-white/15 bg-white/10 p-4 backdrop-blur">
-                    <div className="rounded-[1.25rem] bg-white/95 p-4 text-slate-900">
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-semibold text-slate-500">High-risk complaint</p>
-                          <p className="mt-1 text-lg font-semibold">Misrouted reimbursement dispute</p>
-                        </div>
-                        <span className="rounded-full bg-rose-100 px-3 py-1 text-xs font-semibold text-rose-700">
-                          Escalate
-                        </span>
+                <div className="mt-4 rounded-[1.5rem] border border-[#D9E1E8] bg-[#EBEDF0] p-3.5">
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#D9E1E8] pb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="flex size-9 items-center justify-center rounded-xl border border-[#B7CADB] bg-[#DCE6EF]">
+                        <ClipboardCheck className="size-4.5 text-[#005D9F]" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-[#0A111F]">Ticket Workspace</p>
+                        <p className="text-xs text-[#7A8897]">Assigned and escalation-ready queue</p>
                       </div>
                     </div>
-                    <div className="mt-3 flex items-center justify-between rounded-[1.25rem] border border-white/10 bg-slate-950/20 px-4 py-3 text-sm">
-                      <span>Surface urgent complaints early and route them to the right reviewer before they stall.</span>
-                      <ArrowRight className="size-4" />
+                    <div className="flex items-center gap-2">
+                      <div className="inline-flex items-center gap-2 rounded-full border border-[#D1D9E0] bg-[#F8F9FA] px-3 py-1 text-xs text-[#718295]">
+                        <Search className="size-3.5" />
+                        Search tickets
+                      </div>
+                      <div className="inline-flex size-7 items-center justify-center rounded-full border border-[#D1D9E0] bg-[#F8F9FA] text-[#718295]">
+                        <SlidersHorizontal className="size-4" />
+                      </div>
                     </div>
                   </div>
 
-                  <div className="space-y-4">
-                    <div className="rounded-[1.5rem] border border-white/15 bg-white/10 p-4 backdrop-blur">
-                      <div className="flex items-center gap-3">
-                        <div className="flex size-11 items-center justify-center rounded-2xl bg-white/15">
-                          <UserRoundSearch className="size-5" />
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <span className="rounded-full bg-[#0A111F] px-3 py-1 text-xs font-semibold text-white">
+                      Assigned
+                    </span>
+                    <span className="rounded-full border border-[#D1D9E0] bg-[#F8F9FA] px-3 py-1 text-xs font-semibold text-[#66788B]">
+                      Unassigned
+                    </span>
+                    <span className="rounded-full border border-[#D1D9E0] bg-[#F8F9FA] px-3 py-1 text-xs font-semibold text-[#66788B]">
+                      All
+                    </span>
+                  </div>
+
+                  <div className="mt-3 grid gap-2.5">
+                    <div className="rounded-[1.25rem] border border-[#D4DCE3] bg-[#F8F9FA] p-3.5 shadow-sm">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-semibold text-[#66788B]">{queuePreviewTickets[0].ticketNumber}</p>
+                            <span className="inline-flex items-center gap-1 text-xs text-[#94A0AE]">
+                              <Circle className="size-2 fill-current stroke-none" />
+                              {queuePreviewTickets[0].updated}
+                            </span>
+                          </div>
+                          <p className="mt-1.5 line-clamp-2 text-[15px] font-semibold leading-6 text-[#0A111F]">
+                            {queuePreviewTickets[0].title}
+                          </p>
                         </div>
+                        <div className="rounded-full border border-[#D1D9E0] bg-[#EEF1F4] px-2.5 py-1 text-xs font-semibold text-[#5F7082]">
+                          {queuePreviewTickets[0].category}
+                        </div>
+                      </div>
+
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <span
+                          className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${previewBadgeClass("status", queuePreviewTickets[0].status)}`}
+                        >
+                          {queuePreviewTickets[0].status}
+                        </span>
+                        <span
+                          className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${previewBadgeClass("priority", queuePreviewTickets[0].priority)}`}
+                        >
+                          {queuePreviewTickets[0].priority}
+                        </span>
+                      </div>
+
+                      <div className="mt-3 flex items-center justify-between gap-3 rounded-[1rem] border border-[#D1D9E0] bg-[#EEF1F4] px-3 py-2 text-sm">
                         <div>
-                          <p className="text-sm font-semibold text-sky-50/80">Escalation-ready routing</p>
-                          <p className="text-lg font-semibold">Flag priority complaints and keep the staff queue actionable</p>
+                          <p className="font-medium text-[#0A111F]">{queuePreviewTickets[0].assignee}</p>
+                          <p className="text-xs text-[#718295]">Current owner</p>
+                        </div>
+                        <div className="inline-flex items-center gap-2 text-sm font-medium text-[#005D9F]">
+                          Open ticket
+                          <ArrowRight className="size-4" />
                         </div>
                       </div>
                     </div>
-                    <div className="overflow-hidden rounded-[1.5rem] border border-white/15 bg-white/10 p-2 backdrop-blur">
-                      <Image
-                        src="/assets/images/try6.png"
-                        alt="Insighta staff complaint queue preview"
-                        width={980}
-                        height={1100}
-                        className="h-[260px] w-full rounded-[1rem] object-cover object-top"
-                        priority
-                      />
+
+                    <div className="flex items-center justify-between gap-3 rounded-[1rem] border border-[#D4DCE3] bg-[#F8F9FA] px-3 py-2.5 text-sm shadow-sm">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-semibold text-[#66788B]">{queuePreviewTickets[1].ticketNumber}</p>
+                          <span className="inline-flex items-center gap-1 text-xs text-[#94A0AE]">
+                            <Circle className="size-2 fill-current stroke-none" />
+                            {queuePreviewTickets[1].updated}
+                          </span>
+                        </div>
+                        <p className="mt-1 truncate font-medium text-[#0A111F]">{queuePreviewTickets[1].title}</p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
+                        <span
+                          className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${previewBadgeClass("priority", queuePreviewTickets[1].priority)}`}
+                        >
+                          {queuePreviewTickets[1].priority}
+                        </span>
+                        <ArrowRight className="size-4 text-[#005D9F]" />
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -211,10 +310,10 @@ export function InsightaLandingPage() {
             whileInView="visible"
             viewport={viewportSettings}
             variants={staggerContainer}
-            className="mx-auto max-w-7xl rounded-[2rem] border border-slate-200/80 bg-white p-6 shadow-[0_20px_60px_rgba(15,23,42,0.06)] xl:p-10"
+            className="mx-auto max-w-7xl rounded-[2rem] border border-[#D9E1E8] bg-[#EBEDF0] p-6 shadow-[0_20px_60px_rgba(10,17,31,0.1)] xl:p-10"
           >
             <motion.div variants={fadeIn} className="mx-auto max-w-3xl text-center">
-              <div className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-sm font-medium text-slate-700">
+              <div className="inline-flex rounded-full border border-[#D1D9E0] bg-[#F6F7F8] px-3 py-1 text-sm font-medium text-[#586A7C]">
                 Capabilities
               </div>
             </motion.div>
@@ -235,69 +334,132 @@ export function InsightaLandingPage() {
             whileInView="visible"
             viewport={viewportSettings}
             variants={staggerContainer}
-            className="mx-auto grid max-w-7xl gap-6 rounded-[2rem] border border-slate-200/80 bg-slate-950 p-6 text-white shadow-[0_20px_70px_rgba(15,23,42,0.18)] lg:grid-cols-[0.85fr_1.15fr] xl:p-10"
+            className="mx-auto grid max-w-7xl gap-6 rounded-[2rem] border border-[#D9E1E8] bg-[#EBEDF0] p-6 text-[#0A111F] shadow-[0_20px_60px_rgba(10,17,31,0.1)] lg:grid-cols-[0.85fr_1.15fr] xl:p-10"
           >
             <motion.div variants={fadeIn} className="space-y-4">
-              <div className="inline-flex rounded-full border border-white/20 bg-white/10 px-3 py-1 text-sm font-medium text-sky-100">
+              <div className="inline-flex rounded-full border border-[#D1D9E0] bg-[#F6F7F8] px-3 py-1 text-sm font-medium text-[#586A7C]">
                 Workflow
               </div>
-              <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
+              <h2 className="text-3xl font-bold tracking-tight text-[#0A111F] sm:text-4xl">
                 From issue submission to coordinated follow-through.
               </h2>
-              <p className="text-base leading-8 text-slate-300 sm:text-lg">
+              <p className="text-base leading-8 text-[#5D6D7E] sm:text-lg">
                 Insighta helps teams manage insurance complaints more clearly while also capturing structured customer
                 feedback in one platform.
               </p>
-              <div className="overflow-hidden rounded-[1.5rem] border border-white/10 bg-white/5">
-                <Image src="/assets/images/blue_logo.png" alt="Insighta logo artwork" width={800} height={800} className="h-[280px] w-full object-cover" />
-              </div>
+              <Image
+                src="/assets/images/blue_logo.png"
+                alt="Insighta logo artwork"
+                width={800}
+                height={800}
+                className="h-[280px] w-full object-contain"
+              />
             </motion.div>
 
             <motion.div variants={staggerContainer} className="grid gap-4">
               {steps.map((step, index) => (
-                <motion.div key={step} variants={itemFadeIn} className="rounded-[1.5rem] border border-white/10 bg-white/5 p-5 backdrop-blur">
-                  <p className="text-sm font-semibold uppercase tracking-[0.22em] text-sky-200">
+                <motion.div key={step} variants={itemFadeIn} className="rounded-[1.5rem] border border-[#D1D9E0] bg-[#F6F7F8] p-5 shadow-sm">
+                  <p className="text-sm font-semibold uppercase tracking-[0.22em] text-[#6A7D90]">
                     Step 0{index + 1}
                   </p>
-                  <p className="mt-3 text-lg leading-8 text-white">{step}</p>
+                  <p className="mt-3 text-lg leading-8 text-[#0A111F]">{step}</p>
                 </motion.div>
               ))}
             </motion.div>
           </motion.div>
         </section>
 
-        <section id="contact" className="px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={viewportSettings}
-            variants={staggerContainer}
-            className="mx-auto max-w-5xl rounded-[2rem] border border-slate-200/80 bg-white p-6 shadow-[0_20px_60px_rgba(15,23,42,0.06)] xl:p-10"
-          >
-            <motion.div variants={fadeIn} className="space-y-5">
-              <div className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-sm font-medium text-slate-700">
-                Why Insighta
-              </div>
-              <h2 className="text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
-                Bring more structure to complaints and customer input.
-              </h2>
-              <motion.div variants={staggerContainer} className="grid gap-4">
-                {outcomeCards.map((card) => (
-                  <motion.div
-                    key={card.label}
-                    variants={itemFadeIn}
-                    className="rounded-[1.35rem] border border-slate-200 bg-slate-50 px-4 py-4"
-                  >
-                    <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-500">{card.label}</p>
-                    <p className="mt-2 text-lg font-semibold text-slate-950">{card.value}</p>
-                    <p className="mt-2 text-sm leading-7 text-slate-600">{card.description}</p>
-                  </motion.div>
-                ))}
-              </motion.div>
-            </motion.div>
-          </motion.div>
-        </section>
       </main>
+      <footer className="px-4 pb-8 pt-4 sm:px-6 lg:px-8 lg:pb-10">
+        <motion.div
+          initial="hidden"
+          whileInView="visible"
+          viewport={viewportSettings}
+          variants={fadeIn}
+          className="mx-auto grid max-w-7xl gap-6 rounded-[2rem] border border-[#D9E1E8] bg-[#EBEDF0] p-6 shadow-[0_20px_60px_rgba(10,17,31,0.1)] lg:grid-cols-[1.3fr_0.8fr_0.8fr] xl:p-8"
+        >
+          <div className="space-y-4">
+            <Link href="/" className="flex items-center gap-3">
+              <Image
+                src="/assets/images/blue_logo.png"
+                alt="Insighta logo"
+                width={48}
+                height={48}
+                className="size-12 object-contain"
+              />
+              <div>
+                <p className="text-xl font-bold text-[#0A111F]">Insighta</p>
+                <p className="text-sm text-[#5D6D7E]">Insurance complaint workflow platform</p>
+              </div>
+            </Link>
+            <p className="max-w-sm text-sm leading-7 text-[#5D6D7E]">
+              Manage complaint intake, queue review, follow-through, and customer visibility in one structured support experience.
+            </p>
+            <div className="flex items-center gap-3">
+              {[
+                { icon: Instagram, label: "Instagram" },
+                { icon: Twitter, label: "Twitter" },
+                { icon: Linkedin, label: "LinkedIn" },
+                { icon: Github, label: "GitHub" },
+              ].map((social) => {
+                const Icon = social.icon;
+                return (
+                  <Link
+                    key={social.label}
+                    href="#"
+                    className="inline-flex size-10 items-center justify-center rounded-full border border-[#D1D9E0] bg-[#F6F7F8] text-[#5D6D7E] transition-colors hover:border-[#AFC3D5] hover:text-[#005D9F]"
+                    aria-label={social.label}
+                  >
+                    <Icon className="size-4.5" />
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold text-[#0A111F]">Company</h3>
+            <nav className="flex flex-col gap-3 text-sm">
+              <Link href="/about" className="text-[#5D6D7E] hover:text-[#005D9F]">
+                About
+              </Link>
+              <Link href="/submit" className="text-[#5D6D7E] hover:text-[#005D9F]">
+                Submit a Ticket
+              </Link>
+              <Link href="/track" className="text-[#5D6D7E] hover:text-[#005D9F]">
+                Track Ticket
+              </Link>
+              <Link href="/feedback" className="text-[#5D6D7E] hover:text-[#005D9F]">
+                Feedback
+              </Link>
+            </nav>
+          </div>
+
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold text-[#0A111F]">Resources</h3>
+            <nav className="flex flex-col gap-3 text-sm">
+              <Link href="/login" className="text-[#5D6D7E] hover:text-[#005D9F]">
+                Login
+              </Link>
+              <Link href="/register" className="text-[#5D6D7E] hover:text-[#005D9F]">
+                Register
+              </Link>
+              <Link href="#" className="text-[#5D6D7E] hover:text-[#005D9F]">
+                Privacy Policy
+              </Link>
+              <Link href="#" className="text-[#5D6D7E] hover:text-[#005D9F]">
+                Terms of Service
+              </Link>
+            </nav>
+          </div>
+
+        </motion.div>
+
+        <div className="mx-auto mt-4 flex max-w-7xl flex-col items-center justify-between gap-3 border-t border-[#97A9BC] px-1 pt-4 text-xs text-[#31465B] sm:flex-row">
+          <p>&copy; {new Date().getFullYear()} Insighta. All rights reserved.</p>
+          <p className="text-[#41576D]">Built for structured complaint and feedback operations.</p>
+        </div>
+      </footer>
     </div>
   );
 }

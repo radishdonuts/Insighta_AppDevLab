@@ -37,10 +37,10 @@ function InfoItem({
   children?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col min-w-0">
-      <span className="text-xs text-muted-foreground">{label}</span>
+    <div className="flex min-w-0 flex-col">
+      <span className="text-xs font-medium uppercase tracking-[0.12em] text-slate-500">{label}</span>
       <div className="flex items-center gap-1.5">
-        <span className="font-semibold text-sm text-card-foreground truncate">
+        <span className="truncate text-sm font-semibold text-slate-900">
           {value}
         </span>
         {children}
@@ -78,13 +78,13 @@ export default function TicketCard({
       transition={{ duration: 0.35 }}
       whileHover={{ y: -2, transition: { duration: 0.15 } }}
     >
-      <Card className="w-full overflow-hidden rounded-2xl border-primary/10 shadow-lg">
+      <Card className="w-full overflow-hidden rounded-[1.4rem] border-slate-200 bg-white shadow-sm">
         {/* Header — assignee avatar, ticket number, updated date */}
-        <CardHeader className="bg-muted/30 p-6">
+        <CardHeader className="border-b border-slate-200 bg-white p-6">
           <div className="flex justify-between items-start gap-4">
             <div className="flex items-center gap-3 min-w-0">
-              <Avatar className={cn("h-14 w-14 shrink-0 border-2", isUnassigned ? "border-dashed border-muted-foreground/30" : "border-background")}>
-                <AvatarFallback className={cn("text-xs font-bold", isUnassigned && "text-muted-foreground bg-muted/50")}>
+              <Avatar className={cn("h-14 w-14 shrink-0 border-2", isUnassigned ? "border-dashed border-slate-300" : "border-sky-100")}>
+                <AvatarFallback className={cn("bg-sky-50 text-xs font-bold text-sky-900", isUnassigned && "bg-slate-100 text-slate-500")}>
                   {initialsForName(
                     ticket.assignedStaff?.displayName ?? null
                   )}
@@ -94,7 +94,7 @@ export default function TicketCard({
                 <p className="font-bold text-sm text-foreground truncate">
                   {ticket.assignedStaff?.displayName ?? "Unassigned"}
                 </p>
-                <p className="text-xs text-muted-foreground truncate">
+                <p className="text-xs text-slate-500 truncate">
                   {ticket.assignedStaff?.email ?? "No current owner"}
                 </p>
               </div>
@@ -102,7 +102,7 @@ export default function TicketCard({
 
             {/* Ticket number + copy */}
             <div className="flex items-center gap-1 shrink-0">
-              <span className="font-mono text-sm font-bold text-foreground">
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 font-mono text-sm font-bold text-slate-800">
                 {ticket.ticketNumber}
               </span>
               <Button
@@ -114,7 +114,7 @@ export default function TicketCard({
                 <ClipboardCopy
                   className={cn(
                     "h-4 w-4 transition-colors",
-                    copied ? "text-primary" : "text-muted-foreground"
+                    copied ? "text-sky-700" : "text-slate-400"
                   )}
                 />
               </Button>
@@ -123,10 +123,10 @@ export default function TicketCard({
         </CardHeader>
 
         {/* Content — title, badge row, info grid, description */}
-        <CardContent className="p-6 space-y-6">
+        <CardContent className="space-y-6 p-6">
           {/* Title */}
           {ticket.title && (
-            <p className="text-sm font-semibold text-card-foreground line-clamp-1">
+            <p className="text-sm font-semibold text-slate-950 line-clamp-1">
               {ticket.title}
             </p>
           )}
@@ -139,7 +139,7 @@ export default function TicketCard({
           </div>
 
           {/* Info grid */}
-          <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+          <div className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-[1rem] border border-slate-200 bg-slate-50 p-4">
             <InfoItem label="Submitter" value={ticket.submitterType} />
             <InfoItem
               label="Field Source"
@@ -148,7 +148,7 @@ export default function TicketCard({
                 ticket.categorySource
               )}
             />
-            <div className="col-span-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+            <div className="col-span-2 flex items-center gap-1.5 text-xs text-slate-500">
               <Clock className="h-3.5 w-3.5" />
               <span>Updated {relativeTime(ticket.lastUpdatedAt)}</span>
             </div>
@@ -156,15 +156,15 @@ export default function TicketCard({
 
           {/* Description */}
           {ticket.description && (
-            <p className="text-sm text-muted-foreground line-clamp-2">
+            <p className="text-sm leading-6 text-slate-600 line-clamp-2">
               {ticket.description}
             </p>
           )}
         </CardContent>
 
         {/* Footer — open ticket link */}
-        <CardFooter className="bg-muted/30 p-6">
-          <Button asChild className="group h-11 w-full rounded-xl border-input/80 bg-background/90 shadow-none hover:bg-background" variant="outline">
+        <CardFooter className="border-t border-slate-200 bg-slate-50 p-6">
+          <Button asChild className="group h-11 w-full rounded-xl border-slate-200 bg-white text-slate-900 shadow-none hover:border-sky-200 hover:bg-white" variant="outline">
             <Link href={`${detailHrefBase}/${ticket.id}`}>
               Open Ticket
               <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-0.5" />
