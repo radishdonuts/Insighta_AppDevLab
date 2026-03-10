@@ -28,3 +28,12 @@ __pycache__/
 .venv/
 env/
 dist/
+
+frontend.zip
+frontend/frontend.zip
+*.zip
+
+# NLP local artifacts/cache (do not commit model weights)
+.cache/
+backend/.cache/
+

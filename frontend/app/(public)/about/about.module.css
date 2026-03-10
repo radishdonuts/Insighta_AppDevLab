@@ -1,0 +1,173 @@
+/* About page specific styles */
+
+.aboutPage {
+  min-height: 100vh;
+}
+
+.aboutHeader {
+  text-align: center;
+  padding: clamp(2.5rem, 5vw, 4rem) clamp(1rem, 2vw, 2rem) clamp(2rem, 4vw, 3rem);
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.aboutHeader h1 {
+  font-size: clamp(2rem, 5vw, 3rem);
+  font-weight: 800;
+  margin: 0 0 1rem;
+}
+
+.aboutHeader h1 span {
+  color: var(--accent);
+}
+
+.aboutHeader p {
+  color: var(--muted);
+  font-size: 1.05rem;
+  line-height: 1.75;
+  margin: 0;
+}
+
+.aboutContent {
+  background: #fff;
+  border-radius: 2rem 2rem 0 0;
+  padding-top: 1rem;
+}
+
+.container {
+  position: relative;
+  z-index: 2;
+  width: min(95vw, 1140px);
+  margin: 0 auto;
+  padding: clamp(1.5rem, 3vw, 2.5rem) clamp(1rem, 2vw, 1.5rem);
+  display: grid;
+  gap: 1.5rem;
+}
+
+.section,
+.textPanel {
+  border: 1px solid var(--line);
+  border-radius: 1.4rem;
+  background:
+    linear-gradient(150deg, rgba(248, 252, 255, 0.95), rgba(216, 233, 253, 0.84));
+  backdrop-filter: blur(12px);
+  padding: clamp(1.2rem, 2.5vw, 2rem);
+  transition:
+    transform 0.24s ease,
+    box-shadow 0.24s ease,
+    border-color 0.24s ease;
+}
+
+.section h2,
+.textPanel h2 {
+  margin: 0;
+  font-size: clamp(1.45rem, 3vw, 2rem);
+}
+
+.textPanel p {
+  margin-top: 0.7rem;
+  color: var(--muted);
+  line-height: 1.75;
+}
+
+.capabilityGrid {
+  display: grid;
+  gap: 0.8rem;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+  margin-top: 1rem;
+}
+
+.capabilityCard {
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 10px 22px rgba(11, 64, 111, 0.08);
+  transition:
+    transform 0.22s ease,
+    box-shadow 0.22s ease,
+    border-color 0.22s ease;
+}
+
+.capabilityCardFeatured {
+  background: linear-gradient(160deg, #125492, #0d3f70);
+  border-color: rgba(14, 98, 165, 0.72);
+  box-shadow: 0 14px 28px rgba(9, 53, 93, 0.25);
+}
+
+.capabilityBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 40px;
+  height: 28px;
+  border-radius: 999px;
+  padding: 0 0.65rem;
+  background: rgba(14, 98, 165, 0.14);
+  color: #234568;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.capabilityCard h3 {
+  margin: 0.7rem 0 0;
+  font-size: 1.05rem;
+}
+
+.capabilityCard p {
+  margin: 0.36rem 0 0;
+  color: var(--muted);
+  font-size: 0.94rem;
+  line-height: 1.6;
+}
+
+.capabilityCardFeatured .capabilityBadge {
+  background: rgba(255, 255, 255, 0.2);
+  color: #f8fbff;
+}
+
+.capabilityCardFeatured h3,
+.capabilityCardFeatured p {
+  color: #f8fbff;
+}
+
+.ctaSection {
+  text-align: center;
+  padding: clamp(1rem, 2.5vw, 1.8rem) 0;
+}
+
+.ctaSection p {
+  margin: 0 0 1rem;
+  color: var(--muted);
+  font-size: 1.02rem;
+}
+
+.section:hover,
+.textPanel:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 18px 36px rgba(11, 64, 111, 0.1);
+  border-color: rgba(14, 98, 165, 0.22);
+}
+
+.capabilityCard:hover {
+  box-shadow: 0 18px 34px rgba(11, 64, 111, 0.14);
+  border-color: rgba(14, 98, 165, 0.24);
+}
+
+@media (min-width: 760px) {
+  .capabilityGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 980px) {
+  .capabilityGrid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .aboutHeader {
+    padding-top: clamp(1.5rem, 3vw, 2rem);
+  }
+}

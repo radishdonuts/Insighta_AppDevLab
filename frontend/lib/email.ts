@@ -11,6 +11,7 @@ type TicketStatusEmailInput = {
   trackingNumber: string;
   status: string;
   remarks?: string | null;
+  feedbackUrl?: string | null;
 };
 
 function asTrimmed(value: string | undefined): string {
@@ -125,10 +126,49 @@ export async function sendTicketCreatedEmail(input: TicketCreatedEmailInput) {
   });
 }
 
+type OtpEmailInput = {
+  to: string;
+  otp: string;
+};
+
+export async function sendOtpEmail(input: OtpEmailInput) {
+  const otp = input.otp.trim();
+
+  const subject = "Insighta: Your verification code";
+  const text = [
+    "Your one-time verification code is:",
+    "",
+    otp,
+    "",
+    "This code expires in 5 minutes. Do not share it with anyone.",
+    "",
+    "If you did not request this code, you can safely ignore this email.",
+  ].join("\n");
+
+  const html = `
+    <div style="font-family: Arial, sans-serif; color: #111827; line-height: 1.5;">
+      <h2 style="margin: 0 0 12px;">Verification code</h2>
+      <p style="margin: 0 0 12px;">Your one-time verification code is:</p>
+      <p style="margin: 0 0 16px; font-family: monospace; font-size: 28px; font-weight: 700; letter-spacing: 6px; color: #1d4ed8;">${escapeHtml(otp)}</p>
+      <p style="margin: 0 0 6px; color: #6b7280; font-size: 14px;">This code expires in 5 minutes. Do not share it with anyone.</p>
+      <p style="margin: 12px 0 0; color: #6b7280; font-size: 13px;">If you did not request this code, you can safely ignore this email.</p>
+    </div>
+  `;
+
+  await sendEmail({
+    to: input.to,
+    subject,
+    text,
+    html,
+  });
+}
+
 export async function sendTicketStatusUpdatedEmail(input: TicketStatusEmailInput) {
   const tracking = input.trackingNumber.trim();
   const status = input.status.trim();
   const remarks = input.remarks?.trim();
+  const feedbackUrl = input.feedbackUrl?.trim() || "";
+  const includeFeedbackLink = !!feedbackUrl && (status.toLowerCase() === "resolved" || status.toLowerCase() === "closed");
 
   const subject = `Insighta: Ticket status updated to ${status}`;
   const text = [
@@ -137,6 +177,7 @@ export async function sendTicketStatusUpdatedEmail(input: TicketStatusEmailInput
     `Tracking number: ${tracking}`,
     `New status: ${status}`,
     ...(remarks ? ["", `Remarks: ${remarks}`] : []),
+    ...(includeFeedbackLink ? ["", `Share your feedback: ${feedbackUrl}`] : []),
     "",
     "Use your tracking number on the Track Ticket page to view the latest status.",
   ].join("\n");
@@ -147,6 +188,7 @@ export async function sendTicketStatusUpdatedEmail(input: TicketStatusEmailInput
       <p style="margin: 0 0 6px;"><strong>Tracking number:</strong> <span style="font-family: monospace; color: #1d4ed8;">${escapeHtml(tracking)}</span></p>
       <p style="margin: 0 0 6px;"><strong>New status:</strong> ${escapeHtml(status)}</p>
       ${remarks ? `<p style="margin: 0 0 6px;"><strong>Remarks:</strong> ${escapeHtml(remarks)}</p>` : ""}
+      ${includeFeedbackLink ? `<p style="margin: 0 0 6px;"><strong>Share feedback:</strong> <a href="${escapeHtml(feedbackUrl)}">${escapeHtml(feedbackUrl)}</a></p>` : ""}
       <p style="margin: 12px 0 0;">Use your tracking number on the Track Ticket page to view the latest status.</p>
     </div>
   `;

@@ -1,0 +1,104 @@
+{
+  "categoryName": {
+    "Policy & Account Servicing": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 23.0
+    },
+    "Claims Experience": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 22.0
+    },
+    "Payments, Billing & Refunds": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 22.0
+    },
+    "Documents & Requirements": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 22.0
+    },
+    "Customer Support & Service Quality": {
+      "precision": 0.5217391304347826,
+      "recall": 0.5454545454545454,
+      "f1-score": 0.5333333333333333,
+      "support": 22.0
+    },
+    "Digital Access & Technical Issues": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 22.0
+    },
+    "Fraud, Security & Privacy": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 22.0
+    },
+    "Product/Partner Service Delivery": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 23.0
+    },
+    "Other / Uncategorized": {
+      "precision": 0.5238095238095238,
+      "recall": 0.5,
+      "f1-score": 0.5116279069767442,
+      "support": 22.0
+    },
+    "accuracy": 0.895,
+    "macro avg": {
+      "precision": 0.8939498504715897,
+      "recall": 0.8939393939393939,
+      "f1-score": 0.8938845822566752,
+      "support": 200.0
+    },
+    "weighted avg": {
+      "precision": 0.8950103519668737,
+      "recall": 0.895,
+      "f1-score": 0.8949457364341086,
+      "support": 200.0
+    }
+  },
+  "priority": {
+    "Low": {
+      "precision": 0.9577464788732394,
+      "recall": 1.0,
+      "f1-score": 0.9784172661870504,
+      "support": 68.0
+    },
+    "Med": {
+      "precision": 0.9850746268656716,
+      "recall": 0.9705882352941176,
+      "f1-score": 0.9777777777777777,
+      "support": 68.0
+    },
+    "High": {
+      "precision": 1.0,
+      "recall": 0.96875,
+      "f1-score": 0.9841269841269841,
+      "support": 64.0
+    },
+    "accuracy": 0.98,
+    "macro avg": {
+      "precision": 0.980940368579637,
+      "recall": 0.979779411764706,
+      "f1-score": 0.9801073426972707,
+      "support": 200.0
+    },
+    "weighted avg": {
+      "precision": 0.9805591759512297,
+      "recall": 0.98,
+      "f1-score": 0.9800269498686766,
+      "support": 200.0
+    }
+  }
+}

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { jsonError, jsonServerError } from "@/app/api/staff/_utils";
+import { jsonError, jsonServerError } from "@/lib/api/staff-utils";
 import {
   getStaffSupabase,
   getStaffTicketDetail,
@@ -25,7 +25,7 @@ export async function GET(
   }
 
   try {
-    const detail = await getStaffTicketDetail(getStaffSupabase(), ticketId);
+    const detail = await getStaffTicketDetail(getStaffSupabase(), ticketId, authResult.auth);
     if (!detail) {
       return jsonError(404, "Ticket not found.");
     }
@@ -35,3 +35,4 @@ export async function GET(
     return jsonServerError(error, "Failed to load ticket detail.");
   }
 }
+

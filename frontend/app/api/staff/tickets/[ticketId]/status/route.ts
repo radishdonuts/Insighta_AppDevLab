@@ -2,7 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 
 import { NextResponse } from "next/server";
 
-import { jsonError, jsonServerError, parseJsonRequestBody } from "@/app/api/staff/_utils";
+import { jsonError, jsonServerError, parseJsonRequestBody } from "@/lib/api/staff-utils";
 import { isEmailConfigured, sendTicketStatusUpdatedEmail } from "@/lib/email";
 import {
   getRequestIpAddress,
@@ -101,6 +101,7 @@ async function sendStatusUpdatedEmailSafe(input: {
   ticketId: string;
   status: string;
   remarks?: string;
+  feedbackUrl?: string | null;
 }) {
   if (!isEmailConfigured()) {
     return;
@@ -147,6 +148,7 @@ async function sendStatusUpdatedEmailSafe(input: {
     : existingTrackingNumber || ticketNumber;
 
   if (!trackingNumber) return;
+  const feedbackUrl = input.feedbackUrl ?? null;
 
   try {
     await sendTicketStatusUpdatedEmail({
@@ -154,6 +156,7 @@ async function sendStatusUpdatedEmailSafe(input: {
       trackingNumber,
       status: input.status,
       remarks: input.remarks,
+      feedbackUrl,
     });
   } catch (notifyError) {
     console.error("[staff/status] Failed to send status update email", {
@@ -204,10 +207,18 @@ export async function PATCH(
     }
 
     if (result.ok && result.data.message === "Ticket status updated successfully.") {
+      const statusNormalized = result.data.ticket.status.trim().toLowerCase();
+      const includeFeedback = statusNormalized === "resolved" || statusNormalized === "closed";
+      const origin = new URL(request.url).origin;
+      const feedbackUrl = includeFeedback
+        ? `${origin}/feedback`
+        : null;
+
       await sendStatusUpdatedEmailSafe({
         ticketId,
         status: result.data.ticket.status,
         remarks: input.remarks,
+        feedbackUrl,
       });
     }
 
@@ -216,3 +227,4 @@ export async function PATCH(
     return jsonServerError(error, "Failed to update ticket status.");
   }
 }
+

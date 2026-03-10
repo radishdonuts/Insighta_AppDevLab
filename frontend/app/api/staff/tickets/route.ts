@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { jsonServerError } from "@/app/api/staff/_utils";
+import { jsonServerError } from "@/lib/api/staff-utils";
 import {
   getStaffSupabase,
   listStaffTickets,
@@ -19,9 +19,10 @@ export async function GET(request: Request) {
   try {
     const searchParams = new URL(request.url).searchParams;
     const filters = parseStaffQueueFilters(searchParams);
-    const response = await listStaffTickets(getStaffSupabase(), filters, authResult.auth.userId);
+    const response = await listStaffTickets(getStaffSupabase(), filters, authResult.auth);
     return NextResponse.json(response);
   } catch (error) {
     return jsonServerError(error, "Failed to load staff tickets.");
   }
 }
+

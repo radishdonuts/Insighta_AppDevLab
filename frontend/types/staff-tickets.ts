@@ -1,9 +1,10 @@
-import type { PaginatedResponse, PaginationMeta } from "@/types/api";
+﻿import type { PaginatedResponse, PaginationMeta } from "@/types/api";
 import type { TicketPriority, TicketStatus, TicketType } from "@/types/tickets";
 
-export const STAFF_TICKET_TABS = ["my", "unassigned"] as const;
+export const STAFF_TICKET_TABS = ["my", "unassigned", "all"] as const;
 export type StaffTicketTab = (typeof STAFF_TICKET_TABS)[number];
 
+// "assigned" is kept as a read-only legacy value for backward URL compatibility.
 export const STAFF_ASSIGNMENT_FILTERS = ["all", "mine", "assigned", "unassigned"] as const;
 export type StaffAssignmentFilter = (typeof STAFF_ASSIGNMENT_FILTERS)[number];
 
@@ -15,6 +16,7 @@ export type StaffQueueFilters = {
   priority?: TicketPriority;
   categoryId?: string;
   assignment: StaffAssignmentFilter;
+  assignedTo?: string;
   q?: string;
 };
 
@@ -31,6 +33,8 @@ export type StaffCategorySummary = {
   name: string;
 };
 
+export type TicketFieldSource = "user" | "nlp" | "human_intervention" | "default" | null;
+
 export type StaffTicketQueueItem = {
   id: string;
   ticketNumber: string;
@@ -42,6 +46,8 @@ export type StaffTicketQueueItem = {
   submittedAt: string;
   lastUpdatedAt: string;
   category: StaffCategorySummary | null;
+  categorySource: TicketFieldSource;
+  prioritySource: TicketFieldSource;
   assignedStaff: StaffPersonSummary | null;
   submitterType: "Customer" | "Guest" | "Unknown";
 };
@@ -49,6 +55,17 @@ export type StaffTicketQueueItem = {
 export type StaffTicketQueueResponse = PaginatedResponse<StaffTicketQueueItem> & {
   filters: StaffQueueFilters;
   categoryOptions: StaffCategorySummary[];
+  staffOptions: StaffPersonSummary[];
+  tabCounts: {
+    my: number;
+    unassigned: number;
+    all: number;
+  };
+  summary: {
+    total: number;
+    unassigned: number;
+    highPriority: number;
+  };
 };
 
 export type StaffAttachmentMetadata = {
@@ -69,14 +86,19 @@ export type StaffTicketStatusHistoryItem = {
   changedBy: StaffPersonSummary | null;
 };
 
-export type StaffTicketFeedback = {
+export type StaffTicketNote = {
   id: string;
-  rating: number;
-  comment: string | null;
-  submittedAt: string;
-  submitterType: "Customer" | "Guest" | "Unknown";
-  submittedBy: StaffPersonSummary | null;
-  guestEmail: string | null;
+  content: string;
+  createdAt: string;
+  author: StaffPersonSummary | null;
+};
+
+export type StaffTicketMessage = {
+  id: string;
+  content: string;
+  senderType: string;
+  createdAt: string;
+  sender: StaffPersonSummary | null;
 };
 
 export type StaffTicketDetail = {
@@ -89,20 +111,28 @@ export type StaffTicketDetail = {
   description: string;
   submittedAt: string;
   lastUpdatedAt: string;
-  sentiment: string | null;
-  detectedIntent: string | null;
-  detectedIntentId: string | null;
-  issueType: string | null;
-  issueTypeId: string | null;
+  categoryName: string | null;
   category: StaffCategorySummary | null;
   categoryId: string | null;
+  categorySource: TicketFieldSource;
+  prioritySource: TicketFieldSource;
   submitterType: "Customer" | "Guest" | "Unknown";
   submitter: StaffPersonSummary | null;
   guestEmail: string | null;
   assignedStaff: StaffPersonSummary | null;
+  nlpSuggestion: {
+    analysisId: string | null;
+    status: string | null;
+    isApplied: boolean;
+    suggestedCategoryName: string | null;
+    suggestedPriority: TicketPriority | string | null;
+    confidenceCategory: number | null;
+    confidencePriority: number | null;
+    prioritySource: "ml" | "rule" | null;
+    createdAt: string | null;
+  } | null;
   attachments: StaffAttachmentMetadata[];
   statusHistory: StaffTicketStatusHistoryItem[];
-  feedback: StaffTicketFeedback | null;
 };
 
 export type StaffTicketDetailResponse = {
@@ -117,29 +147,41 @@ export type StaffNlpLabelOption = {
 export type StaffNlpReviewOptionsResponse = {
   ticket: Pick<
     StaffTicketDetail,
-    "id" | "sentiment" | "detectedIntent" | "detectedIntentId" | "issueType" | "issueTypeId" | "priority" | "categoryId"
+    "id" | "priority" | "categoryName" | "categoryId"
   >;
   options: {
-    sentiments: string[];
     priorities: string[];
-    intents: StaffNlpLabelOption[];
-    issueTypes: StaffNlpLabelOption[];
     categories: StaffCategorySummary[];
   };
 };
 
 export type StaffNlpReviewRequest = {
   analysisId?: string;
-  correctedSentiment?: string | null;
-  correctedIntentId?: string | null;
-  correctedIssueTypeId?: string | null;
   correctedPriority?: string | null;
-  correctedCategoryId?: string | null;
+  correctedCategoryName?: string | null;
   notes?: string;
 };
 
 export type StaffNlpReviewResponse = {
   message: string;
+};
+
+export type StaffTicketNotesResponse = {
+  notes: StaffTicketNote[];
+};
+
+export type StaffTicketNoteCreateResponse = {
+  message: string;
+  note: unknown;
+};
+
+export type StaffTicketMessagesResponse = {
+  messages: StaffTicketMessage[];
+};
+
+export type StaffTicketMessageCreateResponse = {
+  message: string;
+  data: unknown;
 };
 
 export type StaffStatusUpdateRequest = {
