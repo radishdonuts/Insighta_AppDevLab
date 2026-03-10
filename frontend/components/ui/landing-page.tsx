@@ -194,7 +194,7 @@ export function InsightaLandingPage() {
                     </h2>
                   </div>
                   <div className="rounded-full border border-[#AFC3D5] bg-[#D9E4EE] px-3 py-1 text-xs font-semibold text-[#1E5D88]">
-                    Staff workflow
+                    Workflow
                   </div>
                 </div>
 

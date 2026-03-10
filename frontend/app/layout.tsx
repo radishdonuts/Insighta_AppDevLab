@@ -17,7 +17,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className={`${sora.variable} ${jakarta.variable}`}>{children}</body>
+      <body className={`${sora.variable} ${jakarta.variable} font-sans antialiased`}>
+        {children}
+      </body>
     </html>
   );
 }

@@ -337,14 +337,6 @@ export default function SubmitPage() {
         {step < 5 && (
           <>
             <motion.header className={styles.header} variants={itemVariants}>
-              <motion.div
-                className={styles.headerPill}
-                variants={itemVariants}
-                whileHover={{ y: -1 }}
-              >
-                <Sparkles size={14} aria-hidden="true" />
-                Guided Complaint Intake
-              </motion.div>
               <motion.h1 variants={itemVariants}>Submit a Complaint</motion.h1>
               <motion.p variants={itemVariants}>We'll review your complaint and get back to you.</motion.p>
             </motion.header>
