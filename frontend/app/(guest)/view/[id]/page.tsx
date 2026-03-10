@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useState, type CSSProperties } from "react";
 import { motion } from "framer-motion";
 
 type ApiTicket = {
@@ -37,7 +37,6 @@ type TicketDetail = {
   ticketType: string;
   title: string;
   status: string;
-  priority: string;
   category: string;
   description: string;
   submittedAt: string;
@@ -58,7 +57,6 @@ function toTicketDetail(input: ApiTicket, fallbackId: string): TicketDetail {
     ticketType: asString(input.ticketType) || asString(input.ticket_type),
     title: asString(input.title),
     status: asString(input.status),
-    priority: asString(input.priority),
     category: asString(input.categoryName) || asString(input.category_name),
     description: asString(input.description),
     submittedAt: asString(input.submittedAt) || asString(input.submitted_at),
@@ -84,6 +82,12 @@ function formatDate(value: string): string {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(timestamp));
+}
+
+function capitalizeFirstLetter(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  return `${trimmed.charAt(0).toUpperCase()}${trimmed.slice(1)}`;
 }
 
 export default function TicketDetailPage({ params }: { params: { id: string } }) {
@@ -164,13 +168,10 @@ function TicketDetailPageContent({
 
   const currentStep = deriveStepIndex(ticket?.status ?? "");
   const displayIdentifier = token || ticket?.guestTrackingNumber || ticket?.reference || ticket?.id || params.id;
-  const displayLabel = token ? "Tracking" : "Ticket";
-  const priorityColors: Record<string, { bg: string; text: string; border: string }> = {
-    High: { bg: "bg-red-50", text: "text-red-700", border: "border-red-200" },
-    Medium: { bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-200" },
-    Low: { bg: "bg-green-50", text: "text-green-700", border: "border-green-200" },
-  };
-  const priorityStyle = priorityColors[ticket?.priority ?? ""] ?? priorityColors.Low;
+  const brandBlueVars = {
+    "--accent": "#179fe5",
+    "--accent-hover": "#138dc9",
+  } as CSSProperties;
 
   const cardVariants = {
     hidden: { opacity: 0, y: 30 },
@@ -192,18 +193,18 @@ function TicketDetailPageContent({
   };
 
   return (
-    <div className="flex min-h-screen flex-col bg-[radial-gradient(circle_at_top_left,_rgba(15,23,42,0.08),_transparent_28%),radial-gradient(circle_at_top_right,_rgba(14,165,233,0.18),_transparent_24%),linear-gradient(180deg,_#f8fbff_0%,_#eef5ff_42%,_#ffffff_100%)] text-slate-950">
-      <main className="flex-1 px-4 py-16 sm:px-6 lg:px-8">
+    <div className="flex min-h-screen flex-col">
+      <main className="mx-auto my-4 min-h-[calc(100vh-4rem)] w-full max-w-6xl px-4 py-8" style={brandBlueVars}>
         <motion.div
           variants={cardVariants}
           initial="hidden"
           animate="visible"
-          className="mx-auto max-w-3xl rounded-[2rem] border border-white/70 bg-white/75 p-8 shadow-[0_30px_80px_rgba(15,23,42,0.08)] backdrop-blur sm:p-10"
+          className="mx-auto max-w-5xl rounded-xl border bg-white p-6 md:p-8"
         >
           <motion.div variants={itemVariants} className="mb-6">
             <Link
               href="/track"
-              className="inline-flex items-center rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:border-sky-300 hover:text-sky-700"
+              className="inline-flex items-center justify-center rounded-full border border-[#179fe5] bg-[#179fe5] px-5 py-2.5 text-sm font-bold text-[#f8fafc] transition-[background-color,border-color,transform] duration-150 hover:border-[#138dc9] hover:bg-[#138dc9] active:translate-y-px"
             >
               Back to tracking
             </Link>
@@ -213,7 +214,7 @@ function TicketDetailPageContent({
             variants={itemVariants}
             className="mb-2 text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl"
           >
-            {displayLabel}: {displayIdentifier}
+            {capitalizeFirstLetter(ticket?.title || "Untitled complaint")}
           </motion.h1>
           <motion.p variants={itemVariants} className="mb-8 text-base leading-relaxed text-slate-600">
             View the details and status of your complaint.
@@ -244,17 +245,12 @@ function TicketDetailPageContent({
                 <h3 className="mb-3 text-lg font-bold text-slate-800">
                   {`${ticket.ticketType || "Ticket"} details`}
                 </h3>
-                {ticket.title ? (
-                  <p className="mb-3 text-base font-semibold text-slate-900">{ticket.title}</p>
+                {displayIdentifier ? (
+                  <p className="mb-3 text-base font-semibold text-slate-900">Ticket ID: {displayIdentifier}</p>
                 ) : null}
                 <div className="flex flex-wrap gap-2">
                   <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700">
                     {ticket.category || "Uncategorized"}
-                  </span>
-                  <span
-                    className={`rounded-full border px-3 py-1 text-xs font-semibold ${priorityStyle.bg} ${priorityStyle.text} ${priorityStyle.border}`}
-                  >
-                    {(ticket.priority || "Low") + " Priority"}
                   </span>
                 </div>
               </motion.div>
@@ -296,12 +292,13 @@ function TicketDetailPageContent({
 
                   {/* Progress line */}
                   <div
-                    className="absolute top-[14px] left-[12.5%] h-[3px] rounded-full bg-sky-500 transition-all duration-400"
+                    className="absolute top-[14px] left-[12.5%] h-[3px] rounded-full transition-all duration-400"
                     style={{
                       width:
                         currentStep === 0
                           ? "0%"
                           : `calc(${(currentStep / (STEPS.length - 1)) * 100}% - 25%)`,
+                      background: "var(--accent)",
                       zIndex: 1,
                     }}
                   />
@@ -317,7 +314,7 @@ function TicketDetailPageContent({
                         <div
                           className={`flex h-[30px] w-[30px] items-center justify-center rounded-full border-[2.5px] transition-all duration-200 ${
                             done || active
-                              ? "border-sky-500 bg-sky-500"
+                              ? "border-[var(--accent)] bg-[var(--accent)]"
                               : "border-slate-300 bg-white"
                           }`}
                         >
@@ -344,7 +341,7 @@ function TicketDetailPageContent({
                         <span
                           className={`text-center text-xs leading-tight ${
                             active
-                              ? "font-bold text-cyan-500"
+                              ? "font-bold text-[var(--accent)]"
                               : done
                               ? "font-semibold text-slate-950"
                               : "font-medium text-slate-400"
@@ -368,7 +365,7 @@ function TicketDetailPageContent({
                 </p>
                 <Link
                   href="/feedback"
-                  className="inline-flex items-center justify-center rounded-full bg-sky-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-sky-700"
+                  className="inline-flex items-center justify-center rounded-full border border-[#179fe5] bg-[#179fe5] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:border-[#138dc9] hover:bg-[#138dc9]"
                 >
                   Submit Feedback
                 </Link>
@@ -383,23 +380,24 @@ function TicketDetailPageContent({
 
 function TicketDetailFallback({ id }: { id: string }) {
   return (
-    <div className="flex min-h-screen flex-col bg-[radial-gradient(circle_at_top_left,_rgba(15,23,42,0.08),_transparent_28%),radial-gradient(circle_at_top_right,_rgba(14,165,233,0.18),_transparent_24%),linear-gradient(180deg,_#f8fbff_0%,_#eef5ff_42%,_#ffffff_100%)] text-slate-950">
-      <main className="flex-1 px-4 py-16 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-3xl rounded-[2rem] border border-white/70 bg-white/75 p-8 shadow-[0_30px_80px_rgba(15,23,42,0.08)] backdrop-blur sm:p-10">
+    <div className="flex min-h-screen flex-col">
+      <main className="mx-auto my-4 min-h-[calc(100vh-4rem)] w-full max-w-6xl px-4 py-8">
+        <div className="mx-auto max-w-5xl rounded-xl border bg-white p-6 md:p-8">
           <div className="mb-6">
             <Link
               href="/track"
-              className="inline-flex items-center rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:border-sky-300 hover:text-sky-700"
+              className="inline-flex items-center justify-center rounded-full border border-[#179fe5] bg-[#179fe5] px-5 py-2.5 text-sm font-bold text-[#f8fafc] transition-[background-color,border-color,transform] duration-150 hover:border-[#138dc9] hover:bg-[#138dc9] active:translate-y-px"
             >
               Back to tracking
             </Link>
           </div>
           <h1 className="mb-2 text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
-            Ticket: {id}
+            Untitled complaint
           </h1>
           <p className="mb-8 text-base leading-relaxed text-slate-600">
             View the details and status of your complaint.
           </p>
+          <p className="mb-2 text-sm font-semibold text-slate-700">Ticket ID: {id}</p>
           <p className="text-slate-500">Loading ticket details...</p>
         </div>
       </main>

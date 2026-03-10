@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useState } from "react";
 
 import {
   MessageThread,
@@ -196,16 +196,12 @@ export default function CustomerTicketDetailClient({ ticketId }: { ticketId: str
   }
 
   const currentStep = deriveStepIndex(ticket?.status ?? "");
-  const brandBlueVars = {
-    "--accent": "#179fe5",
-    "--accent-hover": "#138dc9",
-  } as CSSProperties;
 
   return (
-    <main className="mx-auto my-4 min-h-[calc(100vh-4rem)] max-w-6xl px-4 py-8" style={brandBlueVars}>
-      <section className="mx-auto w-full max-w-5xl rounded-xl border bg-white p-6 md:p-8">
+    <main className="mx-auto my-4 min-h-[calc(100vh-4rem)] w-full max-w-6xl px-4 py-8">
+      <section className="mx-auto w-full max-w-5xl rounded-2xl border border-slate-300 bg-white p-6 md:p-8">
         <div>
-          <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "center", marginBottom: "1.5rem" }}>
+          <div className="mb-6 flex items-center justify-between gap-4">
             <div>
               <Link
                 href="/tickets"
@@ -213,57 +209,33 @@ export default function CustomerTicketDetailClient({ ticketId }: { ticketId: str
               >
                 Back to tickets
               </Link>
-              <h1
-                style={{
-                  fontSize: "1.8rem",
-                  fontWeight: 800,
-                  margin: "0.75rem 0 0",
-                  color: "var(--text)",
-                }}
-              >
+              <h1 className="mt-3 text-4xl font-bold tracking-tight text-slate-950">
                 {capitalizeFirstLetter(ticket?.title || "Untitled complaint")}
               </h1>
             </div>
           </div>
 
-          <section style={{ display: "grid", gap: "1.5rem" }}>
-            {loading ? <p style={{ margin: 0, color: "var(--muted)" }}>Loading ticket details...</p> : null}
+          <section className="grid gap-6">
+            {loading ? <p className="m-0 text-slate-500">Loading ticket details...</p> : null}
 
             {error ? (
-              <div style={{ display: "grid", gap: "0.75rem" }}>
-                <p style={{ margin: 0, color: "#b91c1c", fontWeight: 600 }}>{error}</p>
+              <div className="grid gap-3">
+                <p className="m-0 font-semibold text-red-700">{error}</p>
               </div>
             ) : null}
 
             {!loading && !error && ticket ? (
               <>
                 <div>
-                  <h3
-                    style={{
-                      fontSize: "1.1rem",
-                      fontWeight: 700,
-                      marginBottom: "0.75rem",
-                      color: "var(--text)",
-                    }}
-                  >
-                    {`${ticket.ticketType || "Ticket"} details`}
-                  </h3>
+                  <h3 className="mb-3 text-3xl font-bold text-slate-950">Complaint details</h3>
                   {ticket.reference || ticketId ? (
-                    <p style={{ color: "var(--text)", fontSize: "0.95rem", fontWeight: 600, margin: "0 0 0.75rem" }}>
+                    <p className="mb-3 text-lg font-semibold text-slate-950">
                       Ticket ID: {ticket.reference || ticketId}
                     </p>
                   ) : null}
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <div className="flex flex-wrap gap-2">
                     <span
-                      style={{
-                        padding: "4px 12px",
-                        borderRadius: 999,
-                        background: "var(--surface)",
-                        border: "1px solid #e5e7eb",
-                        fontSize: 12,
-                        fontWeight: 600,
-                        color: "var(--accent)",
-                      }}
+                      className="rounded-full bg-sky-100 px-3 py-1 text-xs font-semibold text-sky-600"
                     >
                       {ticket.category || "Uncategorized"}
                     </span>
@@ -271,87 +243,44 @@ export default function CustomerTicketDetailClient({ ticketId }: { ticketId: str
                 </div>
 
                 <div>
-                  <p
-                    style={{
-                      fontSize: "0.9rem",
-                      fontWeight: 600,
-                      color: "var(--muted)",
-                      marginBottom: "0.4rem",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.05em",
-                    }}
-                  >
+                  <p className="mb-1 text-sm font-medium uppercase tracking-wide text-slate-600">
                     Description
                   </p>
-                  <p style={{ color: "var(--text)", fontSize: "0.95rem", lineHeight: 1.6, margin: 0 }}>
+                  <p className="m-0 text-base leading-relaxed text-slate-800">
                     {ticket.description || "No description provided."}
                   </p>
                 </div>
 
-                <div style={{ display: "grid", gap: "0.35rem" }}>
+                <div className="grid gap-1.5">
                   {ticket.submittedAt ? (
-                    <p style={{ margin: 0, color: "var(--muted)", fontSize: "0.875rem" }}>
+                    <p className="m-0 text-sm text-slate-600">
                       Submitted: {formatDate(ticket.submittedAt)}
                     </p>
                   ) : null}
                   {ticket.lastUpdatedAt ? (
-                    <p style={{ margin: 0, color: "var(--muted)", fontSize: "0.875rem" }}>
+                    <p className="m-0 text-sm text-slate-600">
                       Last updated: {formatDate(ticket.lastUpdatedAt)}
                     </p>
                   ) : null}
                 </div>
 
-                <div style={{ borderTop: "1px solid #e5e7eb" }} />
+                <div className="border-t border-slate-200" />
 
                 <div>
-                  <p
-                    style={{
-                      fontSize: "0.9rem",
-                      fontWeight: 600,
-                      color: "var(--muted)",
-                      marginBottom: "1.25rem",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.05em",
-                    }}
-                  >
+                  <p className="mb-5 text-sm font-medium uppercase tracking-wide text-slate-600">
                     Status
                   </p>
 
-                  <div
-                    style={{
-                      position: "relative",
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "flex-start",
-                    }}
-                  >
-                    <div
-                      style={{
-                        position: "absolute",
-                        top: 14,
-                        left: "calc(100% / 8)",
-                        right: "calc(100% / 8)",
-                        height: 3,
-                        background: "#e5e7eb",
-                        borderRadius: 999,
-                        zIndex: 0,
-                      }}
-                    />
+                  <div className="relative flex items-start justify-between">
+                    <div className="absolute left-[12.5%] right-[12.5%] top-[14px] h-[3px] rounded-full bg-slate-200" />
 
                     <div
+                      className="absolute left-[12.5%] top-[14px] h-[3px] rounded-full bg-[#179fe5] transition-all duration-300"
                       style={{
-                        position: "absolute",
-                        top: 14,
-                        left: "calc(100% / 8)",
                         width:
                           currentStep === 0
                             ? "0%"
                             : `calc(${(currentStep / (STEPS.length - 1)) * 100}% - 25%)`,
-                        height: 3,
-                        background: "var(--accent)",
-                        borderRadius: 999,
-                        transition: "width 0.4s ease",
-                        zIndex: 1,
                       }}
                     />
 
@@ -361,27 +290,12 @@ export default function CustomerTicketDetailClient({ ticketId }: { ticketId: str
                       return (
                         <div
                           key={step}
-                          style={{
-                            display: "flex",
-                            flexDirection: "column",
-                            alignItems: "center",
-                            gap: 8,
-                            zIndex: 2,
-                            flex: 1,
-                          }}
+                          className="relative z-[2] flex flex-1 flex-col items-center gap-2"
                         >
                           <div
-                            style={{
-                              width: 30,
-                              height: 30,
-                              borderRadius: "50%",
-                              background: done || active ? "var(--accent)" : "var(--bg)",
-                              border: `2.5px solid ${done || active ? "var(--accent)" : "#d1d5db"}`,
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              transition: "all 0.2s ease",
-                            }}
+                            className={`flex h-[30px] w-[30px] items-center justify-center rounded-full border-[2.5px] transition-all duration-200 ${
+                              done || active ? "border-[#179fe5] bg-[#179fe5]" : "border-slate-300 bg-white"
+                            }`}
                           >
                             {done ? (
                               <svg
@@ -398,33 +312,19 @@ export default function CustomerTicketDetailClient({ ticketId }: { ticketId: str
                                 <polyline points="20 6 9 17 4 12" />
                               </svg>
                             ) : active ? (
-                              <div
-                                style={{
-                                  width: 8,
-                                  height: 8,
-                                  borderRadius: "50%",
-                                  background: "#fff",
-                                }}
-                              />
+                              <div className="h-2 w-2 rounded-full bg-white" />
                             ) : (
-                              <div
-                                style={{
-                                  width: 8,
-                                  height: 8,
-                                  borderRadius: "50%",
-                                  background: "#d1d5db",
-                                }}
-                              />
+                              <div className="h-2 w-2 rounded-full bg-slate-300" />
                             )}
                           </div>
                           <span
-                            style={{
-                              fontSize: "0.75rem",
-                              fontWeight: active ? 700 : 500,
-                              color: active ? "var(--accent)" : done ? "var(--text)" : "var(--muted)",
-                              textAlign: "center",
-                              lineHeight: 1.3,
-                            }}
+                            className={`text-center text-xs leading-tight ${
+                              active
+                                ? "font-bold text-[#179fe5]"
+                                : done
+                                  ? "font-semibold text-slate-950"
+                                  : "font-medium text-slate-500"
+                            }`}
                           >
                             {step}
                           </span>
@@ -434,10 +334,10 @@ export default function CustomerTicketDetailClient({ ticketId }: { ticketId: str
                   </div>
                 </div>
 
-                <div style={{ borderTop: "1px solid #e5e7eb", paddingTop: "1.5rem", display: "grid", gap: "1rem" }}>
+                <div className="grid gap-4 border-t border-slate-200 pt-6">
                   <div>
-                    <h2 style={{ margin: 0, fontSize: "1.1rem", color: "var(--text)" }}>Conversation</h2>
-                    <p style={{ margin: "0.35rem 0 0", color: "var(--muted)", fontSize: "0.95rem" }}>
+                    <h2 className="m-0 text-3xl font-semibold text-slate-950">Conversation</h2>
+                    <p className="mb-0 mt-1 text-base text-slate-600">
                       Send a message to the staff handling your ticket.
                     </p>
                   </div>
@@ -461,7 +361,7 @@ export default function CustomerTicketDetailClient({ ticketId }: { ticketId: str
                   ) : null}
 
                   {messagesLoading ? (
-                    <p style={{ margin: 0, color: "var(--muted)" }}>Loading messages...</p>
+                    <p className="m-0 text-slate-500">Loading messages...</p>
                   ) : (
                     <MessageThread
                       messages={messages}

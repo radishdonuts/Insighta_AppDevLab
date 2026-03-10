@@ -72,7 +72,6 @@ export default function CustomerWorkspaceTicketCard({
               </div>
               <div className="min-w-0">
                 <p className="truncate font-mono text-sm font-bold text-foreground">{trackingNumber}</p>
-                <p className="truncate text-xs text-muted-foreground">Ticket #{id}</p>
               </div>
             </div>
           </div>
