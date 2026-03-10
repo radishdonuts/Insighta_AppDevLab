@@ -94,8 +94,7 @@ export function RegisterFormClient({
       {/* Logo */}
       <motion.div variants={itemVariants} className="mb-4">
         <div className="flex items-center gap-2">
-          <Shield className="h-7 w-7 text-blue-600" />
-          <span className="text-xl font-bold tracking-wider text-blue-700">
+          <span className="text-xl font-bold tracking-wider text-[#179FE5]">
             Insighta
           </span>
         </div>
@@ -233,7 +232,7 @@ export function RegisterFormClient({
           <motion.div variants={itemVariants}>
             <Button
               type="submit"
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+              className="w-full bg-[#179FE5] hover:bg-[#138DC9] text-white"
               disabled={isPending}
             >
               {isPending && (

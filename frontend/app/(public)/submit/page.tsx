@@ -257,14 +257,11 @@ export default function SubmitPage() {
 
   if (loadingInitial) {
     return (
-      <main className="glass-shell">
-        <div className="glass-shell-word" aria-hidden="true">
-          INSIGHTA
-        </div>
-        <section className="glass-shell-panel glass-shell-panel--wide">
-          <div className={styles.container}>
-            <div className={styles.card} style={{ textAlign: "center" }}>
-              <div className={styles.spinner} style={{ borderColor: "var(--accent)", borderTopColor: "transparent", margin: "0 auto 1rem" }} />
+      <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(15,23,42,0.08),_transparent_28%),radial-gradient(circle_at_top_right,_rgba(14,165,233,0.18),_transparent_24%),linear-gradient(180deg,_#f8fbff_0%,_#eef5ff_42%,_#ffffff_100%)] text-slate-950">
+        <section className="px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+          <div className="mx-auto w-full max-w-3xl">
+            <div className={`${styles.card} ${styles.loadingCard}`}>
+              <div className={`${styles.spinner} ${styles.spinnerAccent}`} />
               <p>Loading...</p>
             </div>
           </div>
@@ -274,20 +271,15 @@ export default function SubmitPage() {
   }
 
   return (
-    <main className="glass-shell">
-      <div className="glass-shell-word" aria-hidden="true">
-        INSIGHTA
-      </div>
-      <section className="glass-shell-panel glass-shell-panel--wide">
-        <div className={styles.container}>
-      <div className={styles.card}>
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(15,23,42,0.08),_transparent_28%),radial-gradient(circle_at_top_right,_rgba(14,165,233,0.18),_transparent_24%),linear-gradient(180deg,_#f8fbff_0%,_#eef5ff_42%,_#ffffff_100%)] text-slate-950">
+      <section className="px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+        <div className="mx-auto w-full max-w-3xl">
+          <div className={styles.card}>
 
         {step < 5 && (
           <>
             <header className={styles.header}>
-              <div className={styles.headerIcon}>
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-              </div>
+              <div className={styles.headerPill}>Guided Complaint Intake</div>
               <h1>Submit a Complaint</h1>
               <p>We'll review your complaint and get back to you.</p>
             </header>
@@ -296,7 +288,7 @@ export default function SubmitPage() {
         )}
 
         {submitError && step < 5 && (
-          <div className={styles.errorMessage} style={{ marginBottom: '1.5rem', padding: '1rem', background: '#fef2f2', borderRadius: '0.5rem' }}>
+          <div className={`${styles.errorMessage} ${styles.submitErrorBox}`}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
             {submitError}
           </div>
@@ -338,7 +330,7 @@ export default function SubmitPage() {
                 onChange={e => setCategoryId(e.target.value)}
                 className={styles.input}
               >
-                <option value={NOT_SURE_CATEGORY}>Not sure (let AI classify)</option>
+                <option value={NOT_SURE_CATEGORY}>Others</option>
                 {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>
@@ -419,8 +411,8 @@ export default function SubmitPage() {
                 <div className={styles.summaryLabel}>Category</div>
                 <div className={styles.summaryValue}>
                   {categoryId === NOT_SURE_CATEGORY
-                    ? "Not sure (let AI classify)"
-                    : (categories.find(c => c.id === categoryId)?.name ?? "Not sure (let AI classify)")}
+                    ? "Others"
+                    : (categories.find(c => c.id === categoryId)?.name ?? "Others")}
                 </div>
               </div>
               <div className={styles.summaryItem}>
@@ -466,14 +458,14 @@ export default function SubmitPage() {
               <button onClick={copyToken} className={styles.copyBtn}>{copied ? "Copied!" : "Copy Number"}</button>
             </div>
 
-            <p style={{ fontSize: "0.85rem", color: "var(--muted)", marginBottom: "2rem" }}>
+            <p className={styles.successNote}>
               {successData.isGuestToken ? (
                 <>
-                  Please save this tracking number. You will need it to track your ticket status at <Link href="/track" style={{ color: "var(--accent)" }}>/track</Link>.
+                  Please save this tracking number. You will need it to track your ticket status at <Link href="/track" className={styles.inlineLink}>/track</Link>.
                 </>
               ) : (
                 <>
-                  Your complaint has been submitted successfully. You can review it anytime in <Link href="/tickets" style={{ color: "var(--accent)" }}>/tickets</Link>.
+                  Your complaint has been submitted successfully. You can review it anytime in <Link href="/tickets" className={styles.inlineLink}>/tickets</Link>.
                 </>
               )}
             </p>
@@ -483,15 +475,15 @@ export default function SubmitPage() {
                 Submit Another
               </button>
               {successData.isGuestToken ? (
-                <Link href={`/track?token=${successData.trackingNumber}`} className={styles.btnPrimary} style={{ textDecoration: 'none' }}>
+                <Link href={`/track?token=${successData.trackingNumber}`} className={`${styles.btnPrimary} ${styles.btnLink}`}>
                   Track Ticket
                 </Link>
               ) : successData.ticketId ? (
-                <Link href={`/tickets/${successData.ticketId}`} className={styles.btnPrimary} style={{ textDecoration: 'none' }}>
+                <Link href={`/tickets/${successData.ticketId}`} className={`${styles.btnPrimary} ${styles.btnLink}`}>
                   View Ticket
                 </Link>
               ) : (
-                <Link href="/tickets" className={styles.btnPrimary} style={{ textDecoration: 'none' }}>
+                <Link href="/tickets" className={`${styles.btnPrimary} ${styles.btnLink}`}>
                   My Tickets
                 </Link>
               )}
@@ -499,7 +491,7 @@ export default function SubmitPage() {
           </div>
         )}
 
-      </div>
+          </div>
         </div>
       </section>
     </main>

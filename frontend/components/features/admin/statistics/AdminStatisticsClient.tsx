@@ -1,12 +1,13 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import styles from "../admin.module.css";
 import chartStyles from "@/app/(admin)/admin/statistics/statistics.module.css";
 import type {
   AdminCreatedResolvedResponse,
+  AdminFeedbackStatsResponse,
   AdminResolutionTimeResponse,
   AdminStatsBreakdownsResponse,
   AdminStatsOverviewResponse,
@@ -15,15 +16,20 @@ import type {
 import {
   CategoryBreakdownChart,
   CreatedVsResolvedChart,
+  FeedbackAverageRatingOverTimeChart,
+  FeedbackCategoryScoreChart,
+  FeedbackSubmissionsOverTimeChart,
   PriorityDonutChart,
   ResolutionTimeTrendChart,
   StatusDistributionChart,
   TicketsOverTimeChart,
 } from "@/components/admin/RechartsComponents";
+import BadgeTabs from "@/components/ui/badge-tabs";
 
 type ApiErrorPayload = { error?: string; message?: string };
 type GranularityToggle = "daily" | "weekly";
 type ResolutionGranularity = "week" | "month";
+type StatisticsView = "overview" | "tickets" | "feedback";
 
 function formatDateKey(date: Date) {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()))
@@ -63,8 +69,12 @@ export default function AdminStatisticsClient() {
   const [resolutionTime, setResolutionTime] = useState<AdminResolutionTimeResponse | null>(null);
   const [createdResolved, setCreatedResolved] = useState<AdminCreatedResolvedResponse | null>(null);
   const [overview, setOverview] = useState<AdminStatsOverviewResponse | null>(null);
+  const [feedbackStats, setFeedbackStats] = useState<AdminFeedbackStatsResponse | null>(null);
+  const [activeView, setActiveView] = useState<StatisticsView>("overview");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [resolutionError, setResolutionError] = useState<string | null>(null);
+  const [createdResolvedError, setCreatedResolvedError] = useState<string | null>(null);
   const [draftFrom, setDraftFrom] = useState("");
   const [draftTo, setDraftTo] = useState("");
   const [ticketsOverTimeGranularity, setTicketsOverTimeGranularity] =
@@ -77,75 +87,49 @@ export default function AdminStatisticsClient() {
   useEffect(() => {
     const controller = new AbortController();
 
-    async function load() {
+    async function loadBaseStats() {
       setLoading(true);
       setError(null);
 
       try {
-        const qs = searchParams.toString();
-        const suffix = qs ? `?${qs}` : "";
-        const separator = qs ? "&" : "?";
-        const [
-          trendsResponse,
-          breakdownsResponse,
-          resolutionResponse,
-          createdResolvedResponse,
-          overviewResponse,
-        ] = await Promise.all([
-          fetch(`/api/admin/stats/tickets-trends${suffix}`, {
-            cache: "no-store",
-            signal: controller.signal,
-          }),
-          fetch(`/api/admin/stats/breakdowns${suffix}`, {
-            cache: "no-store",
-            signal: controller.signal,
-          }),
-          fetch(
-            `/api/admin/stats/resolution-time${suffix}${separator}granularity=${resolutionGranularity}`,
-            {
+        const suffix = searchKey ? `?${searchKey}` : "";
+        const [trendsResponse, breakdownsResponse, overviewResponse, feedbackResponse] =
+          await Promise.all([
+            fetch(`/api/admin/stats/tickets-trends${suffix}`, {
               cache: "no-store",
               signal: controller.signal,
-            }
-          ),
-          fetch(
-            `/api/admin/stats/created-resolved${suffix}${separator}granularity=${createdResolvedGranularity}`,
-            {
+            }),
+            fetch(`/api/admin/stats/breakdowns${suffix}`, {
               cache: "no-store",
               signal: controller.signal,
-            }
-          ),
-          fetch(`/api/admin/stats/overview${suffix}`, {
-            cache: "no-store",
-            signal: controller.signal,
-          }),
-        ]);
+            }),
+            fetch(`/api/admin/stats/overview${suffix}`, {
+              cache: "no-store",
+              signal: controller.signal,
+            }),
+            fetch(`/api/admin/stats/feedback${suffix}`, {
+              cache: "no-store",
+              signal: controller.signal,
+            }),
+          ]);
 
         if (!trendsResponse.ok) throw new Error(await readApiError(trendsResponse));
         if (!breakdownsResponse.ok) throw new Error(await readApiError(breakdownsResponse));
+        if (!overviewResponse.ok) throw new Error(await readApiError(overviewResponse));
+        if (!feedbackResponse.ok) throw new Error(await readApiError(feedbackResponse));
 
-        const [trendsPayload, breakdownsPayload] = await Promise.all([
-          trendsResponse.json() as Promise<AdminTicketsTrendsResponse>,
-          breakdownsResponse.json() as Promise<AdminStatsBreakdownsResponse>,
-        ]);
+        const [trendsPayload, breakdownsPayload, overviewPayload, feedbackPayload] =
+          await Promise.all([
+            trendsResponse.json() as Promise<AdminTicketsTrendsResponse>,
+            breakdownsResponse.json() as Promise<AdminStatsBreakdownsResponse>,
+            overviewResponse.json() as Promise<AdminStatsOverviewResponse>,
+            feedbackResponse.json() as Promise<AdminFeedbackStatsResponse>,
+          ]);
 
         setTrends(trendsPayload);
         setBreakdowns(breakdownsPayload);
-
-        if (resolutionResponse.ok) {
-          setResolutionTime(
-            (await resolutionResponse.json()) as AdminResolutionTimeResponse
-          );
-        }
-
-        if (createdResolvedResponse.ok) {
-          setCreatedResolved(
-            (await createdResolvedResponse.json()) as AdminCreatedResolvedResponse
-          );
-        }
-
-        if (overviewResponse.ok) {
-          setOverview((await overviewResponse.json()) as AdminStatsOverviewResponse);
-        }
+        setOverview(overviewPayload);
+        setFeedbackStats(feedbackPayload);
       } catch (err) {
         if ((err as Error).name === "AbortError") return;
         setError(err instanceof Error ? err.message : "Failed to load statistics.");
@@ -154,9 +138,67 @@ export default function AdminStatisticsClient() {
       }
     }
 
-    void load();
+    void loadBaseStats();
     return () => controller.abort();
-  }, [searchKey, searchParams, resolutionGranularity, createdResolvedGranularity]);
+  }, [searchKey]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    async function loadResolutionTrend() {
+      setResolutionError(null);
+      try {
+        const suffix = searchKey ? `?${searchKey}` : "";
+        const separator = searchKey ? "&" : "?";
+        const response = await fetch(
+          `/api/admin/stats/resolution-time${suffix}${separator}granularity=${resolutionGranularity}`,
+          {
+            cache: "no-store",
+            signal: controller.signal,
+          }
+        );
+
+        if (!response.ok) throw new Error(await readApiError(response));
+        setResolutionTime((await response.json()) as AdminResolutionTimeResponse);
+      } catch (err) {
+        if ((err as Error).name === "AbortError") return;
+        setResolutionError(err instanceof Error ? err.message : "Failed to load resolution trend.");
+      }
+    }
+
+    void loadResolutionTrend();
+    return () => controller.abort();
+  }, [searchKey, resolutionGranularity]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    async function loadCreatedResolvedTrend() {
+      setCreatedResolvedError(null);
+      try {
+        const suffix = searchKey ? `?${searchKey}` : "";
+        const separator = searchKey ? "&" : "?";
+        const response = await fetch(
+          `/api/admin/stats/created-resolved${suffix}${separator}granularity=${createdResolvedGranularity}`,
+          {
+            cache: "no-store",
+            signal: controller.signal,
+          }
+        );
+
+        if (!response.ok) throw new Error(await readApiError(response));
+        setCreatedResolved((await response.json()) as AdminCreatedResolvedResponse);
+      } catch (err) {
+        if ((err as Error).name === "AbortError") return;
+        setCreatedResolvedError(
+          err instanceof Error ? err.message : "Failed to load created vs resolved trend."
+        );
+      }
+    }
+
+    void loadCreatedResolvedTrend();
+    return () => controller.abort();
+  }, [searchKey, createdResolvedGranularity]);
 
   useEffect(() => {
     const urlFrom = searchParams.get("from");
@@ -246,31 +288,66 @@ export default function AdminStatisticsClient() {
     resolved: point.resolved,
   }));
 
+  const feedbackCategoryData = (feedbackStats?.categoryBreakdown ?? []).map((item) => ({
+    key: item.key,
+    label: item.label,
+    avgRating: item.avgRating,
+    responseCount: item.responseCount,
+  }));
+
+  const feedbackSubmissionsData = (feedbackStats?.submissionsSeries ?? []).map((point) => ({
+    label: point.label,
+    date: point.date,
+    count: point.count,
+  }));
+
+  const feedbackAverageRatingData = (feedbackStats?.averageRatingSeries ?? []).map((point) => ({
+    label: point.label,
+    date: point.date,
+    avgRating: point.avgRating,
+  }));
+
+  const statsViewItems = useMemo(
+    () => [
+      { value: "overview", label: "Overview" },
+      { value: "tickets", label: "Tickets" },
+      { value: "feedback", label: "Feedback" },
+    ],
+    []
+  );
+
   const totalTickets = breakdowns?.totalTickets ?? trends?.totalTickets ?? 0;
-  const dateRange = breakdowns?.dateRange ?? trends?.dateRange;
+  const dateRange = breakdowns?.dateRange ?? trends?.dateRange ?? feedbackStats?.dateRange;
   const resolvedCount = statusData.find((item) => item.label === "Resolved")?.count ?? 0;
   const closedCount = statusData.find((item) => item.label === "Closed")?.count ?? 0;
   const totalResolved = resolvedCount + closedCount;
   const openCount = totalTickets - totalResolved;
+  const totalFeedbackResponses = feedbackStats?.totalResponses ?? 0;
+  const overallFeedbackRating = feedbackStats?.overallAverageRating ?? 0;
 
   return (
     <main className={styles.page}>
+      <div className={styles.pageHeading}>
+        <h1 className="text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">
+          Admin Statistics
+        </h1>
+        <p className="text-base leading-relaxed text-slate-600">
+          Comprehensive analytics for ticket management, resolution performance, and
+          category distribution.
+        </p>
+      </div>
+
       <section className={styles.headerCard}>
-        <div className={styles.headerTop}>
-          <div className={styles.titleWrap}>
-            <h1 className={styles.title}>Admin Statistics</h1>
-            <p className={styles.subtitle}>
-              Comprehensive analytics for ticket management, resolution performance,
-              and category distribution.
-            </p>
-            {dateRange ? (
-              <p className={styles.metaText}>
-                {totalTickets.toLocaleString()} tickets from {dateRange.from} to{" "}
-                {dateRange.to} ({dateRange.days} days)
-              </p>
-            ) : null}
-          </div>
-        </div>
+        {dateRange ? (
+          <p className={styles.metaText}>
+            {activeView === "feedback"
+              ? `${totalFeedbackResponses.toLocaleString()} feedback responses`
+              : activeView === "overview"
+                ? `${totalTickets.toLocaleString()} tickets and ${totalFeedbackResponses.toLocaleString()} feedback responses`
+                : `${totalTickets.toLocaleString()} tickets`}{" "}
+            from {dateRange.from} to {dateRange.to} ({dateRange.days} days)
+          </p>
+        ) : null}
 
         <div className={styles.toolbar}>
           <span className={styles.toolbarLabel}>Date range filter</span>
@@ -323,13 +400,135 @@ export default function AdminStatisticsClient() {
         </div>
       </section>
 
+      <BadgeTabs
+        items={statsViewItems}
+        value={activeView}
+        onValueChange={(value) => setActiveView(value as StatisticsView)}
+        className={styles.statsViewTabs}
+        fullWidth
+      />
+
       {loading ? <p className={styles.stateText}>Loading statistics...</p> : null}
       {!loading && error ? <p className={styles.errorText}>{error}</p> : null}
-      {!loading && !error && !trends && !breakdowns ? (
+      {!loading && !error && !trends && !breakdowns && !feedbackStats ? (
         <p className={styles.stateText}>No statistics data available.</p>
       ) : null}
 
-      {!loading && !error ? (
+      {!loading && !error && activeView === "overview" ? (
+        <>
+          <section className={styles.kpiGrid} aria-label="Admin overview KPIs">
+            <article className={styles.kpiCard}>
+              <span className={styles.kpiLabel}>Total Tickets</span>
+              <strong className={styles.kpiValue}>
+                {(overview?.metrics.totalTickets ?? totalTickets).toLocaleString()}
+              </strong>
+              <span className={styles.kpiHint}>Submitted in selected range</span>
+            </article>
+            <article className={styles.kpiCard}>
+              <span className={styles.kpiLabel}>Open / In Progress</span>
+              <strong className={styles.kpiValue}>
+                {(overview?.metrics.openInProgressTickets ?? openCount).toLocaleString()}
+              </strong>
+              <span className={styles.kpiHint}>Excludes Resolved and Closed</span>
+            </article>
+            <article className={styles.kpiCard}>
+              <span className={styles.kpiLabel}>Resolved / Closed</span>
+              <strong className={styles.kpiValue}>
+                {(overview?.metrics.resolvedTickets ?? totalResolved).toLocaleString()}
+              </strong>
+              <span className={styles.kpiHint}>Completed tickets in range</span>
+            </article>
+            <article className={styles.kpiCard}>
+              <span className={styles.kpiLabel}>Unassigned</span>
+              <strong className={styles.kpiValue}>
+                {(overview?.metrics.unassignedTickets ?? 0).toLocaleString()}
+              </strong>
+              <span className={styles.kpiHint}>No assigned staff member</span>
+            </article>
+            <article className={styles.kpiCard}>
+              <span className={styles.kpiLabel}>Overall Feedback Rating</span>
+              <strong className={styles.kpiValue}>{overallFeedbackRating.toFixed(2)} / 5</strong>
+              <span className={styles.kpiHint}>Averaged from all feedback categories</span>
+            </article>
+            <article className={styles.kpiCard}>
+              <span className={styles.kpiLabel}>Total Feedback Responses</span>
+              <strong className={styles.kpiValue}>{totalFeedbackResponses.toLocaleString()}</strong>
+              <span className={styles.kpiHint}>Submitted in selected range</span>
+            </article>
+          </section>
+
+          <section className={chartStyles.statsSection}>
+            <h2 className={chartStyles.sectionTitle}>Main Charts</h2>
+            <div className={chartStyles.chartGrid2}>
+              <div className={chartStyles.chartCard}>
+                <div className={chartStyles.chartHeader}>
+                  <div>
+                    <h3 className={chartStyles.chartTitle}>Tickets Over Time</h3>
+                    <p className={chartStyles.chartSubtitle}>
+                      Ticket submissions in the selected range
+                    </p>
+                  </div>
+                  <div className={chartStyles.toggleGroup}>
+                    <button
+                      type="button"
+                      className={`${chartStyles.toggleBtn} ${
+                        ticketsOverTimeGranularity === "daily" ? chartStyles.toggleActive : ""
+                      }`}
+                      onClick={() => setTicketsOverTimeGranularity("daily")}
+                    >
+                      Daily
+                    </button>
+                    <button
+                      type="button"
+                      className={`${chartStyles.toggleBtn} ${
+                        ticketsOverTimeGranularity === "weekly" ? chartStyles.toggleActive : ""
+                      }`}
+                      onClick={() => setTicketsOverTimeGranularity("weekly")}
+                    >
+                      Weekly
+                    </button>
+                  </div>
+                </div>
+                <TicketsOverTimeChart
+                  data={
+                    ticketsOverTimeGranularity === "daily"
+                      ? ticketsOverTimeData
+                      : weeklyTicketsData
+                  }
+                  granularity={ticketsOverTimeGranularity}
+                />
+              </div>
+
+              <div className={chartStyles.chartCard}>
+                <div className={chartStyles.chartHeader}>
+                  <div>
+                    <h3 className={chartStyles.chartTitle}>Average Feedback Rating Over Time</h3>
+                    <p className={chartStyles.chartSubtitle}>Daily average across all categories</p>
+                  </div>
+                </div>
+                <FeedbackAverageRatingOverTimeChart data={feedbackAverageRatingData} />
+              </div>
+            </div>
+          </section>
+
+          <section className={chartStyles.statsSection}>
+            <h2 className={chartStyles.sectionTitle}>Summary Breakdown</h2>
+            <div className={chartStyles.chartGridFull}>
+              <div className={chartStyles.chartCard}>
+                <div className={chartStyles.chartHeader}>
+                  <div>
+                    <h3 className={chartStyles.chartTitle}>Feedback Category Score Breakdown</h3>
+                    <p className={chartStyles.chartSubtitle}>Average rating by feedback category</p>
+                  </div>
+                </div>
+                <FeedbackCategoryScoreChart data={feedbackCategoryData} />
+              </div>
+            </div>
+          </section>
+        </>
+      ) : null}
+
+      {!loading && !error && activeView === "tickets" ? (
         <>
           <section className={styles.kpiGrid} aria-label="Admin ticket KPIs">
             <article className={styles.kpiCard}>
@@ -423,6 +622,9 @@ export default function AdminStatisticsClient() {
                   <div>
                     <h3 className={chartStyles.chartTitle}>Created vs Resolved</h3>
                     <p className={chartStyles.chartSubtitle}>Ticket workflow comparison</p>
+                    {createdResolvedError ? (
+                      <p className={styles.errorText}>{createdResolvedError}</p>
+                    ) : null}
                   </div>
                   <div className={chartStyles.toggleGroup}>
                     <button
@@ -498,6 +700,9 @@ export default function AdminStatisticsClient() {
                       Average time to resolve tickets (
                       {resolutionTime?.totalResolvedTickets ?? 0} resolved)
                     </p>
+                    {resolutionError ? (
+                      <p className={styles.errorText}>{resolutionError}</p>
+                    ) : null}
                   </div>
                   <div className={chartStyles.toggleGroup}>
                     <button
@@ -521,6 +726,63 @@ export default function AdminStatisticsClient() {
                   </div>
                 </div>
                 <ResolutionTimeTrendChart data={resolutionTrendData} />
+              </div>
+            </div>
+          </section>
+        </>
+      ) : null}
+
+      {!loading && !error && activeView === "feedback" ? (
+        <>
+          <section className={styles.kpiGrid} aria-label="Admin feedback KPIs">
+            <article className={styles.kpiCard}>
+              <span className={styles.kpiLabel}>Overall Rating</span>
+              <strong className={styles.kpiValue}>{overallFeedbackRating.toFixed(2)} / 5</strong>
+              <span className={styles.kpiHint}>Averaged from all feedback categories</span>
+            </article>
+            <article className={styles.kpiCard}>
+              <span className={styles.kpiLabel}>Total Feedback Responses</span>
+              <strong className={styles.kpiValue}>{totalFeedbackResponses.toLocaleString()}</strong>
+              <span className={styles.kpiHint}>Submitted in selected range</span>
+            </article>
+          </section>
+
+          <section className={chartStyles.statsSection}>
+            <h2 className={chartStyles.sectionTitle}>Feedback Overview</h2>
+            <div className={chartStyles.chartGridFull}>
+              <div className={chartStyles.chartCard}>
+                <div className={chartStyles.chartHeader}>
+                  <div>
+                    <h3 className={chartStyles.chartTitle}>Category Score Breakdown</h3>
+                    <p className={chartStyles.chartSubtitle}>Average rating by feedback category</p>
+                  </div>
+                </div>
+                <FeedbackCategoryScoreChart data={feedbackCategoryData} />
+              </div>
+            </div>
+          </section>
+
+          <section className={chartStyles.statsSection}>
+            <h2 className={chartStyles.sectionTitle}>Feedback Trends</h2>
+            <div className={chartStyles.chartGrid2}>
+              <div className={chartStyles.chartCard}>
+                <div className={chartStyles.chartHeader}>
+                  <div>
+                    <h3 className={chartStyles.chartTitle}>Feedback Submissions Over Time</h3>
+                    <p className={chartStyles.chartSubtitle}>Daily count of submitted feedback</p>
+                  </div>
+                </div>
+                <FeedbackSubmissionsOverTimeChart data={feedbackSubmissionsData} />
+              </div>
+
+              <div className={chartStyles.chartCard}>
+                <div className={chartStyles.chartHeader}>
+                  <div>
+                    <h3 className={chartStyles.chartTitle}>Average Rating Over Time</h3>
+                    <p className={chartStyles.chartSubtitle}>Daily average across all categories</p>
+                  </div>
+                </div>
+                <FeedbackAverageRatingOverTimeChart data={feedbackAverageRatingData} />
               </div>
             </div>
           </section>

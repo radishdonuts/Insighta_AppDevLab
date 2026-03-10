@@ -82,6 +82,25 @@ export type ResolutionTrendPoint = {
   avgHours: number;
 };
 
+export type FeedbackCategoryScorePoint = {
+  key: string;
+  label: string;
+  avgRating: number;
+  responseCount: number;
+};
+
+export type FeedbackSubmissionsPoint = {
+  label: string;
+  date: string;
+  count: number;
+};
+
+export type FeedbackAverageRatingPoint = {
+  label: string;
+  date: string;
+  avgRating: number;
+};
+
 type CustomTooltipProps = {
   active?: boolean;
   payload?: Array<{ value: number; name?: string; dataKey?: string; color?: string }>;
@@ -510,6 +529,188 @@ export function ResolutionTimeTrendChart({
           strokeWidth={2.5}
           dot={{ fill: COLORS.secondary, strokeWidth: 0, r: 4 }}
           activeDot={{ r: 6, fill: COLORS.secondary, stroke: "#fff", strokeWidth: 2 }}
+        />
+      </LineChart>
+    </ResponsiveContainer>
+  );
+}
+
+// Horizontal Bar Chart for Feedback Category Scores
+export function FeedbackCategoryScoreChart({
+  data,
+}: {
+  data: FeedbackCategoryScorePoint[];
+}) {
+  if (!data.length) {
+    return (
+      <div style={{ color: "#64748b", fontSize: "0.88rem", padding: "2rem", textAlign: "center" }}>
+        No feedback category score data available.
+      </div>
+    );
+  }
+
+  return (
+    <ResponsiveContainer width="100%" height={Math.max(280, data.length * 36)}>
+      <BarChart data={data} layout="vertical" margin={{ top: 5, right: 20, left: 180, bottom: 5 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" horizontal={false} />
+        <XAxis
+          type="number"
+          domain={[0, 5]}
+          tick={{ fontSize: 12, fill: "#64748b" }}
+          tickLine={{ stroke: "#e2e8f0" }}
+          axisLine={{ stroke: "#e2e8f0" }}
+        />
+        <YAxis
+          type="category"
+          dataKey="label"
+          tick={{ fontSize: 11, fill: "#64748b" }}
+          tickLine={{ stroke: "#e2e8f0" }}
+          axisLine={{ stroke: "#e2e8f0" }}
+          width={170}
+        />
+        <Tooltip
+          content={({ active, payload, label }) => {
+            if (!active || !payload?.length) return null;
+            const point = payload[0].payload as FeedbackCategoryScorePoint;
+            return (
+              <div
+                style={{
+                  background: "#fff",
+                  border: "1px solid #e2e8f0",
+                  borderRadius: "8px",
+                  padding: "0.6rem 0.8rem",
+                  boxShadow: "0 4px 12px rgba(15, 23, 42, 0.1)",
+                  fontSize: "0.85rem",
+                }}
+              >
+                <p style={{ margin: 0, color: "#0f172a", fontWeight: 600 }}>{label}</p>
+                <p style={{ margin: "0.25rem 0 0", color: "#475569" }}>
+                  Avg rating: {point.avgRating.toFixed(2)} / 5
+                </p>
+                <p style={{ margin: "0.25rem 0 0", color: "#475569" }}>
+                  Ratings: {point.responseCount.toLocaleString()}
+                </p>
+              </div>
+            );
+          }}
+        />
+        <Bar dataKey="avgRating" radius={[0, 4, 4, 0]}>
+          {data.map((entry, index) => (
+            <Cell key={entry.key} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+          ))}
+        </Bar>
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
+// Line Chart for Feedback Submissions Over Time
+export function FeedbackSubmissionsOverTimeChart({
+  data,
+}: {
+  data: FeedbackSubmissionsPoint[];
+}) {
+  if (!data.length) {
+    return (
+      <div style={{ color: "#64748b", fontSize: "0.88rem", padding: "2rem", textAlign: "center" }}>
+        No feedback submission trend data available.
+      </div>
+    );
+  }
+
+  return (
+    <ResponsiveContainer width="100%" height={280}>
+      <LineChart data={data} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+        <XAxis
+          dataKey="label"
+          tick={{ fontSize: 12, fill: "#64748b" }}
+          tickLine={{ stroke: "#e2e8f0" }}
+          axisLine={{ stroke: "#e2e8f0" }}
+        />
+        <YAxis
+          tick={{ fontSize: 12, fill: "#64748b" }}
+          tickLine={{ stroke: "#e2e8f0" }}
+          axisLine={{ stroke: "#e2e8f0" }}
+          allowDecimals={false}
+        />
+        <Tooltip content={<CustomTooltip />} />
+        <Line
+          type="monotone"
+          dataKey="count"
+          name="Responses"
+          stroke={COLORS.primary}
+          strokeWidth={2.5}
+          dot={{ fill: COLORS.primary, strokeWidth: 0, r: 4 }}
+          activeDot={{ r: 6, fill: COLORS.primary, stroke: "#fff", strokeWidth: 2 }}
+        />
+      </LineChart>
+    </ResponsiveContainer>
+  );
+}
+
+// Line Chart for Average Feedback Rating Over Time
+export function FeedbackAverageRatingOverTimeChart({
+  data,
+}: {
+  data: FeedbackAverageRatingPoint[];
+}) {
+  if (!data.length) {
+    return (
+      <div style={{ color: "#64748b", fontSize: "0.88rem", padding: "2rem", textAlign: "center" }}>
+        No average rating trend data available.
+      </div>
+    );
+  }
+
+  return (
+    <ResponsiveContainer width="100%" height={280}>
+      <LineChart data={data} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+        <XAxis
+          dataKey="label"
+          tick={{ fontSize: 12, fill: "#64748b" }}
+          tickLine={{ stroke: "#e2e8f0" }}
+          axisLine={{ stroke: "#e2e8f0" }}
+        />
+        <YAxis
+          tick={{ fontSize: 12, fill: "#64748b" }}
+          tickLine={{ stroke: "#e2e8f0" }}
+          axisLine={{ stroke: "#e2e8f0" }}
+          domain={[0, 5]}
+          ticks={[0, 1, 2, 3, 4, 5]}
+        />
+        <Tooltip
+          content={({ active, payload, label }) => {
+            if (!active || !payload?.length) return null;
+            const value = typeof payload[0].value === "number" ? payload[0].value : Number(payload[0].value);
+            return (
+              <div
+                style={{
+                  background: "#fff",
+                  border: "1px solid #e2e8f0",
+                  borderRadius: "8px",
+                  padding: "0.6rem 0.8rem",
+                  boxShadow: "0 4px 12px rgba(15, 23, 42, 0.1)",
+                  fontSize: "0.85rem",
+                }}
+              >
+                <p style={{ margin: 0, color: "#0f172a", fontWeight: 600 }}>{label}</p>
+                <p style={{ margin: "0.25rem 0 0", color: "#475569" }}>
+                  Average rating: {(Number.isFinite(value) ? value : 0).toFixed(2)} / 5
+                </p>
+              </div>
+            );
+          }}
+        />
+        <Line
+          type="monotone"
+          dataKey="avgRating"
+          name="Average Rating"
+          stroke={COLORS.warning}
+          strokeWidth={2.5}
+          dot={{ fill: COLORS.warning, strokeWidth: 0, r: 4 }}
+          activeDot={{ r: 6, fill: COLORS.warning, stroke: "#fff", strokeWidth: 2 }}
         />
       </LineChart>
     </ResponsiveContainer>

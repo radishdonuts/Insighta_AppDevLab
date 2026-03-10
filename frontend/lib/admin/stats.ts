@@ -13,6 +13,10 @@ import type {
   AdminResolutionTimeResponse,
   AdminCreatedResolvedPoint,
   AdminCreatedResolvedResponse,
+  AdminFeedbackStatsResponse,
+  AdminFeedbackCategoryScore,
+  AdminFeedbackAverageRatingPoint,
+  AdminFeedbackSubmissionsPoint,
 } from "@/types/admin-stats";
 import {
   asString,
@@ -28,6 +32,25 @@ const UTC_DATE_LABEL_FORMATTER = new Intl.DateTimeFormat("en-US", {
   day: "numeric",
   timeZone: "UTC",
 });
+const FEEDBACK_CATEGORY_ORDER = [
+  "overall_experience",
+  "speed_turnaround_time",
+  "communication_updates",
+  "resolution_quality_fairness",
+  "ease_of_process",
+  "staff_helpfulness_professionalism",
+  "platform_app_website_experience",
+] as const;
+
+const FEEDBACK_CATEGORY_LABELS: Record<(typeof FEEDBACK_CATEGORY_ORDER)[number], string> = {
+  overall_experience: "Overall Experience",
+  speed_turnaround_time: "Speed / Turnaround Time",
+  communication_updates: "Communication / Updates",
+  resolution_quality_fairness: "Resolution Quality / Fairness",
+  ease_of_process: "Ease of Process",
+  staff_helpfulness_professionalism: "Staff Helpfulness / Professionalism",
+  platform_app_website_experience: "Platform / App / Website Experience",
+};
 
 type OverviewRow = {
   submitted_at?: unknown;
@@ -43,6 +66,17 @@ type BreakdownRow = {
   status?: unknown;
   priority?: unknown;
   category_name?: unknown;
+};
+
+type FeedbackRow = {
+  id?: unknown;
+  submitted_at?: unknown;
+};
+
+type FeedbackCategoryRatingRow = {
+  feedback_id?: unknown;
+  category?: unknown;
+  rating?: unknown;
 };
 
 export type AdminStatsQueryRange = AdminStatsDateRange & {
@@ -95,9 +129,26 @@ function slugKey(value: string) {
     .replace(/^-+|-+$/g, "");
 }
 
+function formatFeedbackCategoryLabel(key: string) {
+  const known = FEEDBACK_CATEGORY_LABELS[key as keyof typeof FEEDBACK_CATEGORY_LABELS];
+  if (known) return known;
+  const tokens = key
+    .split("_")
+    .map((token) => token.trim())
+    .filter(Boolean);
+  if (!tokens.length) return "Other";
+  return tokens
+    .map((token) => token.charAt(0).toUpperCase() + token.slice(1))
+    .join(" ");
+}
+
 function roundPercentage(count: number, total: number) {
   if (total <= 0) return 0;
   return Math.round((count / total) * 1000) / 10;
+}
+
+function roundRating(value: number) {
+  return Math.round(value * 100) / 100;
 }
 
 function sortBreakdownItems(items: AdminStatsBreakdownItem[]) {
@@ -634,5 +685,160 @@ export async function getAdminCreatedVsResolved(
     dateRange: toPublicDateRange(range),
     granularity,
     series,
+  };
+}
+
+/**
+ * Feedback statistics for admin analytics:
+ * - average rating across all category ratings
+ * - response totals
+ * - category score breakdown
+ * - daily submission and daily average rating series
+ */
+export async function getAdminFeedbackStats(
+  supabase: AdminSupabaseServerClient,
+  range: AdminStatsQueryRange
+): Promise<AdminFeedbackStatsResponse> {
+  const { data: feedbackData, error: feedbackError } = await applySubmittedDateRange(
+    supabase.from("feedback").select("id, submitted_at"),
+    range
+  );
+
+  if (feedbackError) {
+    throw new Error(`Failed to load feedback responses: ${feedbackError.message}`);
+  }
+
+  const feedbackRows = (Array.isArray(feedbackData) ? feedbackData : []) as FeedbackRow[];
+  const submissionCountsByDate = new Map<string, number>();
+  const feedbackDateById = new Map<string, string>();
+
+  for (const row of feedbackRows) {
+    const feedbackId = asString(row.id);
+    const dateKey = toUtcDateKey(asString(row.submitted_at));
+    if (!dateKey) continue;
+    submissionCountsByDate.set(dateKey, (submissionCountsByDate.get(dateKey) ?? 0) + 1);
+    if (feedbackId) {
+      feedbackDateById.set(feedbackId, dateKey);
+    }
+  }
+
+  const categoryStats = new Map<string, { sum: number; count: number }>();
+  for (const category of FEEDBACK_CATEGORY_ORDER) {
+    categoryStats.set(category, { sum: 0, count: 0 });
+  }
+
+  const dailyRatingStats = new Map<string, { sum: number; count: number }>();
+  let overallRatingsSum = 0;
+  let overallRatingsCount = 0;
+
+  const feedbackIds = Array.from(feedbackDateById.keys());
+  if (feedbackIds.length) {
+    const { data: ratingsData, error: ratingsError } = await supabase
+      .from("feedback_category_ratings")
+      .select("feedback_id, category, rating")
+      .in("feedback_id", feedbackIds);
+
+    if (ratingsError) {
+      throw new Error(`Failed to load feedback category ratings: ${ratingsError.message}`);
+    }
+
+    const ratingsRows = (Array.isArray(ratingsData) ? ratingsData : []) as FeedbackCategoryRatingRow[];
+
+    for (const row of ratingsRows) {
+      const feedbackId = asString(row.feedback_id);
+      const category = asString(row.category);
+      const rating = typeof row.rating === "number" && Number.isFinite(row.rating) ? row.rating : null;
+      if (!feedbackId || !category || rating === null) continue;
+
+      const submittedDate = feedbackDateById.get(feedbackId);
+      if (!submittedDate) continue;
+
+      overallRatingsSum += rating;
+      overallRatingsCount += 1;
+
+      const categoryEntry = categoryStats.get(category) ?? { sum: 0, count: 0 };
+      categoryEntry.sum += rating;
+      categoryEntry.count += 1;
+      categoryStats.set(category, categoryEntry);
+
+      const dayEntry = dailyRatingStats.get(submittedDate) ?? { sum: 0, count: 0 };
+      dayEntry.sum += rating;
+      dayEntry.count += 1;
+      dailyRatingStats.set(submittedDate, dayEntry);
+    }
+  }
+
+  const orderedCategoryBreakdown: AdminFeedbackCategoryScore[] = FEEDBACK_CATEGORY_ORDER.map((category) => {
+    const stats = categoryStats.get(category) ?? { sum: 0, count: 0 };
+    const avgRating = stats.count > 0 ? roundRating(stats.sum / stats.count) : 0;
+    return {
+      key: category,
+      label: FEEDBACK_CATEGORY_LABELS[category],
+      avgRating,
+      responseCount: stats.count,
+    };
+  });
+
+  const extraCategoryBreakdown = Array.from(categoryStats.entries())
+    .filter(([category]) => !FEEDBACK_CATEGORY_ORDER.includes(category as (typeof FEEDBACK_CATEGORY_ORDER)[number]))
+    .map(([category, stats]) => ({
+      key: category,
+      label: formatFeedbackCategoryLabel(category),
+      avgRating: stats.count > 0 ? roundRating(stats.sum / stats.count) : 0,
+      responseCount: stats.count,
+    }))
+    .sort((a, b) => {
+      if (b.responseCount !== a.responseCount) return b.responseCount - a.responseCount;
+      return a.label.localeCompare(b.label);
+    });
+
+  const categoryBreakdown = [...orderedCategoryBreakdown, ...extraCategoryBreakdown];
+
+  const submissionsSeries: AdminFeedbackSubmissionsPoint[] = [];
+  const averageRatingSeries: AdminFeedbackAverageRatingPoint[] = [];
+
+  let cursor = parseDateOnlyUtc(range.from);
+  const end = parseDateOnlyUtc(range.to);
+
+  if (!cursor || !end) {
+    return {
+      dateRange: toPublicDateRange(range),
+      totalResponses: feedbackRows.length,
+      overallAverageRating: overallRatingsCount > 0 ? roundRating(overallRatingsSum / overallRatingsCount) : 0,
+      categoryBreakdown,
+      submissionsSeries: [],
+      averageRatingSeries: [],
+    };
+  }
+
+  while (cursor.getTime() <= end.getTime()) {
+    const dateKey = formatDateOnlyUtc(cursor);
+    const ratingStatsForDay = dailyRatingStats.get(dateKey);
+
+    submissionsSeries.push({
+      date: dateKey,
+      label: UTC_DATE_LABEL_FORMATTER.format(cursor),
+      count: submissionCountsByDate.get(dateKey) ?? 0,
+    });
+
+    averageRatingSeries.push({
+      date: dateKey,
+      label: UTC_DATE_LABEL_FORMATTER.format(cursor),
+      avgRating:
+        ratingStatsForDay && ratingStatsForDay.count > 0
+          ? roundRating(ratingStatsForDay.sum / ratingStatsForDay.count)
+          : 0,
+    });
+
+    cursor = addUtcDays(cursor, 1);
+  }
+
+  return {
+    dateRange: toPublicDateRange(range),
+    totalResponses: feedbackRows.length,
+    overallAverageRating: overallRatingsCount > 0 ? roundRating(overallRatingsSum / overallRatingsCount) : 0,
+    categoryBreakdown,
+    submissionsSeries,
+    averageRatingSeries,
   };
 }

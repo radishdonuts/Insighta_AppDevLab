@@ -116,18 +116,11 @@ export function InsightaLandingPage() {
                   variants={itemFadeIn}
                   className="max-w-3xl text-4xl font-bold tracking-tight sm:text-5xl xl:text-6xl xl:leading-[1.05]"
                 >
-                  Manage insurance complaints and feedback with
+                  Manage insurance complaints and feedback with 
                   <span className="bg-gradient-to-r from-slate-950 via-sky-700 to-cyan-500 bg-clip-text text-transparent">
-                    {" "}clearer intake, faster triage, and visible follow-through.
+                    {" "}speed, clarity, and accountability.
                   </span>
                 </motion.h1>
-                <motion.p
-                  variants={itemFadeIn}
-                  className="max-w-2xl text-base leading-8 text-slate-600 sm:text-lg"
-                >
-                  Insighta helps customers submit insurance complaints clearly, share structured feedback through
-                  ratings and categories, and keep complaint progress visible from intake to resolution.
-                </motion.p>
               </motion.div>
 
               <motion.div variants={itemFadeIn} className="flex flex-col gap-3 sm:flex-row">
@@ -140,38 +133,6 @@ export function InsightaLandingPage() {
                 <Button asChild variant="outline" size="lg" className="rounded-full px-7">
                   <Link href="/track">Track a Ticket</Link>
                 </Button>
-              </motion.div>
-
-              <motion.div
-                variants={staggerContainer}
-                className="grid gap-3 sm:grid-cols-3"
-              >
-                {[
-                  {
-                    title: "Guided complaint intake",
-                    description:
-                      "Capture policy details, issue context, and supporting evidence in one clear flow.",
-                  },
-                  {
-                    title: "AI-assisted prioritization",
-                    description:
-                      "Surface urgency, category, and routing signals to support faster complaint review.",
-                  },
-                  {
-                    title: "Structured feedback submission",
-                    description:
-                      "Collect customer feedback through star ratings and preset categories in a consistent format.",
-                  },
-                ].map((point) => (
-                  <motion.div
-                    key={point.title}
-                    variants={itemFadeIn}
-                    className="rounded-[1.25rem] border border-slate-200/80 bg-slate-50/80 px-4 py-4 text-sm text-slate-700"
-                  >
-                    <p className="font-semibold text-slate-950">{point.title}</p>
-                    <p className="mt-2 leading-6 text-slate-600">{point.description}</p>
-                  </motion.div>
-                ))}
               </motion.div>
             </motion.div>
 

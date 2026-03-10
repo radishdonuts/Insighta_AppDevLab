@@ -16,6 +16,7 @@ interface BadgeTabsProps {
   value: string;
   onValueChange: (value: string) => void;
   className?: string;
+  fullWidth?: boolean;
 }
 
 export default function BadgeTabs({
@@ -23,11 +24,17 @@ export default function BadgeTabs({
   value,
   onValueChange,
   className,
+  fullWidth = false,
 }: BadgeTabsProps) {
   return (
     <div className={cn("w-full", className)}>
       <Tabs value={value} onValueChange={onValueChange} className="w-full">
-        <TabsList className="relative flex gap-1 bg-muted/40 backdrop-blur-sm p-1.5 rounded-xl border w-full sm:w-auto justify-center">
+        <TabsList
+          className={cn(
+            "relative flex gap-1 bg-muted/40 backdrop-blur-sm p-1.5 rounded-xl border",
+            fullWidth ? "w-full justify-center" : "w-full sm:w-auto justify-center"
+          )}
+        >
           {items.map((item) => {
             const isActive = item.value === value;
             return (

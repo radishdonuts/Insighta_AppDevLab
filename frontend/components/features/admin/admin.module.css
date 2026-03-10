@@ -12,6 +12,11 @@
   gap: 1rem;
 }
 
+.pageHeading {
+  display: grid;
+  gap: 0.35rem;
+}
+
 .headerCard {
   border: 1px solid #dbe2ef;
   border-radius: 18px;
@@ -23,6 +28,10 @@
   box-shadow: 0 14px 40px rgba(15, 23, 42, 0.07);
   display: grid;
   gap: 0.9rem;
+}
+
+.statsViewTabs {
+  width: 100%;
 }
 
 .headerTop {
@@ -87,8 +96,9 @@
 }
 
 .toolbarLabel {
-  font-size: 0.85rem;
-  color: var(--text-soft);
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-muted);
 }
 
 .toolbarForm {
@@ -106,7 +116,8 @@
 
 .fieldLabel {
   color: var(--text-muted);
-  font-size: 0.84rem;
+  font-size: 0.96rem;
+  font-weight: 600;
 }
 
 .input,
@@ -116,6 +127,7 @@
   padding: 0.65rem 0.75rem;
   color: var(--text-main);
   background: #fff;
+  font-size: 0.96rem;
 }
 
 .input:focus,

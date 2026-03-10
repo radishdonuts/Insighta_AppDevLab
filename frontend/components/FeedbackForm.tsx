@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useMemo, useState, FormEvent } from "react";
+import Link from "next/link";
 
 import styles from "./feedback.module.css";
 import BasicRating from "@/components/ui/rating-group";
@@ -197,6 +198,11 @@ export function FeedbackForm({ ticketId, subjectLabel, submitterEmail, onSubmit,
           </div>
 
           {comment ? <p className={styles.readOnlyComment}>"{comment}"</p> : null}
+          <div className={`${styles.submitWrap} ${styles.successSubmitWrap}`}>
+            <Link href="/" className={styles.btnPrimary}>
+              Back to Home
+            </Link>
+          </div>
         </div>
       </div>
     );

@@ -77,6 +77,34 @@ export type AdminCreatedResolvedResponse = {
   series: AdminCreatedResolvedPoint[];
 };
 
+export type AdminFeedbackCategoryScore = {
+  key: string;
+  label: string;
+  avgRating: number;
+  responseCount: number;
+};
+
+export type AdminFeedbackSubmissionsPoint = {
+  date: string;
+  label: string;
+  count: number;
+};
+
+export type AdminFeedbackAverageRatingPoint = {
+  date: string;
+  label: string;
+  avgRating: number;
+};
+
+export type AdminFeedbackStatsResponse = {
+  dateRange: AdminStatsDateRange;
+  totalResponses: number;
+  overallAverageRating: number;
+  categoryBreakdown: AdminFeedbackCategoryScore[];
+  submissionsSeries: AdminFeedbackSubmissionsPoint[];
+  averageRatingSeries: AdminFeedbackAverageRatingPoint[];
+};
+
 export type AdminCreateStaffAccountRequest = {
   email: string;
   firstName: string;
