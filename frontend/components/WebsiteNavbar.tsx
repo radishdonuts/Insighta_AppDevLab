@@ -30,6 +30,9 @@ export default function WebsiteNavbar({ session }: WebsiteNavbarProps) {
           <Link href="/track" className="nav-link">
             Track Ticket
           </Link>
+          <Link href="/feedback" className="nav-link">
+            Feedback
+          </Link>
         </>
       ) : (
         <>
@@ -41,6 +44,9 @@ export default function WebsiteNavbar({ session }: WebsiteNavbarProps) {
           </Link>
           <Link href="/track" className="nav-link">
             Track Ticket
+          </Link>
+          <Link href="/feedback" className="nav-link">
+            Feedback
           </Link>
         </>
       )}

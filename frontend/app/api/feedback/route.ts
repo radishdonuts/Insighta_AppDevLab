@@ -4,6 +4,7 @@ import { getSupabaseServerClient } from "@/lib/supabase";
 import { createClient } from "@/utils/supabase/server";
 
 export const runtime = "nodejs";
+type SupabaseServerClient = ReturnType<typeof getSupabaseServerClient>;
 
 const FEEDBACK_CATEGORIES = [
   "overall_experience",
@@ -21,6 +22,44 @@ function jsonError(status: number, error: string) {
   return NextResponse.json({ error }, { status });
 }
 
+function asString(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function isValidEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+async function resolveGuestId(supabase: SupabaseServerClient, email: string): Promise<string> {
+  const { data: existing, error: selectError } = await supabase
+    .from("guest_contacts")
+    .select("id")
+    .eq("email", email)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (selectError) {
+    throw new Error(`Failed to look up guest contact: ${selectError.message}`);
+  }
+
+  if (existing?.id) {
+    return String(existing.id);
+  }
+
+  const { data: inserted, error: insertError } = await supabase
+    .from("guest_contacts")
+    .insert({ email })
+    .select("id")
+    .single();
+
+  if (insertError || !inserted?.id) {
+    throw new Error(insertError?.message ?? "Failed to create guest contact.");
+  }
+
+  return String(inserted.id);
+}
+
 export async function POST(request: Request) {
   let body: Record<string, unknown>;
   try {
@@ -31,6 +70,7 @@ export async function POST(request: Request) {
 
   const ratingsInput = (body.ratings ?? null) as Record<string, unknown> | null;
   const comment = typeof body.comment === "string" ? body.comment.trim().slice(0, 500) : "";
+  const guestEmail = asString(body.guest_email) || asString(body.guestEmail) || asString(body.email);
 
   if (!ratingsInput || typeof ratingsInput !== "object" || Array.isArray(ratingsInput)) {
     return jsonError(400, 'Ratings are required as an object under "ratings".');
@@ -61,10 +101,32 @@ export async function POST(request: Request) {
     } = await authClient.auth.getUser();
 
     const supabase = getSupabaseServerClient();
+    const authenticatedEmail = asString(user?.email).toLowerCase();
+    const normalizedGuestEmail = guestEmail.toLowerCase();
+
+    let submittedByUserId: string | null = null;
+    let submittedByGuestId: string | null = null;
+
+    if (user?.id) {
+      submittedByUserId = user.id;
+      if (!authenticatedEmail) {
+        return jsonError(400, "Authenticated feedback requires an account email.");
+      }
+    } else {
+      if (!normalizedGuestEmail) {
+        return jsonError(400, "Guest email is required when submitting feedback anonymously.");
+      }
+      if (!isValidEmail(normalizedGuestEmail)) {
+        return jsonError(400, "Guest email is invalid.");
+      }
+      submittedByGuestId = await resolveGuestId(supabase, normalizedGuestEmail);
+    }
+
     const insertPayload: Record<string, unknown> = {
       rating: parsedRatings.overall_experience,
       comment: comment || null,
-      submitted_by_user_id: user?.id ?? null,
+      submitted_by_user_id: submittedByUserId,
+      submitted_by_guest_id: submittedByGuestId,
     };
 
     const { data: inserted, error: insertError } = await supabase
