@@ -38,6 +38,7 @@ interface LoginFormClientProps {
   error: string;
   message: string;
   next: string;
+  defaultEmail?: string;
 }
 
 export function LoginFormClient({
@@ -45,12 +46,13 @@ export function LoginFormClient({
   error,
   message,
   next,
+  defaultEmail = "",
 }: LoginFormClientProps) {
   const [isPending, setIsPending] = React.useState(false);
 
   const form = useForm<LoginValues>({
     resolver: zodResolver(loginSchema),
-    defaultValues: { email: "", password: "" },
+    defaultValues: { email: defaultEmail, password: "" },
   });
 
   const handleSubmit = async (data: LoginValues) => {

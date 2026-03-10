@@ -14,6 +14,7 @@ export default function LoginPage({
   const error = readParam(searchParams?.error);
   const message = readParam(searchParams?.message);
   const next = readParam(searchParams?.next) || "/";
+  const email = readParam(searchParams?.email);
 
   return (
     <LoginFormClient
@@ -21,6 +22,7 @@ export default function LoginPage({
       error={error}
       message={message}
       next={next}
+      defaultEmail={email}
     />
   );
 }

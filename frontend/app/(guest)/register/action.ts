@@ -67,7 +67,8 @@ export async function registerAction(formData: FormData) {
   }
 
   registerRedirect("/login", {
-    message: `${message} Sign in with your new account.`,
+    message: "Registration successful! Please check your email to confirm your account, then sign in.",
+    email,
     next: next || "/",
   });
 }
