@@ -43,16 +43,16 @@ export async function GET(request: Request) {
             return NextResponse.json({ error: "Failed to fetch ticket data." }, { status: 500 });
         }
 
-        // Fetch feedback ratings
+        // Fetch global company feedback ratings
         const { data: feedbackData } = await supabase
             .from("feedback")
-            .select("rating, ticket_id");
-
-        // Build ticket-to-rating map
-        const ticketRatingMap: Record<string, number> = {};
-        for (const fb of feedbackData ?? []) {
-            ticketRatingMap[fb.ticket_id as string] = fb.rating as number;
-        }
+            .select("rating");
+        const globalRatings = (feedbackData ?? [])
+            .map((fb: Record<string, unknown>) => fb.rating)
+            .filter((rating): rating is number => typeof rating === "number" && Number.isFinite(rating));
+        const globalAvgRating = globalRatings.length > 0
+            ? Math.round((globalRatings.reduce((a, b) => a + b, 0) / globalRatings.length) * 10) / 10
+            : 0;
 
         // Compute per-staff metrics
         const allTickets = tickets ?? [];
@@ -84,14 +84,6 @@ export async function GET(request: Request) {
                 avgResolutionTimeHours = Math.round((totalHours / resolvedTickets.length) * 10) / 10;
             }
 
-            // Avg rating
-            const ratings = resolvedTickets
-                .map((t: Record<string, unknown>) => ticketRatingMap[t.id as string])
-                .filter((r): r is number => r !== undefined);
-            const avgRating = ratings.length > 0
-                ? Math.round((ratings.reduce((a, b) => a + b, 0) / ratings.length) * 10) / 10
-                : 0;
-
             return {
                 id: staffId,
                 name,
@@ -100,7 +92,7 @@ export async function GET(request: Request) {
                 resolvedCount: resolvedTickets.length,
                 activeCount: activeTickets.length,
                 avgResolutionTimeHours,
-                avgRating,
+                avgRating: globalAvgRating,
             };
         });
 
@@ -112,11 +104,7 @@ export async function GET(request: Request) {
                 (staffMetrics.reduce((sum, s) => sum + s.avgResolutionTimeHours, 0) / staffMetrics.filter(s => s.resolvedCount > 0).length || 1) * 10
             ) / 10
             : 0;
-        const overallAvgRating = staffMetrics.length > 0
-            ? Math.round(
-                (staffMetrics.reduce((sum, s) => sum + s.avgRating, 0) / staffMetrics.filter(s => s.avgRating > 0).length || 1) * 10
-            ) / 10
-            : 0;
+        const overallAvgRating = globalAvgRating;
 
         return NextResponse.json({
             summary: {

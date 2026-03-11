@@ -1,0 +1,88 @@
+{
+  "dataset": "synthetic_v1",
+  "seed": 42,
+  "total": 2000,
+  "label_counts": {
+    "detectedIntent": {
+      "General Complaint": 220,
+      "Request Status Update": 220,
+      "Request Refund": 220,
+      "Share Positive Feedback": 240,
+      "Report Billing Error": 220,
+      "Report Document Processing Delay": 220,
+      "Report Policy Change Issue": 220,
+      "Appeal Claim Decision": 220,
+      "Request Cancellation": 220
+    },
+    "issueType": {
+      "Payment Issue": 180,
+      "Delivery Issue": 180,
+      "Policy Cancellation": 180,
+      "Fraud Report": 180,
+      "Technical Issue": 180,
+      "Claim Denial": 180,
+      "Positive Feedback": 200,
+      "Document Processing Delay": 180,
+      "Billing Dispute": 180,
+      "Uncategorized": 180,
+      "Policy Update Issue": 180
+    },
+    "sentiment": {
+      "Neutral": 700,
+      "Negative": 900,
+      "Positive": 400
+    },
+    "priority": {
+      "Medium": 800,
+      "Low": 600,
+      "High": 600
+    },
+    "noiseProfile": {
+      "missing_punctuation": 101,
+      "none": 1016,
+      "short": 152,
+      "sms_shorthand": 106,
+      "mixed_case": 92,
+      "angry_tone": 135,
+      "long": 166,
+      "typos": 232
+    },
+    "referenceProfile": {
+      "claim_only": 400,
+      "none": 1100,
+      "both": 200,
+      "policy_only": 300
+    },
+    "toneStyle": {
+      "formal": 700,
+      "neutral": 600,
+      "informal": 500,
+      "terse": 200
+    },
+    "completeness": {
+      "partial": 500,
+      "complete": 1300,
+      "fragment": 200
+    },
+    "hardCase": {
+      "false": 1600,
+      "true": 400
+    },
+    "hardCaseType": {
+      "none": 1600,
+      "intent_ambiguity_status_general": 99,
+      "sentiment_priority_conflict": 102,
+      "neutral_urgency_tension": 95,
+      "issue_ambiguity_billing_payment": 104
+    },
+    "contradictionCase": {
+      "false": 1840,
+      "true": 160
+    }
+  },
+  "split_counts": {
+    "train": 1600,
+    "val": 200,
+    "test": 200
+  }
+}

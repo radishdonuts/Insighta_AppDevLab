@@ -5,6 +5,10 @@
     font-family: inherit;
 }
 
+.timelineWrapper {
+    min-height: 0;
+}
+
 .timeline {
     position: relative;
     padding-left: 1rem;

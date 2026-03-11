@@ -1,11 +1,8 @@
-import { randomBytes } from "crypto";
-
 import type {
   AdminCreateStaffAccountRequest,
   AdminCreateStaffAccountResponse,
 } from "@/types/admin-stats";
 import {
-  asNullableTrimmedString,
   asTrimmedString,
   sleep,
   type AdminSupabaseServerClient,
@@ -29,15 +26,12 @@ function isEmailLike(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
-function generateTemporaryPassword() {
-  return `Tmp!${randomBytes(12).toString("base64url")}`;
-}
+const DEFAULT_STAFF_PASSWORD = "staff123";
 
 export function parseCreateStaffAccountRequest(body: JsonObject): AdminCreateStaffAccountRequest {
   const email = asTrimmedString(body.email).toLowerCase();
-  const firstName = asNullableTrimmedString(body.firstName) ?? undefined;
-  const lastName = asNullableTrimmedString(body.lastName) ?? undefined;
-  const temporaryPassword = asNullableTrimmedString(body.temporaryPassword) ?? undefined;
+  const firstName = asTrimmedString(body.firstName);
+  const lastName = asTrimmedString(body.lastName);
 
   if (!email) {
     throw new Error("Email is required.");
@@ -47,15 +41,18 @@ export function parseCreateStaffAccountRequest(body: JsonObject): AdminCreateSta
     throw new Error("Email must be a valid email address.");
   }
 
-  if (temporaryPassword && temporaryPassword.length < 8) {
-    throw new Error("Temporary password must be at least 8 characters.");
+  if (!firstName) {
+    throw new Error("First name is required.");
+  }
+
+  if (!lastName) {
+    throw new Error("Last name is required.");
   }
 
   return {
     email,
     firstName,
     lastName,
-    temporaryPassword,
   };
 }
 
@@ -69,8 +66,8 @@ async function promoteProfileToStaff(
       .from("profiles")
       .update({
         email: input.email,
-        first_name: input.firstName ?? null,
-        last_name: input.lastName ?? null,
+        first_name: input.firstName,
+        last_name: input.lastName,
         role: "Staff",
         is_active: true,
       })
@@ -104,15 +101,21 @@ export async function createStaffAccount(
     return { ok: false, reason: "validation", message: "Email is required." };
   }
 
-  const temporaryPassword = input.temporaryPassword || generateTemporaryPassword();
+  if (!input.firstName) {
+    return { ok: false, reason: "validation", message: "First name is required." };
+  }
+
+  if (!input.lastName) {
+    return { ok: false, reason: "validation", message: "Last name is required." };
+  }
 
   const { data, error } = await supabase.auth.admin.createUser({
     email: input.email,
-    password: temporaryPassword,
+    password: DEFAULT_STAFF_PASSWORD,
     email_confirm: true,
     user_metadata: {
-      first_name: input.firstName ?? undefined,
-      last_name: input.lastName ?? undefined,
+      first_name: input.firstName,
+      last_name: input.lastName,
     },
   });
 
@@ -138,15 +141,14 @@ export async function createStaffAccount(
   return {
     ok: true,
     data: {
-      message: "Staff account created successfully. Share the temporary password securely and require a reset.",
+      message: "Staff account created successfully. Default password is staff123.",
       account: {
         id: String(profile.id),
         email: typeof profile.email === "string" ? profile.email : input.email,
-        firstName: typeof profile.first_name === "string" ? profile.first_name : null,
-        lastName: typeof profile.last_name === "string" ? profile.last_name : null,
+        firstName: typeof profile.first_name === "string" ? profile.first_name : input.firstName,
+        lastName: typeof profile.last_name === "string" ? profile.last_name : input.lastName,
         role: "Staff",
         isActive: profile.is_active === true,
-        temporaryPassword,
       },
     },
   };

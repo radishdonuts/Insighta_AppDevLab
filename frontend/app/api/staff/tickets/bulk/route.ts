@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 
-import { jsonError, jsonServerError, parseJsonRequestBody } from "@/app/api/staff/_utils";
+import { jsonError, jsonServerError, parseJsonRequestBody } from "@/lib/api/staff-utils";
 import {
+    canAccessWorkspaceTicket,
     getStaffSupabase,
     isUuid,
     requireStaffApiAuth,
@@ -84,8 +85,18 @@ export async function POST(request: Request) {
         const supabase = getStaffSupabase();
         const results: Array<{ ticketId: string; success: boolean; error?: string }> = [];
 
+        if (authResult.auth.role !== "Admin" && (bulkReq.action === "assign" || bulkReq.action === "unassign")) {
+            return jsonError(403, "Only admins can bulk assign or unassign tickets.");
+        }
+
         for (const ticketId of bulkReq.ticketIds) {
             try {
+                const hasAccess = await canAccessWorkspaceTicket(supabase, ticketId, authResult.auth);
+                if (!hasAccess) {
+                    results.push({ ticketId, success: false, error: "Ticket not found." });
+                    continue;
+                }
+
                 if (bulkReq.action === "status" && bulkReq.value) {
                     const { error } = await supabase
                         .from("tickets")
@@ -149,3 +160,4 @@ export async function POST(request: Request) {
         return jsonServerError(err, "Failed to execute bulk action.");
     }
 }
+

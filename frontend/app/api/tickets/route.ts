@@ -3,7 +3,8 @@ import { createHash, randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
 
 import { isEmailConfigured, sendTicketCreatedEmail } from "@/lib/email";
-import { buildNlpInputText, runTicketNlpEnrichment, resolveUncategorizedCategoryId } from "@/lib/nlp/ticket-enrichment";
+import { CANONICAL_COMPLAINT_CATEGORIES, normalizeCanonicalComplaintCategory } from "@/lib/nlp/taxonomy";
+import { buildNlpInputText } from "@/lib/nlp/ticket-enrichment";
 import { getSupabaseServerClient } from "@/lib/supabase";
 import { createClient } from "@/utils/supabase/server";
 
@@ -18,7 +19,7 @@ type ParsedCreateTicketInput = {
   ticketType: "Complaint";
   customerId?: string;
   guestEmail?: string;
-  categoryIdInput?: string;
+  categoryInput?: string;
   nlpText: string;
 };
 
@@ -91,7 +92,14 @@ function isValidEmail(email: string): boolean {
 }
 
 function getErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "Unexpected error.";
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === "object") {
+    const maybeMessage = (error as { message?: unknown }).message;
+    if (typeof maybeMessage === "string" && maybeMessage.trim()) {
+      return maybeMessage.trim();
+    }
+  }
+  return "Unexpected error.";
 }
 
 function getErrorCode(error: unknown): string | undefined {
@@ -117,6 +125,12 @@ function isPayloadConstraintError(error: unknown): boolean {
     message.includes("violates foreign key constraint") ||
     message.includes("violates check constraint")
   );
+}
+
+function isMissingColumnError(error: unknown, columnName: string): boolean {
+  const message = getErrorMessage(error).toLowerCase();
+  const target = `'${columnName.toLowerCase()}'`;
+  return message.includes("column") && message.includes(target);
 }
 
 async function parseJsonBody(request: Request): Promise<JsonObject> {
@@ -148,7 +162,11 @@ function parseCreateTicketInput(
   const guestEmailRaw =
     readFirstString(body, ["guest_email", "guestEmail", "customer_email", "customerEmail"]) || undefined;
   const guestEmail = guestEmailRaw?.toLowerCase();
-  const categoryIdInput = readFirstString(body, ["category_id", "categoryId"]) || undefined;
+  const categoryInput = readFirstString(body, ["category_id", "categoryId", "category_name", "categoryName"]) || undefined;
+
+  if (!title) {
+    throw new ApiError(400, "Title is required.");
+  }
 
   if (title.length > TITLE_MAX_LENGTH) {
     throw new ApiError(400, `Title must be ${TITLE_MAX_LENGTH} characters or fewer.`);
@@ -185,8 +203,8 @@ function parseCreateTicketInput(
     }
   }
 
-  if (categoryIdInput && !isUuid(categoryIdInput)) {
-    throw new ApiError(400, "Category ID must be a valid UUID.");
+  if (categoryInput && !isUuid(categoryInput) && !normalizeCanonicalComplaintCategory(categoryInput)) {
+    throw new ApiError(400, "Category is invalid.");
   }
 
   return {
@@ -195,7 +213,7 @@ function parseCreateTicketInput(
     ticketType: "Complaint",
     customerId: authUserId ?? undefined,
     guestEmail: authUserId ? undefined : guestEmail,
-    categoryIdInput,
+    categoryInput,
     nlpText: buildNlpInputText(title, description),
   };
 }
@@ -230,54 +248,148 @@ async function resolveGuestId(supabase: SupabaseServerClient, email: string): Pr
   return String(inserted.id);
 }
 
-async function resolveCategorySelection(
-  supabase: SupabaseServerClient,
-  categoryIdInput?: string
-): Promise<{ categoryId: string; usedFallbackCategory: boolean }> {
-  if (categoryIdInput) {
-    const { data, error } = await supabase
-      .from("complaint_categories")
-      .select("id")
-      .eq("id", categoryIdInput)
-      .eq("is_active", true)
-      .limit(1)
-      .maybeSingle();
+const DEFAULT_CATEGORY_NAME = "Other / Uncategorized";
+const CANONICAL_CATEGORY_SET = new Set<string>(CANONICAL_COMPLAINT_CATEGORIES);
 
-    if (error) {
-      throw new Error(`Failed to resolve category: ${error.message}`);
-    }
+type ComplaintCategoryRow = {
+  id?: unknown;
+  category_name?: unknown;
+};
 
-    if (!data?.id) {
-      throw new ApiError(400, "Category not found or inactive.");
-    }
+function mapResolvedCategoryRow(
+  row: ComplaintCategoryRow | null,
+  options?: { userProvided?: boolean; usedFallbackCategory?: boolean }
+) {
+  const categoryId = asTrimmedString(row?.id);
+  const categoryName = asTrimmedString(row?.category_name);
 
-    return {
-      categoryId: String(data.id),
-      usedFallbackCategory: false,
-    };
+  if (!categoryId || !categoryName || !CANONICAL_CATEGORY_SET.has(categoryName)) {
+    return null;
   }
 
   return {
-    categoryId: await resolveUncategorizedCategoryId(supabase),
+    categoryId,
+    categoryName,
+    userProvided: options?.userProvided ?? true,
+    usedFallbackCategory: options?.usedFallbackCategory ?? false,
+  };
+}
+
+async function findComplaintCategoryById(
+  supabase: SupabaseServerClient,
+  categoryId: string
+) {
+  const { data, error } = await supabase
+    .from("complaint_categories")
+    .select("id, category_name")
+    .eq("id", categoryId)
+    .eq("is_active", true)
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to resolve category: ${error.message}`);
+  }
+
+  return mapResolvedCategoryRow(data as ComplaintCategoryRow | null);
+}
+
+async function findComplaintCategoryByName(
+  supabase: SupabaseServerClient,
+  categoryName: string
+) {
+  const { data, error } = await supabase
+    .from("complaint_categories")
+    .select("id, category_name")
+    .eq("category_name", categoryName)
+    .eq("is_active", true)
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to resolve category: ${error.message}`);
+  }
+
+  return mapResolvedCategoryRow(data as ComplaintCategoryRow | null);
+}
+
+async function resolveFallbackCategory(
+  supabase: SupabaseServerClient
+) {
+  const fallback = await findComplaintCategoryByName(supabase, DEFAULT_CATEGORY_NAME);
+  if (!fallback) {
+    throw new Error(`Failed to resolve fallback category "${DEFAULT_CATEGORY_NAME}".`);
+  }
+
+  return {
+    ...fallback,
+    userProvided: false,
     usedFallbackCategory: true,
   };
+}
+
+async function resolveCategorySelection(
+  supabase: SupabaseServerClient,
+  categoryInput?: string
+): Promise<{
+  categoryId: string;
+  categoryName: string;
+  usedFallbackCategory: boolean;
+  userProvided: boolean;
+}> {
+  if (categoryInput) {
+    if (isUuid(categoryInput)) {
+      const categoryById = await findComplaintCategoryById(supabase, categoryInput);
+      if (!categoryById) {
+        throw new ApiError(400, "Category not found.");
+      }
+      return categoryById;
+    }
+
+    const normalizedCategoryName = normalizeCanonicalComplaintCategory(categoryInput);
+    if (normalizedCategoryName) {
+      const categoryByName = await findComplaintCategoryByName(supabase, normalizedCategoryName);
+      if (categoryByName) {
+        return categoryByName;
+      }
+    }
+
+    const categoryByRawName = await findComplaintCategoryByName(supabase, categoryInput);
+    if (categoryByRawName) {
+      return categoryByRawName;
+    }
+
+    throw new ApiError(400, "Category not found.");
+  }
+
+  return resolveFallbackCategory(supabase);
 }
 
 async function getNextTicketNumber(supabase: SupabaseServerClient): Promise<string> {
   const { data, error } = await supabase
     .from("tickets")
     .select("ticket_number")
-    .order("submitted_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .like("ticket_number", "TKT-%")
+    .order("ticket_number", { ascending: false })
+    .limit(20);
 
   if (error) {
     throw new Error(`Failed to generate ticket number: ${error.message}`);
   }
 
-  const current = asTrimmedString(data?.ticket_number);
-  const match = /^TKT-(\d+)$/.exec(current);
-  const nextNumber = match ? Number.parseInt(match[1], 10) + 1 : 1;
+  const rows = Array.isArray(data) ? data : [];
+  let highestNumber = 0;
+
+  for (const row of rows) {
+    const current = asTrimmedString((row as { ticket_number?: unknown }).ticket_number);
+    const match = /^TKT-(\d+)$/.exec(current);
+    const parsed = match ? Number.parseInt(match[1], 10) : 0;
+    if (parsed > highestNumber) {
+      highestNumber = parsed;
+    }
+  }
+
+  const nextNumber = highestNumber + 1;
   return `TKT-${String(nextNumber).padStart(5, "0")}`;
 }
 
@@ -360,13 +472,14 @@ async function insertTicketWithRetry(
   payload: Record<string, unknown>
 ) {
   let lastError: unknown;
+  const insertPayload: Record<string, unknown> = { ...payload };
 
   for (let attempt = 1; attempt <= MAX_TICKET_NUMBER_RETRIES; attempt += 1) {
     const ticketNumber = await getNextTicketNumber(supabase);
 
     const { data, error } = await supabase
       .from("tickets")
-      .insert({ ...payload, ticket_number: ticketNumber })
+      .insert({ ...insertPayload, ticket_number: ticketNumber })
       .select("id, ticket_number, status, priority, submitted_at")
       .single();
 
@@ -375,6 +488,12 @@ async function insertTicketWithRetry(
     }
 
     lastError = error;
+
+    if (isMissingColumnError(error, "category_source") || isMissingColumnError(error, "priority_source")) {
+      delete insertPayload.category_source;
+      delete insertPayload.priority_source;
+      continue;
+    }
 
     if (!isTicketNumberConflict(error)) {
       break;
@@ -467,40 +586,6 @@ async function uploadAttachmentsForTicket(
   return uploadedCount;
 }
 
-async function runAsyncNlpEnrichment(input: {
-  supabase: SupabaseServerClient;
-  ticketId: string;
-  text: string;
-  allowCategoryOverride: boolean;
-  uncategorizedCategoryId?: string | null;
-}) {
-  console.info("[tickets] NLP enrichment started", { ticketId: input.ticketId });
-
-  try {
-    const result = await runTicketNlpEnrichment({
-      supabase: input.supabase,
-      ticketId: input.ticketId,
-      text: input.text,
-      allowCategoryOverride: input.allowCategoryOverride,
-      uncategorizedCategoryId: input.uncategorizedCategoryId ?? null,
-    });
-
-    console.info("[tickets] NLP enrichment completed", {
-      ticketId: input.ticketId,
-      nlpFieldsUpdated: result.nlpFieldsUpdated,
-      categoryUpdated: result.categoryUpdated,
-      skippedLowConfidence: result.skippedLowConfidence,
-      skippedMissingTaxonomy: result.skippedMissingTaxonomy,
-      applied: result.applied,
-    });
-  } catch (error) {
-    console.error("[tickets] NLP enrichment failed", {
-      ticketId: input.ticketId,
-      error: getErrorMessage(error),
-    });
-  }
-}
-
 async function sendTicketCreatedEmailSafe(input: {
   recipientEmail: string | null;
   trackingNumber: string | null;
@@ -533,6 +618,42 @@ async function sendTicketCreatedEmailSafe(input: {
   }
 }
 
+async function enqueueTicketNlpJob(input: {
+  supabase: SupabaseServerClient;
+  ticketId: string;
+  nlpText: string;
+}) {
+  const ticketId = asTrimmedString(input.ticketId);
+  const nlpText = asTrimmedString(input.nlpText);
+  if (!ticketId || !nlpText) return;
+
+  const nowIso = new Date().toISOString();
+  const row = {
+    ticket_id: ticketId,
+    input_text: nlpText,
+    status: "pending",
+    available_at: nowIso,
+    locked_at: null,
+    locked_by: null,
+    last_error: null,
+  };
+
+  const { error } = await input.supabase
+    .from("ticket_nlp_jobs")
+    .upsert(row, { onConflict: "ticket_id" });
+
+  if (error) {
+    const message = getErrorMessage(error);
+    if (message.toLowerCase().includes("relation") && message.toLowerCase().includes("ticket_nlp_jobs")) {
+      console.warn("[tickets] NLP queue table is unavailable; skipping job enqueue", {
+        ticketId,
+      });
+      return;
+    }
+    throw new Error(`Failed to enqueue NLP job: ${message}`);
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const authClient = await createClient();
@@ -545,7 +666,7 @@ export async function POST(request: Request) {
     const input = parseCreateTicketInput(body, user?.id ?? null);
     const supabase = getSupabaseServerClient();
 
-    const category = await resolveCategorySelection(supabase, input.categoryIdInput);
+    const category = await resolveCategorySelection(supabase, input.categoryInput);
     const guestId = input.guestEmail ? await resolveGuestId(supabase, input.guestEmail) : null;
 
     const insertPayload = compactObject({
@@ -554,6 +675,9 @@ export async function POST(request: Request) {
       description: input.description,
       nlp_input_text: input.nlpText,
       category_id: category.categoryId,
+      category_name: category.categoryName,
+      category_source: category.userProvided ? "user" : "default",
+      priority_source: "default",
       customer_id: input.customerId,
       guest_id: guestId ?? undefined,
     });
@@ -577,14 +701,39 @@ export async function POST(request: Request) {
       ticketId: ticketId || null,
     });
 
+    let nlp: {
+      status: "queued";
+      applied: false;
+      error: string | null;
+      prediction: null;
+    } | null = null;
+
     if (ticketId && input.nlpText) {
-      void runAsyncNlpEnrichment({
-        supabase,
-        ticketId,
-        text: input.nlpText,
-        allowCategoryOverride: category.usedFallbackCategory,
-        uncategorizedCategoryId: category.usedFallbackCategory ? category.categoryId : null,
-      });
+      try {
+        await enqueueTicketNlpJob({
+          supabase,
+          ticketId,
+          nlpText: input.nlpText,
+        });
+        nlp = {
+          status: "queued",
+          applied: false,
+          error: null,
+          prediction: null,
+        };
+      } catch (error) {
+        const message = getErrorMessage(error);
+        nlp = {
+          status: "queued",
+          applied: false,
+          error: message,
+          prediction: null,
+        };
+        console.error("[tickets] Failed to enqueue NLP job", {
+          ticketId,
+          error: message,
+        });
+      }
     }
 
     return NextResponse.json(
@@ -599,6 +748,7 @@ export async function POST(request: Request) {
         },
         ...(guestAccessToken && guestId ? { accessToken: guestAccessToken } : {}),
         attachmentsUploaded,
+        nlp,
       },
       { status: 201 }
     );

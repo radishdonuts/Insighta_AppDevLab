@@ -1,0 +1,24 @@
+{
+  "id2label": {
+    "0": "Policy & Account Servicing",
+    "1": "Claims Experience",
+    "2": "Payments, Billing & Refunds",
+    "3": "Documents & Requirements",
+    "4": "Customer Support & Service Quality",
+    "5": "Digital Access & Technical Issues",
+    "6": "Fraud, Security & Privacy",
+    "7": "Product/Partner Service Delivery",
+    "8": "Other / Uncategorized"
+  },
+  "label2id": {
+    "Policy & Account Servicing": 0,
+    "Claims Experience": 1,
+    "Payments, Billing & Refunds": 2,
+    "Documents & Requirements": 3,
+    "Customer Support & Service Quality": 4,
+    "Digital Access & Technical Issues": 5,
+    "Fraud, Security & Privacy": 6,
+    "Product/Partner Service Delivery": 7,
+    "Other / Uncategorized": 8
+  }
+}

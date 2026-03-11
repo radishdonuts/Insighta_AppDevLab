@@ -4,41 +4,26 @@ import { getSupabaseServerClient } from "@/lib/supabase";
 
 export const runtime = "nodejs";
 
-type CategoryRow = {
-  id?: unknown;
-  category_name?: unknown;
-};
-
-function asString(value: unknown): string | null {
-  if (typeof value !== "string") return null;
-  const trimmed = value.trim();
-  return trimmed ? trimmed : null;
-}
-
 export async function GET() {
   try {
-    const { data, error } = await getSupabaseServerClient()
+    const supabase = getSupabaseServerClient();
+    const { data, error } = await supabase
       .from("complaint_categories")
       .select("id, category_name")
       .eq("is_active", true)
       .order("category_name", { ascending: true });
 
     if (error) {
-      return NextResponse.json(
-        { ok: false, message: "Failed to load categories." },
-        { status: 500 }
-      );
+      throw new Error(error.message);
     }
 
-    const categories = (data ?? [])
+    const categories = (Array.isArray(data) ? data : [])
       .map((row) => {
-        const item = row as CategoryRow;
-        const id = asString(item.id);
-        const name = asString(item.category_name);
-        if (!id || !name) return null;
-        return { id, name };
+        const id = typeof row.id === "string" ? row.id.trim() : "";
+        const name = typeof row.category_name === "string" ? row.category_name.trim() : "";
+        return id && name ? { id, name } : null;
       })
-      .filter((item): item is { id: string; name: string } => item !== null);
+      .filter((entry): entry is { id: string; name: string } => entry !== null);
 
     return NextResponse.json({ ok: true, categories });
   } catch {
