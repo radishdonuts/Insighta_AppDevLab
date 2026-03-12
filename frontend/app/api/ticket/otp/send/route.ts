@@ -61,9 +61,27 @@ async function resolveTokenToGuestEmail(token: string) {
     row = hashedRow;
   }
 
-  if (!row?.ticket_id) return null;
+  let ticket = Array.isArray(row?.ticket) ? row?.ticket[0] : row?.ticket;
 
-  const ticket = Array.isArray(row.ticket) ? row.ticket[0] : row.ticket;
+  if (!row?.ticket_id) {
+    const { data: ticketRow } = await supabase
+      .from("tickets")
+      .select(
+        `
+          id,
+          customer_id,
+          guest_id,
+          guest:guest_contacts!tickets_guest_id_fkey ( email )
+        `
+      )
+      .eq("ticket_number", token)
+      .limit(1)
+      .maybeSingle();
+
+    if (!ticketRow?.id) return null;
+    ticket = ticketRow;
+  }
+
   if (!ticket || typeof ticket !== "object") return null;
 
   const ticketObj = ticket as {

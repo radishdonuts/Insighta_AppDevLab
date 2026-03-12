@@ -100,7 +100,7 @@ const outcomeCards = [
 const queuePreviewTickets = [
   {
     id: "preview-urgent",
-    ticketNumber: "TKT-2048",
+    ticketNumber: "TRK-FQBL-J44K-H2JU",
     title: "Delayed reimbursement for emergency admission",
     status: "Escalated",
     priority: "High",
@@ -110,7 +110,7 @@ const queuePreviewTickets = [
   },
   {
     id: "preview-followup",
-    ticketNumber: "TKT-2054",
+    ticketNumber: "TRK-M7CP-9XLD-Q8WR",
     title: "Policy cancellation refund follow-up",
     status: "In Progress",
     priority: "Medium",

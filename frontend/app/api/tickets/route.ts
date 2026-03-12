@@ -365,32 +365,19 @@ async function resolveCategorySelection(
   return resolveFallbackCategory(supabase);
 }
 
-async function getNextTicketNumber(supabase: SupabaseServerClient): Promise<string> {
-  const { data, error } = await supabase
-    .from("tickets")
-    .select("ticket_number")
-    .like("ticket_number", "TKT-%")
-    .order("ticket_number", { ascending: false })
-    .limit(20);
+function buildTrackingCode(): string {
+  const bytes = randomBytes(12);
+  let value = "";
 
-  if (error) {
-    throw new Error(`Failed to generate ticket number: ${error.message}`);
+  for (let index = 0; index < bytes.length; index += 1) {
+    value += TRACKING_CODE_ALPHABET[bytes[index] % TRACKING_CODE_ALPHABET.length];
   }
 
-  const rows = Array.isArray(data) ? data : [];
-  let highestNumber = 0;
+  return `TRK-${value.slice(0, 4)}-${value.slice(4, 8)}-${value.slice(8, 12)}`;
+}
 
-  for (const row of rows) {
-    const current = asTrimmedString((row as { ticket_number?: unknown }).ticket_number);
-    const match = /^TKT-(\d+)$/.exec(current);
-    const parsed = match ? Number.parseInt(match[1], 10) : 0;
-    if (parsed > highestNumber) {
-      highestNumber = parsed;
-    }
-  }
-
-  const nextNumber = highestNumber + 1;
-  return `TKT-${String(nextNumber).padStart(5, "0")}`;
+async function getNextTicketNumber(_supabase: SupabaseServerClient): Promise<string> {
+  return buildTrackingCode();
 }
 
 function compactObject<T extends Record<string, unknown>>(obj: T): Partial<T> {
@@ -533,14 +520,7 @@ async function createGuestAccessToken(
 }
 
 function buildGuestTrackingCode(): string {
-  const bytes = randomBytes(12);
-  let value = "";
-
-  for (let index = 0; index < bytes.length; index += 1) {
-    value += TRACKING_CODE_ALPHABET[bytes[index] % TRACKING_CODE_ALPHABET.length];
-  }
-
-  return `TRK-${value.slice(0, 4)}-${value.slice(4, 8)}-${value.slice(8, 12)}`;
+  return buildTrackingCode();
 }
 
 async function uploadAttachmentsForTicket(
@@ -696,7 +676,7 @@ export async function POST(request: Request) {
     const recipientEmail = input.guestEmail ?? asTrimmedString(user?.email);
     await sendTicketCreatedEmailSafe({
       recipientEmail,
-      trackingNumber: guestAccessToken ?? asTrimmedString(ticket.ticket_number),
+      trackingNumber: asTrimmedString(ticket.ticket_number),
       ticketType: input.ticketType,
       ticketId: ticketId || null,
     });
@@ -746,7 +726,6 @@ export async function POST(request: Request) {
           priority: ticket.priority ?? null,
           createdAt: ticket.submitted_at ?? null,
         },
-        ...(guestAccessToken && guestId ? { accessToken: guestAccessToken } : {}),
         attachmentsUploaded,
         nlp,
       },

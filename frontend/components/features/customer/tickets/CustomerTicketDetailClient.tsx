@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import {
   MessageThread,
   type ThreadMessage,
 } from "@/components/MessageThread";
+import { useTicketMessagesRealtime } from "@/lib/tickets/use-ticket-messages-realtime";
 
 type ApiTicket = {
   id?: unknown;
@@ -38,7 +39,12 @@ type TicketMessagesResponse = {
       displayName: string;
       email: string | null;
     } | null;
-  }>;
+  }>; 
+};
+
+type TicketMessageCreateResponse = {
+  message?: string;
+  data?: TicketMessagesResponse["messages"][number];
 };
 
 type TicketDetail = {
@@ -122,6 +128,22 @@ function mapThreadMessage(message: TicketMessagesResponse["messages"][number]): 
   };
 }
 
+function mergeThreadMessages(current: ThreadMessage[], next: ThreadMessage[]): ThreadMessage[] {
+  const merged = new Map<string, ThreadMessage>();
+
+  for (const message of current) {
+    merged.set(message.id, message);
+  }
+
+  for (const message of next) {
+    merged.set(message.id, message);
+  }
+
+  return Array.from(merged.values()).sort(
+    (left, right) => Date.parse(left.created_at) - Date.parse(right.created_at)
+  );
+}
+
 export default function CustomerTicketDetailClient({ ticketId }: { ticketId: string }) {
   const [ticket, setTicket] = useState<TicketDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -152,8 +174,10 @@ export default function CustomerTicketDetailClient({ ticketId }: { ticketId: str
     }
   }
 
-  async function loadMessages() {
-    setMessagesLoading(true);
+  const loadMessages = useCallback(async (options?: { silent?: boolean }) => {
+    if (!options?.silent) {
+      setMessagesLoading(true);
+    }
     setMessagesError(null);
 
     try {
@@ -166,14 +190,23 @@ export default function CustomerTicketDetailClient({ ticketId }: { ticketId: str
       setMessagesError(loadError instanceof Error ? loadError.message : "Failed to load messages.");
       setMessages([]);
     } finally {
-      setMessagesLoading(false);
+      if (!options?.silent) {
+        setMessagesLoading(false);
+      }
     }
-  }
+  }, [ticketId]);
 
   useEffect(() => {
     void loadTicket();
     void loadMessages();
-  }, [ticketId]);
+  }, [ticketId, loadMessages]);
+
+  useTicketMessagesRealtime({
+    ticketId,
+    onRefresh: () => {
+      void loadMessages({ silent: true });
+    },
+  });
 
   async function handleSendMessage(content: string) {
     setSendError(null);
@@ -191,8 +224,11 @@ export default function CustomerTicketDetailClient({ ticketId }: { ticketId: str
       throw new Error(message);
     }
 
-    setSendStatus("Message sent.");
-    await loadMessages();
+    const payload = (await response.json()) as TicketMessageCreateResponse;
+    if (payload.data) {
+      setMessages((current) => mergeThreadMessages(current, [mapThreadMessage(payload.data!)]));
+    }
+    setSendStatus(payload.message || "Message sent.");
   }
 
   const currentStep = deriveStepIndex(ticket?.status ?? "");

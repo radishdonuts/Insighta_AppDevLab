@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import type {
   StaffNlpReviewOptionsResponse,
@@ -22,6 +22,7 @@ import {
 } from "../workspace/queue-ui";
 import { MessageThread, type ThreadMessage } from "@/components/MessageThread";
 import { NotesTimeline, type InternalNote } from "@/components/NotesTimeline";
+import { useTicketMessagesRealtime } from "@/lib/tickets/use-ticket-messages-realtime";
 import styles from "./detail.module.css";
 
 type ApiErrorPayload = { error?: string; message?: string };
@@ -127,6 +128,25 @@ function mapMessageToThreadMessage(
   };
 }
 
+function mergeMessages(
+  current: StaffTicketMessagesResponse["messages"],
+  next: StaffTicketMessagesResponse["messages"]
+) {
+  const merged = new Map<string, StaffTicketMessagesResponse["messages"][number]>();
+
+  for (const message of current) {
+    merged.set(message.id, message);
+  }
+
+  for (const message of next) {
+    merged.set(message.id, message);
+  }
+
+  return Array.from(merged.values()).sort(
+    (left, right) => Date.parse(left.createdAt) - Date.parse(right.createdAt)
+  );
+}
+
 function mapNoteToInternalNote(note: StaffTicketNotesResponse["notes"][number]): InternalNote {
   return {
     id: note.id,
@@ -230,9 +250,11 @@ export default function StaffTicketDetailClient({
     }
   }
 
-  async function loadMessages() {
+  const loadMessages = useCallback(async (options?: { silent?: boolean }) => {
     if (!showStaffOnlySections) return;
-    setMessagesLoading(true);
+    if (!options?.silent) {
+      setMessagesLoading(true);
+    }
     setMessagesError(null);
     try {
       const response = await fetch(`${apiBasePath}/${ticketId}/messages`, { method: "GET", cache: "no-store" });
@@ -242,9 +264,11 @@ export default function StaffTicketDetailClient({
     } catch (err) {
       setMessagesError(err instanceof Error ? err.message : "Failed to load messages.");
     } finally {
-      setMessagesLoading(false);
+      if (!options?.silent) {
+        setMessagesLoading(false);
+      }
     }
-  }
+  }, [apiBasePath, showStaffOnlySections, ticketId]);
 
   async function loadAssignableStaff() {
     if (mode !== "admin") return;
@@ -267,7 +291,15 @@ export default function StaffTicketDetailClient({
     void loadNotes();
     void loadMessages();
     void loadAssignableStaff();
-  }, [ticketId, apiBasePath, mode]);
+  }, [ticketId, apiBasePath, mode, loadMessages]);
+
+  useTicketMessagesRealtime({
+    ticketId,
+    enabled: showStaffOnlySections,
+    onRefresh: () => {
+      void loadMessages({ silent: true });
+    },
+  });
 
   async function handleNlpReviewSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -376,7 +408,9 @@ export default function StaffTicketDetailClient({
       if (!response.ok) throw new Error(await readApiError(response));
       const payload = (await response.json()) as StaffTicketMessageCreateResponse;
       setMessageStatus(payload.message ?? "Message sent.");
-      await loadMessages();
+      if (payload.data) {
+        setMessages((current) => mergeMessages(current, [payload.data]));
+      }
     } catch (err) {
       setMessageSubmitError(err instanceof Error ? err.message : "Failed to send message.");
       throw err;

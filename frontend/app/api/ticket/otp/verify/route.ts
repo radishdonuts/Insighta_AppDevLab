@@ -55,6 +55,17 @@ export async function POST(req: Request) {
   }
 
   if (!ticketId) {
+    const { data: ticketRow } = await supabase
+      .from("tickets")
+      .select("id")
+      .eq("ticket_number", token)
+      .limit(1)
+      .maybeSingle();
+
+    ticketId = ticketRow?.id;
+  }
+
+  if (!ticketId) {
     return NextResponse.json({ ok: false, message: "Invalid or expired tracking token." }, { status: 404 });
   }
 

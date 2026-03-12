@@ -181,7 +181,7 @@ export type StaffTicketMessagesResponse = {
 
 export type StaffTicketMessageCreateResponse = {
   message: string;
-  data: unknown;
+  data: StaffTicketMessage;
 };
 
 export type StaffStatusUpdateRequest = {

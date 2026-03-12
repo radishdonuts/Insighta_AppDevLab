@@ -14,6 +14,29 @@ export const runtime = "nodejs";
 
 type RouteContext = { params: Promise<{ ticketId: string }> };
 
+type MessageRow = Record<string, unknown>;
+
+function mapMessageRow(row: MessageRow) {
+    const sender = row.sender as { id?: string; email?: string; first_name?: string; last_name?: string } | null;
+    const firstName = sender?.first_name ?? null;
+    const lastName = sender?.last_name ?? null;
+    const displayName = [firstName, lastName].filter(Boolean).join(" ").trim() || sender?.email || "Unknown";
+
+    return {
+        id: row.id,
+        content: row.content,
+        senderType: row.sender_type,
+        createdAt: row.created_at,
+        sender: sender ? {
+            id: sender.id,
+            email: sender.email ?? null,
+            firstName,
+            lastName,
+            displayName,
+        } : null,
+    };
+}
+
 /**
  * GET /api/staff/tickets/[ticketId]/messages — list messages for a ticket.
  */
@@ -44,26 +67,7 @@ export async function GET(_request: Request, context: RouteContext) {
             return jsonError(500, "Failed to fetch messages.");
         }
 
-        const messages = (data ?? []).map((row: Record<string, unknown>) => {
-            const sender = row.sender as { id?: string; email?: string; first_name?: string; last_name?: string } | null;
-            const firstName = sender?.first_name ?? null;
-            const lastName = sender?.last_name ?? null;
-            const displayName = [firstName, lastName].filter(Boolean).join(" ").trim() || sender?.email || "Unknown";
-
-            return {
-                id: row.id,
-                content: row.content,
-                senderType: row.sender_type,
-                createdAt: row.created_at,
-                sender: sender ? {
-                    id: sender.id,
-                    email: sender.email ?? null,
-                    firstName,
-                    lastName,
-                    displayName,
-                } : null,
-            };
-        });
+        const messages = (data ?? []).map((row: MessageRow) => mapMessageRow(row));
 
         return NextResponse.json({ messages });
     } catch (err) {
@@ -106,7 +110,10 @@ export async function POST(request: Request, context: RouteContext) {
                 sender_type: "staff",
                 content,
             })
-            .select("id, content, sender_type, created_at")
+            .select(
+                `id, content, sender_type, created_at,
+         sender:profiles!ticket_messages_sender_id_fkey (id, email, first_name, last_name)`
+            )
             .single();
 
         if (error) {
@@ -123,7 +130,7 @@ export async function POST(request: Request, context: RouteContext) {
         });
 
         return NextResponse.json(
-            { message: "Message sent.", data },
+            { message: "Message sent.", data: mapMessageRow(data as MessageRow) },
             { status: 201 }
         );
     } catch (err) {
