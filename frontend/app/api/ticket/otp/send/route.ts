@@ -22,7 +22,7 @@ function maskEmail(email: string): string {
  * Resolves a tracking token to the ticket and guest email.
  * Tries plain-text match first, then SHA-256 hash.
  */
-async function resolveTokenToGuestEmail(token: string) {
+async function resolveTokenToOwnerEmail(token: string) {
   const supabase = getSupabaseServerClient();
   const tokenHash = sha256Hex(token);
   const nowIso = new Date().toISOString();
@@ -34,7 +34,8 @@ async function resolveTokenToGuestEmail(token: string) {
       id,
       customer_id,
       guest_id,
-      guest:guest_contacts!tickets_guest_id_fkey ( email )
+      guest:guest_contacts!tickets_guest_id_fkey ( email ),
+      customer:profiles!tickets_customer_id_fkey ( email )
     )
   `;
 
@@ -71,7 +72,8 @@ async function resolveTokenToGuestEmail(token: string) {
           id,
           customer_id,
           guest_id,
-          guest:guest_contacts!tickets_guest_id_fkey ( email )
+          guest:guest_contacts!tickets_guest_id_fkey ( email ),
+          customer:profiles!tickets_customer_id_fkey ( email )
         `
       )
       .eq("ticket_number", token)
@@ -89,17 +91,19 @@ async function resolveTokenToGuestEmail(token: string) {
     customer_id?: string | null;
     guest_id?: string | null;
     guest?: { email?: string } | { email?: string }[] | null;
+    customer?: { email?: string } | { email?: string }[] | null;
   };
 
-  // If the ticket belongs to a logged-in customer, OTP does not apply
-  if (ticketObj.customer_id) {
-    return { ticketId: ticketObj.id ?? "", email: null, isCustomer: true };
+  const customer = Array.isArray(ticketObj.customer) ? ticketObj.customer[0] : ticketObj.customer;
+  const customerEmail = customer?.email?.trim() || null;
+  if (ticketObj.customer_id && customerEmail) {
+    return { ticketId: ticketObj.id ?? "", email: customerEmail };
   }
 
   const guest = Array.isArray(ticketObj.guest) ? ticketObj.guest[0] : ticketObj.guest;
   const email = guest?.email?.trim() || null;
 
-  return { ticketId: ticketObj.id ?? "", email, isCustomer: false };
+  return { ticketId: ticketObj.id ?? "", email };
 }
 
 export async function POST(req: Request) {
@@ -122,15 +126,10 @@ export async function POST(req: Request) {
     );
   }
 
-  const result = await resolveTokenToGuestEmail(token);
+  const result = await resolveTokenToOwnerEmail(token);
 
   if (!result) {
     return NextResponse.json({ ok: false, message: "Invalid or expired tracking token." }, { status: 404 });
-  }
-
-  // Logged-in customer tickets don't need OTP
-  if (result.isCustomer) {
-    return NextResponse.json({ ok: true, otpRequired: false });
   }
 
   if (!result.email) {
