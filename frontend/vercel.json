@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/nlp/jobs",
-      "schedule": "*/5 * * * *"
+      "schedule": "0 9 * * *"
     }
   ]
 }
