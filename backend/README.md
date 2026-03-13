@@ -11,6 +11,61 @@ uvicorn main:app --reload --port 8000
 
 The server will start at `http://127.0.0.1:8000`.
 
+Windows helper:
+
+```powershell
+.\run-fastapi.bat
+```
+
+## Run as a public backend for a Vercel frontend
+
+Use this when the frontend is deployed on Vercel but the NLP backend still runs on one local PC.
+
+### 1. Start FastAPI on a public bind
+
+```powershell
+.\start-fastapi-public.ps1
+```
+
+This binds FastAPI to `0.0.0.0:8000` on the local machine.
+
+### 2. Start a Cloudflare Quick Tunnel
+
+Install `cloudflared`, then run:
+
+```powershell
+.\start-cloudflare-quick-tunnel.ps1
+```
+
+Cloudflare prints a public `https://...trycloudflare.com` URL in the terminal. Use that URL as `FASTAPI_URL` in Vercel.
+
+### 3. Optional combined launcher
+
+```powershell
+.\run-public-stack.bat
+```
+
+This opens FastAPI in a new PowerShell window and starts the Cloudflare Quick Tunnel in the current window.
+
+### 4. Required backend env
+
+Set these before using the public setup:
+
+```bash
+FRONTEND_URL=https://your-vercel-site.vercel.app
+ALLOWED_ORIGINS=https://your-vercel-site.vercel.app
+NLP_ARTIFACT_DIR=/absolute/path/to/backend/artifacts/distilbert_complaint_twohead_20260305_030951
+```
+
+### 5. Required Vercel step
+
+Whenever the Cloudflare Quick Tunnel URL changes:
+
+1. Copy the new public tunnel URL
+2. Update `FASTAPI_URL` in Vercel
+3. Redeploy the Vercel frontend
+4. Re-test `GET /health` and one fresh ticket submission
+
 ## Model artifacts
 
 Set `NLP_ARTIFACT_DIR` to the notebook export folder that contains:

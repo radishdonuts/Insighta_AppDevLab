@@ -1,12 +1,22 @@
-import { createHash } from "node:crypto";
+import { createHash, createHmac } from "node:crypto";
 
 import { NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase";
 
 const MAX_ATTEMPTS = 5;
+const GUEST_ACCESS_COOKIE = "ticket_guest_access";
+const GUEST_ACCESS_COOKIE_MAX_AGE_SECONDS = 10 * 60;
 
 function sha256Hex(input: string): string {
   return createHash("sha256").update(input, "utf8").digest("hex");
+}
+
+function getGuestAccessSecret(): string {
+  return process.env.TICKET_GUEST_ACCESS_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || "guest-access-secret";
+}
+
+function signGuestAccessToken(tokenHash: string): string {
+  return createHmac("sha256", getGuestAccessSecret()).update(tokenHash, "utf8").digest("hex");
 }
 
 export async function POST(req: Request) {
@@ -52,6 +62,17 @@ export async function POST(req: Request) {
       .maybeSingle();
 
     ticketId = hashedTokenRow?.ticket_id;
+  }
+
+  if (!ticketId) {
+    const { data: ticketRow } = await supabase
+      .from("tickets")
+      .select("id")
+      .eq("ticket_number", token)
+      .limit(1)
+      .maybeSingle();
+
+    ticketId = ticketRow?.id;
   }
 
   if (!ticketId) {
@@ -110,5 +131,14 @@ export async function POST(req: Request) {
   // OTP is valid — clean up
   await supabase.from("ticket_otp_codes").delete().eq("id", otpRow.id);
 
-  return NextResponse.json({ ok: true, ticketId });
+  const response = NextResponse.json({ ok: true, ticketId });
+  response.cookies.set(GUEST_ACCESS_COOKIE, `${tokenHash}.${signGuestAccessToken(tokenHash)}`, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: GUEST_ACCESS_COOKIE_MAX_AGE_SECONDS,
+  });
+
+  return response;
 }

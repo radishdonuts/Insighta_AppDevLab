@@ -12,11 +12,28 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+
+def _allowed_origins() -> list[str]:
+    configured = [
+        origin.strip()
+        for origin in os.getenv("ALLOWED_ORIGINS", "").split(",")
+        if origin.strip()
+    ]
+    frontend_url = os.getenv("FRONTEND_URL", "").strip()
+    defaults = ["http://localhost:3000", "http://localhost:3001"]
+
+    origins: list[str] = []
+    for candidate in [*configured, frontend_url, *defaults]:
+        if candidate and candidate not in origins:
+            origins.append(candidate)
+    return origins
+
+
 app = FastAPI(title="Insighta Backend")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=_allowed_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
