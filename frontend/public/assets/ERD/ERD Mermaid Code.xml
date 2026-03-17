@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net">
+  <diagram name="Insighta ERD" id="vXmqQzItIppnViOSSmGw">
+    <mxGraphModel dx="1062" dy="583" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <!-- User -->
+        <mxCell id="2" value="User&#xa;PK: user_id&#xa;email (unique)&#xa;password_hash&#xa;first_name&#xa;last_name&#xa;role&#xa;created_at&#xa;last_login_at&#xa;is_active" style="shape=swimlane;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="40" width="180" height="240" as="geometry"/>
+        </mxCell>
+
+        <!-- GuestContact -->
+        <mxCell id="3" value="GuestContact&#xa;PK: guest_id&#xa;email&#xa;created_at" style="shape=swimlane;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="320" width="180" height="100" as="geometry"/>
+        </mxCell>
+
+        <!-- Ticket -->
+        <mxCell id="4" value="Ticket&#xa;PK: ticket_id&#xa;ticket_number&#xa;ticket_type&#xa;submitted_at&#xa;status&#xa;priority&#xa;description&#xa;sentiment&#xa;detected_intent&#xa;issue_type&#xa;FK: category_id&#xa;FK: customer_id&#xa;FK: guest_id&#xa;FK: assigned_staff_id&#xa;last_updated_at" style="shape=swimlane;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="260" y="40" width="220" height="360" as="geometry"/>
+        </mxCell>
+
+        <!-- ComplaintCategory -->
+        <mxCell id="5" value="ComplaintCategory&#xa;PK: category_id&#xa;category_name&#xa;is_active&#xa;created_at&#xa;updated_at" style="shape=swimlane;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="520" y="40" width="180" height="140" as="geometry"/>
+        </mxCell>
+
+        <!-- Attachment -->
+        <mxCell id="6" value="Attachment&#xa;PK: attachment_id&#xa;FK: ticket_id&#xa;file_name&#xa;file_type&#xa;file_path&#xa;uploaded_at" style="shape=swimlane;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="520" y="200" width="180" height="140" as="geometry"/>
+        </mxCell>
+
+        <!-- TicketStatusHistory -->
+        <mxCell id="7" value="TicketStatusHistory&#xa;PK: status_history_id&#xa;FK: ticket_id&#xa;old_status&#xa;new_status&#xa;FK: changed_by_user_id&#xa;changed_at&#xa;remarks" style="shape=swimlane;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="760" y="40" width="200" height="160" as="geometry"/>
+        </mxCell>
+
+        <!-- Feedback -->
+        <mxCell id="8" value="Feedback&#xa;PK: feedback_id&#xa;FK: ticket_id&#xa;rating&#xa;comment&#xa;submitted_at&#xa;FK: submitted_by_user_id&#xa;FK: submitted_by_guest_id" style="shape=swimlane;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="760" y="220" width="200" height="160" as="geometry"/>
+        </mxCell>
+
+        <!-- Notification -->
+        <mxCell id="9" value="Notification&#xa;PK: notification_id&#xa;FK: ticket_id&#xa;recipient_email&#xa;notification_type&#xa;message&#xa;sent_at&#xa;delivery_status" style="shape=swimlane;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="1020" y="40" width="200" height="160" as="geometry"/>
+        </mxCell>
+
+        <!-- SystemActivityLog -->
+        <mxCell id="10" value="SystemActivityLog&#xa;PK: log_id&#xa;FK: user_id&#xa;action&#xa;entity_type&#xa;entity_id&#xa;timestamp&#xa;ip_address" style="shape=swimlane;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="1020" y="220" width="200" height="140" as="geometry"/>
+        </mxCell>
+
+        <!-- Connectors -->
+        <mxCell id="11" style="endArrow=block;" edge="1" parent="1" source="2" target="4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="12" style="endArrow=block;" edge="1" parent="1" source="3" target="4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="13" style="endArrow=block;" edge="1" parent="1" source="5" target="4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="14" style="endArrow=block;" edge="1" parent="1" source="4" target="6">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="15" style="endArrow=block;" edge="1" parent="1" source="4" target="7">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="16" style="endArrow=block;" edge="1" parent="1" source="2" target="7">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="17" style="endArrow=block;" edge="1" parent="1" source="4" target="8">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="18" style="endArrow=block;" edge="1" parent="1" source="2" target="8">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="19" style="endArrow=block;" edge="1" parent="1" source="3" target="8">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="20" style="endArrow=block;" edge="1" parent="1" source="4" target="9">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="21" style="endArrow=block;" edge="1" parent="1" source="2" target="10">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
